@@ -28,6 +28,7 @@ import {
   religionMultiplikator,
   type Religion,
 } from "./steuer-data";
+import { bundessteuer, bruttoZuSteuerbarApprox } from "./steuer-bund";
 
 export interface SteuerInput {
   einkommenJahr: number;
@@ -35,13 +36,17 @@ export interface SteuerInput {
   kapAuszahlungenJahr: number;
   kanton: string;
   religion: Religion;
+  /** Steuerkategorie für DBG-Bundessteuer. */
+  fallart?: "einzel" | "paar";
   /** Anker fürs Kalibrierungs-Jahr (vom User eingegeben). */
   ankerSteuernHeute?: number | null;
   ankerEinkommenHeute?: number | null;
 }
 
 export interface SteuerOutput {
-  einkommen: number;
+  einkommen: number; // Total Einkommenssteuer (Bund + Kanton/Gemeinde)
+  einkommenBund: number; // davon Bundessteuer (echter DBG-Tarif)
+  einkommenKanton: number; // davon Kanton+Gemeinde+Religion (indikativ)
   vermoegen: number;
   kapital: number;
   total: number;
@@ -59,8 +64,24 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     KAPITALSTEUER_SATZ_KANTON[kanton] ?? DEFAULT_KAPITALSTEUER;
   const relMult = religionMultiplikator(input.religion);
 
-  // Einkommensteuer: Anker bevorzugen, sonst Default
-  let einkommensteuer: number;
+  // Bundessteuer: echter DBG-Tarif progressiv (Phase 4.2)
+  const dbgKategorie = input.fallart === "paar" ? "verheiratet" : "einzel";
+  const steuerbaresEinkommen = bruttoZuSteuerbarApprox(input.einkommenJahr);
+  const bundSteuer = bundessteuer(steuerbaresEinkommen, dbgKategorie);
+
+  // Kanton + Gemeinde + Religion: weiter pauschaler Satz minus Bund-Anteil
+  // (typischer Bund-Anteil 4-7%, daher abziehen damit kein Doppel-Counting)
+  const kantonsteuer_brutto = input.einkommenJahr * ekSatz * relMult;
+  // Annahme: vom pauschalen Mischsatz waren ca. 5% Bundessteuer drin →
+  // korrigieren wir das raus. Vereinfacht durch Anteil-Schätzung.
+  const bundAnteilImPauschalsatz = 0.05; // ca. 5% bei mittlerem Einkommen
+  const kantonsteuer_netto = Math.max(
+    0,
+    kantonsteuer_brutto - input.einkommenJahr * bundAnteilImPauschalsatz
+  );
+
+  // Anker-Modus: User-Eingabe überschreibt Default
+  let einkommensteuerKantonal: number = kantonsteuer_netto;
   let kalibriert = false;
   if (
     input.ankerSteuernHeute != null &&
@@ -68,22 +89,25 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     input.ankerEinkommenHeute != null &&
     input.ankerEinkommenHeute > 0
   ) {
-    // Proportional zum aktuellen Einkommens-Verhältnis
-    einkommensteuer =
+    // Anker-Steuer ist Total (Bund+Kanton+Gemeinde) — proportional skalieren
+    const totalAnkerProportional =
       input.ankerSteuernHeute * (input.einkommenJahr / input.ankerEinkommenHeute);
+    // davon Bundes-Anteil abziehen → Rest = Kanton+Gemeinde
+    einkommensteuerKantonal = Math.max(0, totalAnkerProportional - bundSteuer);
     kalibriert = true;
-  } else {
-    einkommensteuer = input.einkommenJahr * ekSatz * relMult;
   }
 
+  const einkommensteuerTotal = bundSteuer + einkommensteuerKantonal;
   const vermoegensteuer = Math.max(0, input.vermoegenJahr) * vmSatz;
   const kapitalsteuer = input.kapAuszahlungenJahr * kapSatz;
 
   return {
-    einkommen: Math.round(einkommensteuer),
+    einkommen: Math.round(einkommensteuerTotal),
+    einkommenBund: Math.round(bundSteuer),
+    einkommenKanton: Math.round(einkommensteuerKantonal),
     vermoegen: Math.round(vermoegensteuer),
     kapital: Math.round(kapitalsteuer),
-    total: Math.round(einkommensteuer + vermoegensteuer + kapitalsteuer),
+    total: Math.round(einkommensteuerTotal + vermoegensteuer + kapitalsteuer),
     kalibriert,
   };
 }

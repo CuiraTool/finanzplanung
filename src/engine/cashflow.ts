@@ -283,6 +283,7 @@ export function cashflowReihe(
       kapAuszahlungenJahr: kapAuszahlungen,
       kanton: state.adresse.kanton,
       religion: state.budget.religion,
+      fallart: state.fallart,
       ankerSteuernHeute: state.budget.steuernHeute,
       ankerEinkommenHeute: state.budget.einkommenHeute,
     });
