@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
+import { block1MinimumErfuellt } from "@/lib/validation";
 import { Block1Personen } from "./Block1Personen";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
@@ -18,7 +20,7 @@ import { Block10Nachlass } from "./Block10Nachlass";
  * Mapping zu den Typeform-Blöcken (siehe docs/Pensionsplanung_Typeform_Optimierung):
  *   1 → A + B (Personen: Kopfdaten, Zivilstand, Familie, Adresse, Kontakt)
  *   2 → C + D (Ziele: Pensionierungsalter ordentlich/Wunsch, einmalige Ausgaben)
- *   3 → H/aktuell (Budget: monatlicher Verbrauch heute + Wunsch in Pension) — NEU
+ *   3 → H/aktuell (Budget: monatlicher Verbrauch heute + Wunsch in Pension)
  *   4 → E     (1. Säule AHV)
  *   5 → F     (2. Säule Pensionskasse)
  *   6 → G     (3. Säule 3a/3b)
@@ -43,6 +45,17 @@ const BLOCKS = [
 export function Wizard() {
   const aktiverBlock = usePlanStore((s) => s.aktiverBlock);
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
+  const fullState = usePlanStore();
+
+  const validation = useMemo(() => block1MinimumErfuellt(fullState), [fullState]);
+
+  // Wenn Block 1 unvollständig wird (z.B. User löscht Geburtsdatum),
+  // navigiere automatisch zurück zu Block 1.
+  useEffect(() => {
+    if (!validation.komplett && aktiverBlock !== 1) {
+      setAktiverBlock(1);
+    }
+  }, [validation.komplett, aktiverBlock, setAktiverBlock]);
 
   return (
     <div className="p-6">
@@ -51,31 +64,54 @@ export function Wizard() {
         <p className="text-sm text-slate-500">Eingabe</p>
       </header>
 
+      {!validation.komplett && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="font-semibold">Block 1 vervollständigen, um weiterzugehen</div>
+          <div className="mt-0.5">
+            Fehlt noch: {validation.fehlend.join(", ")}
+          </div>
+        </div>
+      )}
+
       <ol className="mb-6 space-y-1">
         {BLOCKS.map((b) => {
           const isActive = aktiverBlock === b.id;
+          const isLocked = b.id !== 1 && !validation.komplett;
+          const isClickable = b.implemented && !isLocked;
           return (
             <li key={b.id}>
               <button
                 type="button"
-                onClick={() => b.implemented && setAktiverBlock(b.id)}
-                disabled={!b.implemented}
+                onClick={() => isClickable && setAktiverBlock(b.id)}
+                disabled={!isClickable}
+                title={
+                  isLocked ? "Erst Block 1 ausfüllen (Pflichtfelder)" : undefined
+                }
                 className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition ${
                   isActive
                     ? "border-blue-600 bg-blue-50"
-                    : b.implemented
+                    : isClickable
                       ? "border-slate-200 bg-slate-50 hover:border-slate-300"
                       : "border-slate-200 bg-slate-50 text-slate-400"
                 }`}
               >
                 <span
                   className={`flex size-6 items-center justify-center rounded-full text-xs font-medium tabular-nums ${
-                    isActive ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-700"
+                    isActive
+                      ? "bg-blue-600 text-white"
+                      : isLocked
+                        ? "bg-slate-200 text-slate-400"
+                        : "bg-slate-200 text-slate-700"
                   }`}
                 >
                   {b.id}
                 </span>
                 <span className="flex-1">{b.title}</span>
+                {isLocked && (
+                  <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                    🔒
+                  </span>
+                )}
                 {!b.implemented && (
                   <span className="text-[10px] uppercase tracking-wide text-slate-400">
                     bald

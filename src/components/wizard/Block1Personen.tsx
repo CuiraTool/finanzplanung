@@ -77,7 +77,7 @@ export function Block1Personen() {
       </Section>
 
       {/* Adresse */}
-      <Section title="Adresse" hint="für spätere Steuerberechnung">
+      <Section title="Adresse" hint="Kanton ist Pflicht für Steuerberechnung">
         <Field label="Strasse">
           <input
             type="text"
@@ -109,7 +109,7 @@ export function Block1Personen() {
             />
           </Field>
         </div>
-        <Field label="Kanton">
+        <Field label="Kanton *" hint="Pflichtfeld">
           <select
             value={adresse.kanton}
             onChange={(e) => setAdresse({ kanton: e.target.value })}
@@ -222,7 +222,7 @@ function PersonForm({
   return (
     <Section title={title}>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Vorname">
+        <Field label="Vorname *" hint="Pflichtfeld">
           <input
             type="text"
             value={person.vorname}
@@ -239,7 +239,7 @@ function PersonForm({
           />
         </Field>
       </div>
-      <Field label="Geburtsdatum">
+      <Field label="Geburtsdatum *" hint="Pflichtfeld — bestimmt Pensionsjahr">
         <input
           type="date"
           value={person.geburtsdatum}
