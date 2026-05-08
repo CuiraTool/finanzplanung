@@ -126,6 +126,27 @@ export interface BvgInput {
   p2: BvgPersonInput;
 }
 
+/** 3. Säule — Block 6. Konto oder Versicherung, beliebig viele pro Person. */
+export type SaeuleDreiTyp = "konto" | "versicherung";
+
+export interface SaeuleDreiEntry {
+  id: string;
+  type: SaeuleDreiTyp;
+  beschreibung: string;
+  // Konto:
+  aktuellerWert: number | null;
+  auszahlungsjahr: number;
+  renditeProzent: number;
+  // Versicherung:
+  rueckkaufswert: number | null;
+  ablaufjahr: number;
+}
+
+export interface SaeuleDreiInput {
+  p1: SaeuleDreiEntry[];
+  p2: SaeuleDreiEntry[];
+}
+
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
@@ -178,6 +199,7 @@ export interface PlanState {
   budget: Budget;
   ahv: AhvInput;
   bvg: BvgInput;
+  saeuleDrei: SaeuleDreiInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -216,6 +238,13 @@ export interface PlanState {
     patch: Partial<EinkaufEntry>
   ) => void;
   removeEinkauf: (personIdx: 1 | 2, id: string) => void;
+  addSaeuleDrei: (personIdx: 1 | 2, type: SaeuleDreiTyp) => void;
+  updateSaeuleDrei: (
+    personIdx: 1 | 2,
+    id: string,
+    patch: Partial<Omit<SaeuleDreiEntry, "id">>
+  ) => void;
+  removeSaeuleDrei: (personIdx: 1 | 2, id: string) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -313,6 +342,7 @@ export const usePlanStore = create<PlanState>()(
       budget: { ...initialBudget },
       ahv: { ...initialAhv },
       bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
+      saeuleDrei: { p1: [], p2: [] },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -512,6 +542,49 @@ export const usePlanStore = create<PlanState>()(
             },
           };
         }),
+      addSaeuleDrei: (personIdx, type) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          const naechstesJahr = new Date().getFullYear() + 5;
+          const neu: SaeuleDreiEntry = {
+            id: newId(),
+            type,
+            beschreibung: "",
+            aktuellerWert: null,
+            auszahlungsjahr: naechstesJahr,
+            renditeProzent: 1.5,
+            rueckkaufswert: null,
+            ablaufjahr: naechstesJahr,
+          };
+          return {
+            saeuleDrei: {
+              ...s.saeuleDrei,
+              [key]: [...s.saeuleDrei[key], neu],
+            },
+          };
+        }),
+      updateSaeuleDrei: (personIdx, id, patch) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            saeuleDrei: {
+              ...s.saeuleDrei,
+              [key]: s.saeuleDrei[key].map((e) =>
+                e.id === id ? { ...e, ...patch } : e
+              ),
+            },
+          };
+        }),
+      removeSaeuleDrei: (personIdx, id) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            saeuleDrei: {
+              ...s.saeuleDrei,
+              [key]: s.saeuleDrei[key].filter((e) => e.id !== id),
+            },
+          };
+        }),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -526,11 +599,12 @@ export const usePlanStore = create<PlanState>()(
           budget: { ...initialBudget },
           ahv: { ...initialAhv },
           bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
+          saeuleDrei: { p1: [], p2: [] },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v11",
+      name: "cuira-plan-v12",
     }
   )
 );

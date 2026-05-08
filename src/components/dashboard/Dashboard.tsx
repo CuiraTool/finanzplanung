@@ -3,6 +3,7 @@
 import { usePlanStore } from "@/lib/store";
 import { ahvCouplePension, ahvJahresrenteEinzel } from "@/engine/ahv";
 import { bvgBezug, bvgGesamtkapitalBeiBezug } from "@/engine/bvg";
+import { saeuleDreiTotal } from "@/engine/saeule3";
 import type { BvgPersonInput } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
@@ -11,12 +12,17 @@ export function Dashboard() {
   const fallart = usePlanStore((s) => s.fallart);
   const ahvInput = usePlanStore((s) => s.ahv);
   const bvgInput = usePlanStore((s) => s.bvg);
+  const saeule3 = usePlanStore((s) => s.saeuleDrei);
   const ziele = usePlanStore((s) => s.ziele);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
 
   const ahv = computeAhv();
   const bvg = computeBvg();
+  const saeule3Total =
+    saeuleDreiTotal(saeule3.p1) +
+    (fallart === "paar" ? saeuleDreiTotal(saeule3.p2) : 0);
+  const saeule3Anzahl = saeule3.p1.length + (fallart === "paar" ? saeule3.p2.length : 0);
 
   function computeAhv(): {
     haushaltJahres: number | null;
@@ -186,7 +192,7 @@ export function Dashboard() {
         <span className="text-xs text-slate-400">Etappe 1 — AHV + BVG live</span>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
           label="AHV p.a. Haushalt"
           value={formatChf(ahv.haushaltJahres)}
@@ -213,6 +219,15 @@ export function Dashboard() {
             ...(bvg.kapital ? [`+ Kapital: ${formatChf(bvg.kapital)}`] : []),
             ...bvg.details.filter((d) => !d.startsWith("Mindest")),
           ]}
+        />
+        <KpiCard
+          label="3. Säule Total"
+          value={saeule3Anzahl === 0 ? "—" : formatChf(saeule3Total)}
+          hints={
+            saeule3Anzahl === 0
+              ? ["Block 6 in Arbeit"]
+              : [`${saeule3Anzahl} Eintrag/Einträge`, "Konten + Versicherungen"]
+          }
         />
       </div>
 
