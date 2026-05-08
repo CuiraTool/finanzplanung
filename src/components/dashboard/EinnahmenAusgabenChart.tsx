@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { CashflowZeile } from "@/engine/cashflow";
+import { JahrAlterTick, X_ACHSEN_HOEHE } from "./chart-shared";
 
 interface Props {
   daten: CashflowZeile[];
@@ -56,8 +57,10 @@ export function EinnahmenAusgabenChart({
 
           <XAxis
             dataKey="jahr"
-            tickFormatter={(jahr) => xAchsenLabel(daten, jahr, fallart)}
-            tick={{ fontSize: 10 }}
+            tick={(props) => (
+              <JahrAlterTick {...props} daten={daten} fallart={fallart} />
+            )}
+            height={X_ACHSEN_HOEHE}
             stroke="#64748b"
             interval="preserveStartEnd"
           />
@@ -141,19 +144,6 @@ export function EinnahmenAusgabenChart({
       </ResponsiveContainer>
     </div>
   );
-}
-
-function xAchsenLabel(
-  daten: CashflowZeile[],
-  jahr: number,
-  fallart: "einzel" | "paar"
-): string {
-  const zeile = daten.find((z) => z.jahr === jahr);
-  if (!zeile || zeile.alterP1 == null) return String(jahr);
-  if (fallart === "paar" && zeile.alterP2 != null) {
-    return `${jahr}\n${zeile.alterP1}/${zeile.alterP2}`;
-  }
-  return `${jahr}\n${zeile.alterP1} J.`;
 }
 
 function Legende() {
