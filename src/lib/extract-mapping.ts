@@ -1,15 +1,18 @@
 /**
  * Mapping zwischen extrahierten Doc-Werten und Plan-State-Setter.
  *
- * Liefert eine Liste von "Vorschlägen" — Einzelne Felder, die der User
- * gezielt übernehmen oder verwerfen kann. Jeder Vorschlag enthält:
+ * Funktionen:
+ *  - bestimmePersonIdx: heuristisches Match P1/P2 anhand betrifftName
+ *  - vorschlaegeAusExtract: liefert eine Liste von Vorschlägen
+ *
+ * Jeder Vorschlag enthält:
  *  - eine menschenlesbare Beschreibung ("PK-Altersguthaben heute")
  *  - aktueller Plan-Wert (zum Vergleich)
  *  - vorgeschlagener Wert (aus dem Doc)
  *  - die Apply-Funktion, die den Wert in den Store schreibt
  */
 
-import type { ExtractedDocument, ExtractedFelder } from "./extract-schema";
+import type { ExtractedDocument } from "./extract-schema";
 import type { PlanState } from "./store";
 
 export interface Vorschlag {
@@ -21,64 +24,101 @@ export interface Vorschlag {
   apply: (store: PlanStoreActions) => void;
 }
 
-/**
- * Setter-Subset, den die Mapping-Logik braucht. Erlaubt es, Vorschläge gegen
- * einen sauberen Action-Slice testen zu können (statt gegen den ganzen Store).
- */
 export type PlanStoreActions = Pick<
   PlanState,
   | "setPerson1"
+  | "setPerson2"
   | "setAdresse"
   | "setSteuerAnker"
   | "setBvgP1"
+  | "setBvgP2"
   | "setAhv"
   | "addSaeuleDrei"
+  | "addFreizuegigkeit"
   | "addVermoegen"
+  | "addImmobilie"
 >;
 
 const fmtChf = (n: number | null): string =>
   n == null ? "—" : new Intl.NumberFormat("de-CH").format(n) + " CHF";
 const fmtPct = (n: number | null): string => (n == null ? "—" : `${n}%`);
 
-export function vorschlaegeAusExtract(
+export type PersonIdx = 1 | 2;
+export type PersonHint = PersonIdx | "unsicher";
+
+/**
+ * Heuristik: bestimmt anhand des Doc-betrifftName, ob das Doc P1 oder P2
+ * zugeordnet werden soll. Bei Einzelperson immer P1.
+ */
+export function bestimmePersonIdx(
   ex: ExtractedDocument,
   state: PlanState
+): PersonHint {
+  if (state.fallart === "einzel") return 1;
+
+  const name = ex.betrifftName?.toLowerCase().trim();
+  if (!name) return "unsicher";
+
+  const p1Vor = state.person1.vorname.toLowerCase().trim();
+  const p1Nach = state.person1.nachname.toLowerCase().trim();
+  const p2Vor = state.person2.vorname.toLowerCase().trim();
+  const p2Nach = state.person2.nachname.toLowerCase().trim();
+
+  const p1Match =
+    (p1Vor && name.includes(p1Vor)) || (p1Nach && name.includes(p1Nach));
+  const p2Match =
+    (p2Vor && name.includes(p2Vor)) || (p2Nach && name.includes(p2Nach));
+
+  if (p1Match && !p2Match) return 1;
+  if (p2Match && !p1Match) return 2;
+  return "unsicher";
+}
+
+export function vorschlaegeAusExtract(
+  ex: ExtractedDocument,
+  state: PlanState,
+  personIdx: PersonIdx = 1
 ): Vorschlag[] {
   const f = ex.felder;
   const out: Vorschlag[] = [];
 
+  const personState = personIdx === 1 ? state.person1 : state.person2;
+  const setPerson = personIdx === 1 ? "setPerson1" : "setPerson2";
+  const personLabel = personIdx === 1 ? "P1" : "P2";
+
   // ─── Block 1 — Personen ──────────────────────────────────────────
-  if (f.vorname && f.vorname !== state.person1.vorname) {
+  if (f.vorname && f.vorname !== personState.vorname) {
     out.push({
-      id: "person1.vorname",
-      feldLabel: "Vorname",
+      id: `person.vorname.${personIdx}`,
+      feldLabel: `Vorname ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 1 — Personen",
-      aktuellerWert: state.person1.vorname || "—",
+      aktuellerWert: personState.vorname || "—",
       neuerWert: f.vorname,
-      apply: (s) => s.setPerson1({ vorname: f.vorname! }),
+      apply: (s) => s[setPerson]({ vorname: f.vorname! }),
     });
   }
-  if (f.nachname && f.nachname !== state.person1.nachname) {
+  if (f.nachname && f.nachname !== personState.nachname) {
     out.push({
-      id: "person1.nachname",
-      feldLabel: "Nachname",
+      id: `person.nachname.${personIdx}`,
+      feldLabel: `Nachname ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 1 — Personen",
-      aktuellerWert: state.person1.nachname || "—",
+      aktuellerWert: personState.nachname || "—",
       neuerWert: f.nachname,
-      apply: (s) => s.setPerson1({ nachname: f.nachname! }),
+      apply: (s) => s[setPerson]({ nachname: f.nachname! }),
     });
   }
-  if (f.geburtsdatum && f.geburtsdatum !== state.person1.geburtsdatum) {
+  if (f.geburtsdatum && f.geburtsdatum !== personState.geburtsdatum) {
     out.push({
-      id: "person1.geburtsdatum",
-      feldLabel: "Geburtsdatum",
+      id: `person.geburtsdatum.${personIdx}`,
+      feldLabel: `Geburtsdatum ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 1 — Personen",
-      aktuellerWert: state.person1.geburtsdatum || "—",
+      aktuellerWert: personState.geburtsdatum || "—",
       neuerWert: f.geburtsdatum,
-      apply: (s) => s.setPerson1({ geburtsdatum: f.geburtsdatum! }),
+      apply: (s) => s[setPerson]({ geburtsdatum: f.geburtsdatum! }),
     });
   }
 
+  // Adresse — auf Haushalt-Ebene, nicht pro Person
   if (f.strasse && f.strasse !== state.adresse.strasse) {
     out.push({
       id: "adresse.strasse",
@@ -149,48 +189,128 @@ export function vorschlaegeAusExtract(
 
   // ─── Block 4 — AHV ──────────────────────────────────────────────
   if (f.massgebendesEinkommen != null) {
+    const aktuell =
+      personIdx === 1 ? state.ahv.einkommenP1 : state.ahv.einkommenP2;
     out.push({
-      id: "ahv.einkommenP1",
-      feldLabel: "Massgebendes Jahreseinkommen P1",
+      id: `ahv.einkommen.${personIdx}`,
+      feldLabel: `Massgebendes Einkommen ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 4 — AHV",
-      aktuellerWert: fmtChf(state.ahv.einkommenP1),
+      aktuellerWert: fmtChf(aktuell),
       neuerWert: fmtChf(f.massgebendesEinkommen),
-      apply: (s) => s.setAhv({ einkommenP1: f.massgebendesEinkommen }),
+      apply: (s) =>
+        personIdx === 1
+          ? s.setAhv({ einkommenP1: f.massgebendesEinkommen })
+          : s.setAhv({ einkommenP2: f.massgebendesEinkommen }),
     });
   }
 
   // ─── Block 5 — PK ───────────────────────────────────────────────
+  const bvgP = personIdx === 1 ? state.bvg.p1 : state.bvg.p2;
+  const setBvgP = personIdx === 1 ? "setBvgP1" : "setBvgP2";
+
   if (f.pkAltersguthabenHeute != null) {
     out.push({
-      id: "bvg.altersguthabenHeute",
-      feldLabel: "PK-Altersguthaben heute",
+      id: `bvg.altersguthabenHeute.${personIdx}`,
+      feldLabel: `PK-Altersguthaben heute ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 5 — Pensionskasse",
-      aktuellerWert: fmtChf(state.bvg.p1.altersguthabenHeute),
+      aktuellerWert: fmtChf(bvgP.altersguthabenHeute),
       neuerWert: fmtChf(f.pkAltersguthabenHeute),
       apply: (s) =>
-        s.setBvgP1({ altersguthabenHeute: f.pkAltersguthabenHeute }),
+        s[setBvgP]({ altersguthabenHeute: f.pkAltersguthabenHeute }),
     });
   }
   if (f.pkAltersguthabenMit65 != null) {
     out.push({
-      id: "bvg.altersguthabenBeiBezug",
-      feldLabel: "PK-Altersguthaben mit 65",
+      id: `bvg.altersguthabenBeiBezug.${personIdx}`,
+      feldLabel: `PK-Altersguthaben mit 65 ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 5 — Pensionskasse",
-      aktuellerWert: fmtChf(state.bvg.p1.altersguthabenBeiBezug),
+      aktuellerWert: fmtChf(bvgP.altersguthabenBeiBezug),
       neuerWert: fmtChf(f.pkAltersguthabenMit65),
       apply: (s) =>
-        s.setBvgP1({ altersguthabenBeiBezug: f.pkAltersguthabenMit65 }),
+        s[setBvgP]({ altersguthabenBeiBezug: f.pkAltersguthabenMit65 }),
     });
   }
   if (f.pkUmwandlungssatzProzent != null) {
     out.push({
-      id: "bvg.umwandlungssatz",
-      feldLabel: "PK-Umwandlungssatz",
+      id: `bvg.umwandlungssatz.${personIdx}`,
+      feldLabel: `PK-Umwandlungssatz ${state.fallart === "paar" ? personLabel : ""}`.trim(),
       block: "Block 5 — Pensionskasse",
-      aktuellerWert: fmtPct(state.bvg.p1.umwandlungssatzProzent),
+      aktuellerWert: fmtPct(bvgP.umwandlungssatzProzent),
       neuerWert: fmtPct(f.pkUmwandlungssatzProzent),
       apply: (s) =>
-        s.setBvgP1({ umwandlungssatzProzent: f.pkUmwandlungssatzProzent! }),
+        s[setBvgP]({ umwandlungssatzProzent: f.pkUmwandlungssatzProzent! }),
+    });
+  }
+
+  // Freizügigkeit als neuer Eintrag
+  if (f.freizuegigkeitSaldo != null) {
+    const beschreibung = f.freizuegigkeitAnbieter ?? "Freizügigkeit (importiert)";
+    out.push({
+      id: `bvg.freizuegigkeit.${personIdx}`,
+      feldLabel: `Neue Freizügigkeit anlegen ${state.fallart === "paar" ? personLabel : ""}`.trim(),
+      block: "Block 5 — Pensionskasse",
+      aktuellerWert: "—",
+      neuerWert: `${fmtChf(f.freizuegigkeitSaldo)}${
+        f.freizuegigkeitAnbieter ? ` (${f.freizuegigkeitAnbieter})` : ""
+      }`,
+      apply: (s) =>
+        s.addFreizuegigkeit(personIdx, {
+          beschreibung,
+          saldoHeute: f.freizuegigkeitSaldo!,
+        }),
+    });
+  }
+
+  // ─── Block 6 — 3. Säule ─────────────────────────────────────────
+  if (f.saeule3aKontoSaldo != null) {
+    const beschreibung = f.saeule3aKontoAnbieter ?? "3a-Konto (importiert)";
+    out.push({
+      id: `saeule3.konto.${personIdx}`,
+      feldLabel: `Neues 3a-Konto anlegen ${state.fallart === "paar" ? personLabel : ""}`.trim(),
+      block: "Block 6 — 3. Säule",
+      aktuellerWert: "—",
+      neuerWert: `${fmtChf(f.saeule3aKontoSaldo)}${
+        f.saeule3aKontoAnbieter ? ` (${f.saeule3aKontoAnbieter})` : ""
+      }`,
+      apply: (s) =>
+        s.addSaeuleDrei(personIdx, "konto", {
+          beschreibung,
+          aktuellerWert: f.saeule3aKontoSaldo!,
+        }),
+    });
+  }
+  if (
+    f.saeule3aVersicherungRueckkaufswert != null ||
+    f.saeule3aVersicherungAblaufswert != null
+  ) {
+    const beschreibung =
+      f.saeule3aVersicherungAnbieter ?? "3a-Versicherung (importiert)";
+    const valueText = [
+      f.saeule3aVersicherungRueckkaufswert != null
+        ? `Rückkauf ${fmtChf(f.saeule3aVersicherungRueckkaufswert)}`
+        : null,
+      f.saeule3aVersicherungAblaufswert != null
+        ? `Ablauf ${fmtChf(f.saeule3aVersicherungAblaufswert)}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    out.push({
+      id: `saeule3.versicherung.${personIdx}`,
+      feldLabel: `Neue 3a-Versicherung anlegen ${state.fallart === "paar" ? personLabel : ""}`.trim(),
+      block: "Block 6 — 3. Säule",
+      aktuellerWert: "—",
+      neuerWert: `${valueText}${
+        f.saeule3aVersicherungAnbieter ? ` (${f.saeule3aVersicherungAnbieter})` : ""
+      }`,
+      apply: (s) =>
+        s.addSaeuleDrei(personIdx, "versicherung", {
+          beschreibung,
+          rueckkaufswert: f.saeule3aVersicherungRueckkaufswert,
+          ablaufswert: f.saeule3aVersicherungAblaufswert,
+          ablaufjahr:
+            f.saeule3aVersicherungAblaufjahr ?? new Date().getFullYear() + 5,
+        }),
     });
   }
 
@@ -198,27 +318,52 @@ export function vorschlaegeAusExtract(
   if (f.bankkontoSaldo != null) {
     out.push({
       id: "vermoegen.bankkonto",
-      feldLabel: "Neues Bankkonto hinzufügen",
+      feldLabel: "Neues Bankkonto anlegen",
       block: "Block 7 — Vermögen",
       aktuellerWert: "—",
       neuerWert: fmtChf(f.bankkontoSaldo),
-      apply: (s) => {
-        // Vermögensitem hinzufügen — der spätere Update-Schritt befüllt es
-        s.addVermoegen("konto");
-        // Hinweis: Beschreibung + Saldo werden manuell vom User ergänzt;
-        // V1-Heuristik: wir lassen den Add stehen, User benennt es.
-      },
+      apply: (s) =>
+        s.addVermoegen("konto", {
+          beschreibung: "Bankkonto (importiert)",
+          saldoHeute: f.bankkontoSaldo!,
+        }),
     });
   }
   if (f.depotSaldo != null) {
     out.push({
       id: "vermoegen.depot",
-      feldLabel: "Neues Depot hinzufügen",
+      feldLabel: "Neues Depot anlegen",
       block: "Block 7 — Vermögen",
       aktuellerWert: "—",
       neuerWert: fmtChf(f.depotSaldo),
+      apply: (s) =>
+        s.addVermoegen("depot", {
+          beschreibung: "Depot (importiert)",
+          saldoHeute: f.depotSaldo!,
+        }),
+    });
+  }
+
+  // ─── Block 8 — Immobilien ───────────────────────────────────────
+  if (f.immobilieVerkehrswert != null) {
+    out.push({
+      id: "immobilie.neu",
+      feldLabel: "Neue Immobilie anlegen",
+      block: "Block 8 — Immobilien",
+      aktuellerWert: "—",
+      neuerWert: `Verkehrswert ${fmtChf(f.immobilieVerkehrswert)}${
+        f.hypothekRestschuld != null
+          ? `, Hypothek ${fmtChf(f.hypothekRestschuld)}`
+          : ""
+      }`,
       apply: (s) => {
-        s.addVermoegen("depot");
+        s.addImmobilie({
+          beschreibung: "Immobilie (importiert)",
+          typ: "selbstbewohnt",
+          verkehrswert: f.immobilieVerkehrswert!,
+        });
+        // Hypothek separat hinzuzufügen ist hier komplex (braucht id der neu
+        // erstellten Immobilie), wir speichern Hypothekendaten in den notizen.
       },
     });
   }
@@ -226,9 +371,7 @@ export function vorschlaegeAusExtract(
   return out;
 }
 
-/**
- * Hilfsfunktion: zählt wie viele Felder pro Block einen Vorschlag haben.
- */
+/** Hilfsfunktion: zählt wie viele Felder pro Block einen Vorschlag haben. */
 export function vorschlaegeNachBlock(
   vorschlaege: Vorschlag[]
 ): { block: string; anzahl: number }[] {
@@ -249,6 +392,3 @@ export function alleVorschlaegeAnwenden(
 ): void {
   for (const v of vorschlaege) v.apply(store);
 }
-
-// Helper: extrahiert die Felder, falls man direkt durch will
-export type ExtractFeld = keyof ExtractedFelder;

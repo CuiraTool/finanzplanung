@@ -67,18 +67,26 @@ export interface ExtractedFelder {
   pkAltersguthabenMit65: number | null;
   /** PK-Umwandlungssatz in Prozent (z.B. 6.0 für 6%). */
   pkUmwandlungssatzProzent: number | null;
+  /** PK-Anbieter (z.B. "Tellco", "Pensionskasse SBB"). */
+  pkAnbieter: string | null;
   /** Freizügigkeitsguthaben (separater Eintrag möglich). */
   freizuegigkeitSaldo: number | null;
+  /** FZ-Anbieter (z.B. "Migros Bank FZ-Konto"). */
+  freizuegigkeitAnbieter: string | null;
 
   // 3. Säule (Block 6)
   /** 3a-Konto Saldo. */
   saeule3aKontoSaldo: number | null;
+  /** 3a-Konto Anbieter (z.B. "ZKB 3a-Konto"). */
+  saeule3aKontoAnbieter: string | null;
   /** 3a-Versicherung Rückkaufswert. */
   saeule3aVersicherungRueckkaufswert: number | null;
   /** 3a-Versicherung Erlebensfallleistung. */
   saeule3aVersicherungAblaufswert: number | null;
   /** 3a-Versicherung Ablaufjahr. */
   saeule3aVersicherungAblaufjahr: number | null;
+  /** 3a-Versicherung Anbieter (z.B. "AXA 3a-Police"). */
+  saeule3aVersicherungAnbieter: string | null;
 
   // Vermögen (Block 7)
   /** Liquid-Saldo Bankkonto. */
@@ -91,6 +99,10 @@ export interface ExtractedFelder {
   immobilieVerkehrswert: number | null;
   /** Hypothek-Restschuld. */
   hypothekRestschuld: number | null;
+  /** Hypothek-Zinssatz in Prozent (z.B. 1.5 für 1.5%). */
+  hypothekZinssatzProzent: number | null;
+  /** Hypothek-Ablaufjahr. */
+  hypothekAblaufjahr: number | null;
 
   // Notizen
   /** Freie Anmerkungen, Auffälligkeiten, was nicht ins Schema passte. */

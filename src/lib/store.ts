@@ -343,7 +343,10 @@ export interface PlanState {
   setAhv: (patch: Partial<AhvInput>) => void;
   setBvgP1: (patch: Partial<BvgPersonInput>) => void;
   setBvgP2: (patch: Partial<BvgPersonInput>) => void;
-  addFreizuegigkeit: (personIdx: 1 | 2) => void;
+  addFreizuegigkeit: (
+    personIdx: 1 | 2,
+    initial?: Partial<Omit<FreizuegigkeitEntry, "id">>
+  ) => void;
   updateFreizuegigkeit: (
     personIdx: 1 | 2,
     id: string,
@@ -357,24 +360,36 @@ export interface PlanState {
     patch: Partial<EinkaufEntry>
   ) => void;
   removeEinkauf: (personIdx: 1 | 2, id: string) => void;
-  addSaeuleDrei: (personIdx: 1 | 2, type: SaeuleDreiTyp) => void;
+  addSaeuleDrei: (
+    personIdx: 1 | 2,
+    type: SaeuleDreiTyp,
+    initial?: Partial<Omit<SaeuleDreiEntry, "id" | "type">>
+  ) => void;
   updateSaeuleDrei: (
     personIdx: 1 | 2,
     id: string,
     patch: Partial<Omit<SaeuleDreiEntry, "id">>
   ) => void;
   removeSaeuleDrei: (personIdx: 1 | 2, id: string) => void;
-  addVermoegen: (typ: VermoegenTyp) => void;
+  addVermoegen: (
+    typ: VermoegenTyp,
+    initial?: Partial<Omit<VermoegenItem, "id" | "typ" | "istHauptkonto">>
+  ) => void;
   updateVermoegen: (id: string, patch: Partial<Omit<VermoegenItem, "id">>) => void;
   removeVermoegen: (id: string) => void;
   setHauptkonto: (id: string) => void;
-  addImmobilie: () => void;
+  addImmobilie: (
+    initial?: Partial<Omit<Immobilie, "id" | "hypotheken">>
+  ) => void;
   updateImmobilie: (
     id: string,
     patch: Partial<Omit<Immobilie, "id" | "hypotheken">>
   ) => void;
   removeImmobilie: (id: string) => void;
-  addHypothek: (immobilieId: string) => void;
+  addHypothek: (
+    immobilieId: string,
+    initial?: Partial<Omit<Hypothek, "id">>
+  ) => void;
   updateHypothek: (
     immobilieId: string,
     hypothekId: string,
@@ -635,7 +650,7 @@ export const usePlanStore = create<PlanState>()(
         set((s) => ({ bvg: { ...s.bvg, p1: { ...s.bvg.p1, ...patch } } })),
       setBvgP2: (patch) =>
         set((s) => ({ bvg: { ...s.bvg, p2: { ...s.bvg.p2, ...patch } } })),
-      addFreizuegigkeit: (personIdx) =>
+      addFreizuegigkeit: (personIdx, initial) =>
         set((s) => {
           const key = personIdx === 1 ? "p1" : "p2";
           return {
@@ -647,10 +662,11 @@ export const usePlanStore = create<PlanState>()(
                   ...s.bvg[key].freizuegigkeit,
                   {
                     id: newId(),
-                    beschreibung: "",
-                    saldoHeute: null,
-                    auszahlungsjahr: new Date().getFullYear() + 5,
-                    renditeProzent: 0,
+                    beschreibung: initial?.beschreibung ?? "",
+                    saldoHeute: initial?.saldoHeute ?? null,
+                    auszahlungsjahr:
+                      initial?.auszahlungsjahr ?? new Date().getFullYear() + 5,
+                    renditeProzent: initial?.renditeProzent ?? 0,
                   },
                 ],
               },
@@ -733,7 +749,7 @@ export const usePlanStore = create<PlanState>()(
             },
           };
         }),
-      addSaeuleDrei: (personIdx, type) =>
+      addSaeuleDrei: (personIdx, type, initial) =>
         set((s) => {
           const key = personIdx === 1 ? "p1" : "p2";
           const aktJahr = new Date().getFullYear();
@@ -741,16 +757,16 @@ export const usePlanStore = create<PlanState>()(
           const neu: SaeuleDreiEntry = {
             id: newId(),
             type,
-            beschreibung: "",
-            aktuellerWert: null,
-            auszahlungsjahr: naechstesJahr,
-            renditeProzent: 1.5,
-            rueckkaufswert: null,
-            ablaufswert: null,
-            ablaufjahr: naechstesJahr,
-            jaehrlicheEinzahlung: null,
-            einzahlungAb: aktJahr,
-            einzahlungBis: naechstesJahr - 1,
+            beschreibung: initial?.beschreibung ?? "",
+            aktuellerWert: initial?.aktuellerWert ?? null,
+            auszahlungsjahr: initial?.auszahlungsjahr ?? naechstesJahr,
+            renditeProzent: initial?.renditeProzent ?? 1.5,
+            rueckkaufswert: initial?.rueckkaufswert ?? null,
+            ablaufswert: initial?.ablaufswert ?? null,
+            ablaufjahr: initial?.ablaufjahr ?? naechstesJahr,
+            jaehrlicheEinzahlung: initial?.jaehrlicheEinzahlung ?? null,
+            einzahlungAb: initial?.einzahlungAb ?? aktJahr,
+            einzahlungBis: initial?.einzahlungBis ?? naechstesJahr - 1,
           };
           return {
             saeuleDrei: {
@@ -781,7 +797,7 @@ export const usePlanStore = create<PlanState>()(
             },
           };
         }),
-      addVermoegen: (typ) =>
+      addVermoegen: (typ, initial) =>
         set((s) => ({
           vermoegen: {
             items: [
@@ -789,9 +805,9 @@ export const usePlanStore = create<PlanState>()(
               {
                 id: newId(),
                 typ,
-                beschreibung: "",
-                saldoHeute: null,
-                renditeProzent: 0,
+                beschreibung: initial?.beschreibung ?? "",
+                saldoHeute: initial?.saldoHeute ?? null,
+                renditeProzent: initial?.renditeProzent ?? 0,
                 istHauptkonto: false,
               },
             ],
@@ -843,18 +859,18 @@ export const usePlanStore = create<PlanState>()(
             })),
           },
         })),
-      addImmobilie: () =>
+      addImmobilie: (initial) =>
         set((s) => {
           const jahr = new Date().getFullYear();
           const neu: Immobilie = {
             id: newId(),
-            beschreibung: "",
-            typ: "selbstbewohnt",
-            verkehrswert: null,
+            beschreibung: initial?.beschreibung ?? "",
+            typ: initial?.typ ?? "selbstbewohnt",
+            verkehrswert: initial?.verkehrswert ?? null,
             hypotheken: [],
-            plan: "behalten",
-            verkaufsjahr: jahr + 10,
-            jaehrlicheMieteinnahmen: null,
+            plan: initial?.plan ?? "behalten",
+            verkaufsjahr: initial?.verkaufsjahr ?? jahr + 10,
+            jaehrlicheMieteinnahmen: initial?.jaehrlicheMieteinnahmen ?? null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
@@ -872,14 +888,14 @@ export const usePlanStore = create<PlanState>()(
             items: s.immobilien.items.filter((im) => im.id !== id),
           },
         })),
-      addHypothek: (immobilieId) =>
+      addHypothek: (immobilieId, initial) =>
         set((s) => {
           const neueHypothek: Hypothek = {
             id: newId(),
-            beschreibung: "",
-            hoehe: null,
-            zinssatzProzent: 1.5,
-            ablaufjahr: new Date().getFullYear() + 5,
+            beschreibung: initial?.beschreibung ?? "",
+            hoehe: initial?.hoehe ?? null,
+            zinssatzProzent: initial?.zinssatzProzent ?? 1.5,
+            ablaufjahr: initial?.ablaufjahr ?? new Date().getFullYear() + 5,
           };
           return {
             immobilien: {

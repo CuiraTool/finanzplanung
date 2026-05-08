@@ -83,7 +83,7 @@ export function Block8Immobilien() {
 
         <button
           type="button"
-          onClick={addImmobilie}
+          onClick={() => addImmobilie()}
           className="w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
         >
           + Immobilie hinzufügen

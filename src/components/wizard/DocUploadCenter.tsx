@@ -6,7 +6,10 @@ import type { ExtractedDocument } from "@/lib/extract-schema";
 import {
   vorschlaegeAusExtract,
   vorschlaegeNachBlock,
+  bestimmePersonIdx,
   type Vorschlag,
+  type PersonIdx,
+  type PersonHint,
 } from "@/lib/extract-mapping";
 
 const ACCEPTED = "application/pdf,image/jpeg,image/png,image/webp";
@@ -16,6 +19,8 @@ interface UploadResult {
   status: "pending" | "ok" | "error";
   extracted?: ExtractedDocument;
   vorschlaege?: Vorschlag[];
+  personHint?: PersonHint;
+  personGewaehlt?: PersonIdx; // bei Paar: User-Wahl
   error?: string;
 }
 
@@ -59,7 +64,14 @@ export function DocUploadCenter() {
         }
 
         const extracted = data.extracted as ExtractedDocument;
-        const vorschlaege = vorschlaegeAusExtract(extracted, fullState);
+        const personHint = bestimmePersonIdx(extracted, fullState);
+        const initialPerson: PersonIdx =
+          personHint === "unsicher" ? 1 : personHint;
+        const vorschlaege = vorschlaegeAusExtract(
+          extracted,
+          fullState,
+          initialPerson
+        );
         setResults((r) => {
           const copy = [...r];
           copy[idx] = {
@@ -67,6 +79,8 @@ export function DocUploadCenter() {
             status: "ok",
             extracted,
             vorschlaege,
+            personHint,
+            personGewaehlt: initialPerson,
           };
           return copy;
         });
@@ -91,7 +105,6 @@ export function DocUploadCenter() {
     const v = r.vorschlaege.find((x) => x.id === vorschlagId);
     if (!v) return;
     v.apply(fullState);
-    // Vorschlag aus Liste entfernen
     setResults((rs) => {
       const copy = [...rs];
       copy[resultIdx] = {
@@ -111,6 +124,25 @@ export function DocUploadCenter() {
     setResults((rs) => {
       const copy = [...rs];
       copy[resultIdx] = { ...copy[resultIdx]!, vorschlaege: [] };
+      return copy;
+    });
+  }
+
+  function changePerson(resultIdx: number, personIdx: PersonIdx) {
+    const r = results[resultIdx];
+    if (!r?.extracted) return;
+    const vorschlaege = vorschlaegeAusExtract(
+      r.extracted,
+      fullState,
+      personIdx
+    );
+    setResults((rs) => {
+      const copy = [...rs];
+      copy[resultIdx] = {
+        ...copy[resultIdx]!,
+        personGewaehlt: personIdx,
+        vorschlaege,
+      };
       return copy;
     });
   }
@@ -177,8 +209,12 @@ export function DocUploadCenter() {
             <ResultCard
               key={`${r.fileName}-${idx}`}
               r={r}
+              fallart={fullState.fallart}
+              vornameP1={fullState.person1.vorname}
+              vornameP2={fullState.person2.vorname}
               onApply={(id) => applyVorschlag(idx, id)}
               onApplyAll={() => applyAll(idx)}
+              onChangePerson={(p) => changePerson(idx, p)}
               onRemove={() => removeResult(idx)}
             />
           ))}
@@ -190,13 +226,21 @@ export function DocUploadCenter() {
 
 function ResultCard({
   r,
+  fallart,
+  vornameP1,
+  vornameP2,
   onApply,
   onApplyAll,
+  onChangePerson,
   onRemove,
 }: {
   r: UploadResult;
+  fallart: "einzel" | "paar";
+  vornameP1: string;
+  vornameP2: string;
   onApply: (id: string) => void;
   onApplyAll: () => void;
+  onChangePerson: (p: PersonIdx) => void;
   onRemove: () => void;
 }) {
   if (r.status === "pending") {
@@ -262,6 +306,41 @@ function ResultCard({
           Schliessen
         </button>
       </div>
+
+      {/* Personen-Selector bei Paar */}
+      {fallart === "paar" && (
+        <div className="mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs">
+          <span className="text-slate-600">
+            {r.personHint === "unsicher"
+              ? "Person nicht eindeutig erkannt — bitte wählen:"
+              : `Erkannt: ${r.personHint === 1 ? vornameP1 || "Person 1" : vornameP2 || "Person 2"}`}
+          </span>
+          <div className="ml-auto flex gap-1">
+            <button
+              type="button"
+              onClick={() => onChangePerson(1)}
+              className={`rounded px-2 py-0.5 ${
+                r.personGewaehlt === 1
+                  ? "bg-emerald-600 text-white"
+                  : "border border-slate-300 bg-white text-slate-600"
+              }`}
+            >
+              {vornameP1 || "Person 1"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangePerson(2)}
+              className={`rounded px-2 py-0.5 ${
+                r.personGewaehlt === 2
+                  ? "bg-emerald-600 text-white"
+                  : "border border-slate-300 bg-white text-slate-600"
+              }`}
+            >
+              {vornameP2 || "Person 2"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {vorschlaege.length === 0 ? (
         <div className="rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-700">

@@ -52,15 +52,21 @@ Schema (alle Felder müssen vorhanden sein, Werte können null sein):
     "pkAltersguthabenHeute": null,
     "pkAltersguthabenMit65": null,
     "pkUmwandlungssatzProzent": null,
+    "pkAnbieter": null,
     "freizuegigkeitSaldo": null,
+    "freizuegigkeitAnbieter": null,
     "saeule3aKontoSaldo": null,
+    "saeule3aKontoAnbieter": null,
     "saeule3aVersicherungRueckkaufswert": null,
     "saeule3aVersicherungAblaufswert": null,
     "saeule3aVersicherungAblaufjahr": null,
+    "saeule3aVersicherungAnbieter": null,
     "bankkontoSaldo": null,
     "depotSaldo": null,
     "immobilieVerkehrswert": null,
     "hypothekRestschuld": null,
+    "hypothekZinssatzProzent": null,
+    "hypothekAblaufjahr": null,
     "notizen": null
   }
 }`;
