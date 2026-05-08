@@ -2,6 +2,8 @@
 
 import { usePlanStore } from "@/lib/store";
 import { ORDENTLICHES_AHV_ALTER, pensionsjahr, personLabel } from "@/lib/pension";
+import { Field } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/styles";
 
 export function Block2Wuensche() {
   const fallart = usePlanStore((s) => s.fallart);
@@ -169,21 +171,6 @@ function PensionierungZeile({
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {children}
-    </label>
-  );
-}
-
 /**
  * Read-Only-Zelle mit identischem Layout wie ein Input — verhindert Baseline-
  * Verschiebung, wenn read-only und editable Felder in derselben Zeile stehen.
@@ -199,6 +186,3 @@ function ReadCell({ value }: { value: string | number }) {
     />
   );
 }
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";

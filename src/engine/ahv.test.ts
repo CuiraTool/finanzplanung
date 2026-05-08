@@ -71,8 +71,9 @@ describe("AHV — Vorbezug (max 2 Jahre, 6.8% pro Jahr)", () => {
     expect(bezugsfaktor(63)).toBeCloseTo(0.864, 3);
   });
 
-  it("> 2 Jahre Vorbezug wirft", () => {
-    expect(() => bezugsfaktor(62)).toThrow(/Vorbezug max 2 Jahre/);
+  it("> 2 Jahre Vorbezug wird auf -2 J. geclamped (defensiv)", () => {
+    expect(bezugsfaktor(62)).toBeCloseTo(0.864, 3);
+    expect(bezugsfaktor(50)).toBeCloseTo(0.864, 3);
   });
 });
 
@@ -89,8 +90,9 @@ describe("AHV — Aufschub (max 5 Jahre, BSV-Tabelle)", () => {
     expect(bezugsfaktor(70)).toBeCloseTo(1.315, 3);
   });
 
-  it("> 5 Jahre Aufschub wirft", () => {
-    expect(() => bezugsfaktor(71)).toThrow(/Aufschub max 5 Jahre/);
+  it("> 5 Jahre Aufschub wird auf +5 J. geclamped (defensiv)", () => {
+    expect(bezugsfaktor(71)).toBeCloseTo(1.315, 3);
+    expect(bezugsfaktor(80)).toBeCloseTo(1.315, 3);
   });
 });
 

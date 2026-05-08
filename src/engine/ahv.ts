@@ -104,28 +104,23 @@ export function bezugsfaktor(
   bezugsalter: number,
   ordentlich: number = ORDENTLICHES_AHV_ALTER
 ): number {
-  if (bezugsalter === ordentlich) return 1;
+  // Defensiver Clamp: garantiert legale Eingabe (z.B. nach Korrupt-LocalStorage
+  // oder vor expliziter Validierung in der UI).
+  const minAlter = ordentlich - MAX_VORBEZUG_JAHRE;
+  const maxAlter = ordentlich + MAX_AUFSCHUB_JAHRE;
+  const clamped = Math.max(minAlter, Math.min(maxAlter, bezugsalter));
 
-  const monateAbweichung = (bezugsalter - ordentlich) * 12;
+  if (clamped === ordentlich) return 1;
+
+  const monateAbweichung = (clamped - ordentlich) * 12;
 
   if (monateAbweichung < 0) {
     const monateVorbezug = -monateAbweichung;
-    if (monateVorbezug > MAX_VORBEZUG_JAHRE * 12) {
-      throw new Error(
-        `AHV-Vorbezug max ${MAX_VORBEZUG_JAHRE} Jahre (also ab Alter ${ordentlich - MAX_VORBEZUG_JAHRE})`
-      );
-    }
     const kuerzungProMonat = VORBEZUG_KUERZUNG_PRO_JAHR / 12;
     return 1 - monateVorbezug * kuerzungProMonat;
   }
 
-  const monateAufschub = monateAbweichung;
-  if (monateAufschub > MAX_AUFSCHUB_JAHRE * 12) {
-    throw new Error(
-      `AHV-Aufschub max ${MAX_AUFSCHUB_JAHRE} Jahre (also bis Alter ${ordentlich + MAX_AUFSCHUB_JAHRE})`
-    );
-  }
-  return 1 + aufschubsZuschlagPct(monateAufschub);
+  return 1 + aufschubsZuschlagPct(monateAbweichung);
 }
 
 function aufschubsZuschlagPct(monate: number): number {

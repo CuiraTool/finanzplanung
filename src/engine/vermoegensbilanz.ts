@@ -25,6 +25,26 @@ import type {
   FreizuegigkeitEntry,
   SaeuleDreiEntry,
 } from "@/lib/store";
+
+/**
+ * Subset von PlanState mit den Daten-Slices, die die Bilanz braucht —
+ * ohne Setter. Erlaubt es dem Caller (Dashboard), nur die relevanten
+ * Slices zu selektieren statt den ganzen Store.
+ */
+export type VermoegensbilanzInput = Pick<
+  PlanState,
+  | "fallart"
+  | "person1"
+  | "person2"
+  | "ahv"
+  | "bvg"
+  | "saeuleDrei"
+  | "vermoegen"
+  | "immobilien"
+  | "firma"
+  | "ziele"
+  | "budget"
+>;
 import {
   ahvJahresrenteEinzel,
   ahvCouplePension,
@@ -46,7 +66,7 @@ export interface VermoegensbilanzOutput {
   zwanzigJahreReferenzjahr: number | null;
 }
 
-export function vermoegensbilanz(state: PlanState): VermoegensbilanzOutput {
+export function vermoegensbilanz(state: VermoegensbilanzInput): VermoegensbilanzOutput {
   const refJahr = referenzPensionsjahr(state);
 
   const heute = nettovermoegenHeute(state);
@@ -68,7 +88,7 @@ export function vermoegensbilanz(state: PlanState): VermoegensbilanzOutput {
 }
 
 /** Pensionierungs-Referenzjahr: spätestes Pensionsjahr im Haushalt. */
-function referenzPensionsjahr(state: PlanState): number | null {
+function referenzPensionsjahr(state: VermoegensbilanzInput): number | null {
   const j1 = pensionsjahr(state.person1.geburtsdatum, state.ziele.bezugsalterP1);
   if (state.fallart === "einzel") return j1;
   const j2 = pensionsjahr(state.person2.geburtsdatum, state.ziele.bezugsalterP2);
@@ -78,7 +98,7 @@ function referenzPensionsjahr(state: PlanState): number | null {
 }
 
 /** Aktuelles Nettovermögen heute — Summe aller eingegebenen Vermögenspositionen. */
-export function nettovermoegenHeute(state: PlanState): number {
+export function nettovermoegenHeute(state: VermoegensbilanzInput): number {
   let total = 0;
   total += vermoegenBlock7Heute(state.vermoegen.items);
   total += immobilienNettoHeute(state.immobilien.items);
@@ -97,7 +117,7 @@ export function nettovermoegenHeute(state: PlanState): number {
 }
 
 /** Nettovermögen an einem zukünftigen Stichtag (z.B. Pensionierungsjahr). */
-function nettovermoegenAnJahr(state: PlanState, zieljahr: number): number {
+function nettovermoegenAnJahr(state: VermoegensbilanzInput, zieljahr: number): number {
   const jetzt = new Date().getFullYear();
   const jahre = Math.max(0, zieljahr - jetzt);
 
@@ -144,7 +164,7 @@ function nettovermoegenAnJahr(state: PlanState, zieljahr: number): number {
 }
 
 /** Jährlicher Cashflow während der Pensionsphase: Renten + Mieten − Verbrauch. */
-function jaehrlicherCashflowInPension(state: PlanState, refJahr: number): number {
+function jaehrlicherCashflowInPension(state: VermoegensbilanzInput, refJahr: number): number {
   const ahvHaushalt = ahvJahresrenteHaushalt(state, refJahr);
   const bvgHaushalt = bvgJahresrenteHaushalt(state);
   const mieten = mieteinnahmenJahresHaushalt(state, refJahr);
@@ -152,7 +172,7 @@ function jaehrlicherCashflowInPension(state: PlanState, refJahr: number): number
   return ahvHaushalt + bvgHaushalt + mieten - ausgaben;
 }
 
-function ahvJahresrenteHaushalt(state: PlanState, refJahr: number): number {
+function ahvJahresrenteHaushalt(state: VermoegensbilanzInput, refJahr: number): number {
   const e1 = state.ahv.einkommenP1;
   if (e1 == null) return 0;
   const fehljahreP1 = state.ahv.hatFehljahreP1 ? state.ahv.fehljahreAnzahlP1 : 0;
@@ -186,7 +206,7 @@ function ahvJahresrenteHaushalt(state: PlanState, refJahr: number): number {
   }).haushaltsRente;
 }
 
-function bvgJahresrenteHaushalt(state: PlanState): number {
+function bvgJahresrenteHaushalt(state: VermoegensbilanzInput): number {
   let total = 0;
   for (const personIdx of [1, 2] as const) {
     if (personIdx === 2 && state.fallart !== "paar") continue;
@@ -215,7 +235,7 @@ function bvgJahresrenteHaushalt(state: PlanState): number {
   return total;
 }
 
-function mieteinnahmenJahresHaushalt(state: PlanState, refJahr: number): number {
+function mieteinnahmenJahresHaushalt(state: VermoegensbilanzInput, refJahr: number): number {
   let total = 0;
   for (const im of state.immobilien.items) {
     if (im.typ !== "rendite") continue;
@@ -226,7 +246,7 @@ function mieteinnahmenJahresHaushalt(state: PlanState, refJahr: number): number 
   return total;
 }
 
-function jaehrlicheAusgaben(state: PlanState): number {
+function jaehrlicheAusgaben(state: VermoegensbilanzInput): number {
   const wunsch = state.budget.wunschverbrauchPension;
   if (wunsch != null) return wunsch * 12;
   const total = state.budget.ausgabenTotal;

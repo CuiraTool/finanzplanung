@@ -8,6 +8,9 @@ import {
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
 } from "@/engine/ahv";
+import { Field } from "@/components/ui/Field";
+import { YesNoButtons } from "@/components/ui/YesNoButtons";
+import { inputClass, selectClass } from "@/components/ui/styles";
 
 const AHV_ALTER_MIN = ORDENTLICHES_AHV_ALTER - MAX_VORBEZUG_JAHRE; // 63
 const AHV_ALTER_MAX = ORDENTLICHES_AHV_ALTER + MAX_AUFSCHUB_JAHRE; // 70
@@ -216,54 +219,3 @@ function BezugsalterHint({ alter }: { alter: number }) {
   );
 }
 
-function YesNoButtons({
-  value,
-  onChange,
-}: {
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex gap-2">
-      {[
-        { v: true, l: "Ja" },
-        { v: false, l: "Nein" },
-      ].map((o) => (
-        <button
-          key={o.l}
-          type="button"
-          onClick={() => onChange(o.v)}
-          className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
-            value === o.v
-              ? "border-blue-600 bg-blue-50 text-blue-700"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-          }`}
-        >
-          {o.l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
-const selectClass = `${inputClass} appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22%2364748b%22 d=%22M6 8L2 4h8z%22/></svg>')] bg-[length:12px] bg-[right_10px_center] bg-no-repeat pr-8`;

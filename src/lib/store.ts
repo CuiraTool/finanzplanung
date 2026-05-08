@@ -749,9 +749,22 @@ export const usePlanStore = create<PlanState>()(
           // der Cashflow keinen Anker. UI verhindert das auch.
           if (s.vermoegen.items.length === 1) return {};
           const rest = s.vermoegen.items.filter((it) => it.id !== id);
-          // Wenn das Hauptkonto entfernt wurde, mach das erste verbleibende dazu.
+          // Wenn das Hauptkonto entfernt wurde, mach das erste Nicht-Darlehen
+          // dazu — ein Darlehen darf nicht Hauptkonto sein (würde Cashflow-
+          // Logik brechen).
           if (target?.istHauptkonto && rest.length > 0) {
-            rest[0]!.istHauptkonto = true;
+            const ersteAktiva = rest.find((it) => it.typ !== "darlehen");
+            if (ersteAktiva) {
+              return {
+                vermoegen: {
+                  items: rest.map((it) =>
+                    it.id === ersteAktiva.id
+                      ? { ...it, istHauptkonto: true }
+                      : it
+                  ),
+                },
+              };
+            }
           }
           return { vermoegen: { items: rest } };
         }),
@@ -760,7 +773,10 @@ export const usePlanStore = create<PlanState>()(
           vermoegen: {
             items: s.vermoegen.items.map((it) => ({
               ...it,
-              istHauptkonto: it.id === id,
+              // Ein Darlehen kann nicht Hauptkonto sein — wenn der User das
+              // versucht, wird der Aufruf ignoriert.
+              istHauptkonto:
+                it.id === id && it.typ !== "darlehen" ? true : false,
             })),
           },
         })),

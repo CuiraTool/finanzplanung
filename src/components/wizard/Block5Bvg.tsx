@@ -9,6 +9,9 @@ import {
 } from "@/lib/store";
 import { personLabel, pensionsjahr } from "@/lib/pension";
 import { SPERRFRIST_EINKAUF_JAHRE } from "@/engine/bvg";
+import { Field } from "@/components/ui/Field";
+import { YesNoButtons } from "@/components/ui/YesNoButtons";
+import { inputClass } from "@/components/ui/styles";
 
 const PRAEFERENZEN: { value: BezugsPraeferenz; label: string; sub: string }[] = [
   { value: "rente", label: "Rente", sub: "100% verrentet" },
@@ -449,53 +452,3 @@ function Einkaeufe({
   );
 }
 
-function YesNoButtons({
-  value,
-  onChange,
-}: {
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex gap-2">
-      {[
-        { v: true, l: "Ja" },
-        { v: false, l: "Nein" },
-      ].map((o) => (
-        <button
-          key={o.l}
-          type="button"
-          onClick={() => onChange(o.v)}
-          className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
-            value === o.v
-              ? "border-blue-600 bg-blue-50 text-blue-700"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-          }`}
-        >
-          {o.l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";

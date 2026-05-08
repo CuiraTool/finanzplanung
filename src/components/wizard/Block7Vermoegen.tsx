@@ -3,6 +3,9 @@
 import { usePlanStore, type VermoegenItem, type VermoegenTyp } from "@/lib/store";
 import { vermoegenAufteilung } from "@/engine/vermoegen";
 import { formatChf } from "@/lib/format";
+import { Field } from "@/components/ui/Field";
+import { KpiPill } from "@/components/ui/KpiPill";
+import { inputClass } from "@/components/ui/styles";
 
 const TYP_LABELS: Record<VermoegenTyp, { label: string; sub: string; badge: string }> = {
   konto: {
@@ -203,48 +206,3 @@ function VermoegenCard({
   );
 }
 
-function KpiPill({
-  label,
-  value,
-  positive,
-  bold,
-}: {
-  label: string;
-  value: string;
-  positive?: boolean;
-  bold?: boolean;
-}) {
-  return (
-    <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div
-        className={`tabular-nums ${bold ? "text-base font-semibold" : "text-sm"} ${
-          positive ? "text-emerald-700" : "text-slate-700"
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";

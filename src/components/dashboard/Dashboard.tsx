@@ -1,12 +1,54 @@
 "use client";
 
+import { useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
 import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
 import { formatChf } from "@/lib/format";
 
 export function Dashboard() {
-  const state = usePlanStore();
-  const bilanz = vermoegensbilanz(state);
+  // Spezifische Selectoren statt usePlanStore() ohne Argumente — verhindert,
+  // dass das gesamte Dashboard bei jedem Tastendruck im Wizard re-rendert.
+  const fallart = usePlanStore((s) => s.fallart);
+  const person1 = usePlanStore((s) => s.person1);
+  const person2 = usePlanStore((s) => s.person2);
+  const ahv = usePlanStore((s) => s.ahv);
+  const bvg = usePlanStore((s) => s.bvg);
+  const saeuleDrei = usePlanStore((s) => s.saeuleDrei);
+  const vermoegen = usePlanStore((s) => s.vermoegen);
+  const immobilien = usePlanStore((s) => s.immobilien);
+  const firma = usePlanStore((s) => s.firma);
+  const ziele = usePlanStore((s) => s.ziele);
+  const budget = usePlanStore((s) => s.budget);
+
+  const bilanz = useMemo(
+    () =>
+      vermoegensbilanz({
+        fallart,
+        person1,
+        person2,
+        ahv,
+        bvg,
+        saeuleDrei,
+        vermoegen,
+        immobilien,
+        firma,
+        ziele,
+        budget,
+      }),
+    [
+      fallart,
+      person1,
+      person2,
+      ahv,
+      bvg,
+      saeuleDrei,
+      vermoegen,
+      immobilien,
+      firma,
+      ziele,
+      budget,
+    ]
+  );
 
   const heutigesJahr = new Date().getFullYear();
 
@@ -24,7 +66,6 @@ export function Dashboard() {
         </span>
       </header>
 
-      {/* 3 KPIs: heute / Pensionierung / 20 Jahre nach Pensionierung */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <KpiCard
           label="Nettovermögen heute"
@@ -36,7 +77,9 @@ export function Dashboard() {
           label="Nettovermögen bei Pension"
           jahr={bilanz.pensionierungsjahr}
           value={
-            bilanz.pensionierungsjahr == null ? "—" : formatChf(bilanz.beiPensionierung)
+            bilanz.pensionierungsjahr == null
+              ? "—"
+              : formatChf(bilanz.beiPensionierung)
           }
           hint={
             bilanz.pensionierungsjahr == null
@@ -60,7 +103,6 @@ export function Dashboard() {
         />
       </div>
 
-      {/* 4 Chart-Slots vertikal gestapelt */}
       <div className="space-y-4">
         <ChartPlaceholder title="Einnahmen / Ausgaben" />
         <ChartPlaceholder title="Vermögensentwicklung" />

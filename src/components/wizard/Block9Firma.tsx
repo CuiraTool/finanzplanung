@@ -1,6 +1,8 @@
 "use client";
 
 import { usePlanStore, type FirmaInput } from "@/lib/store";
+import { Field } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/styles";
 
 const PLAENE: { value: FirmaInput["plan"]; label: string; sub: string }[] = [
   { value: "behalten", label: "Behalten", sub: "weiterführen oder familien-intern übergeben" },
@@ -123,23 +125,3 @@ export function Block9Firma() {
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";

@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projektstatus
 
-**Greenfield, Planungsphase abgeschlossen, Etappe 0 noch nicht gestartet.** Repo enthält bisher nur die beiden Quelldokumente, keine Codebase. Sobald `package.json` existiert, ist der Abschnitt "Commands" hier zu ergänzen.
+**Etappe 1 weitgehend implementiert.** Alle 10 Wizard-Blöcke haben funktionsfähige UI mit Live-Berechnung, Vermögensbilanz-Engine läuft mit drei Stichtagen (heute / Pensionierung / +20 Jahre). Tests grün (73/73), TypeScript strict.
+
+**Was als nächstes kommt:** echte Cashflow-Engine mit Jahres-Iteration (Etappe 2), Charts (Recharts), Steuer-Engine pro Kanton, dann Etappe 1.5 (BSV-Rententabellen statt linearer Approximation).
 
 ## Was wir bauen
 
-Interaktives Pensionsplanungs-Webtool für **Cuira Partners GmbH** (kathir@cuirapartners.ch). Soll das statische Taxware-PDF ersetzen — Eingabe links, Live-Dashboard rechts, Charts und Massnahmen aktualisieren sich auf jede Eingabe in Echtzeit.
+Interaktives Pensionsplanungs-Webtool für **Cuira Partners GmbH** (kathir@cuirapartners.ch). Ersetzt das statische Taxware-PDF — Eingabe links (Wizard mit 10 Blöcken), Live-Dashboard rechts mit drei Vermögens-KPIs und (kommende) Charts. Trennlinie zwischen Eingabe und Dashboard ist verschiebbar.
 
-Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (verlangen CHF 3'000+ pro Pensionsplanung) bei einem Preispunkt um CHF 300, ermöglicht durch hohen Automatisierungsgrad.
+Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000+) bei einem Preispunkt um CHF 300, ermöglicht durch hohen Automatisierungsgrad.
 
 **Zwei Zielgruppen, eine App, zwei "Türen":**
 - **Berater-Modus** (B2B): Cuira-Partner mit Lizenz, betreuen ihre Kunden
@@ -18,74 +20,128 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (verlangen
 
 ## Quelldokumente (Pflichtlektüre)
 
-- **`Def.FinancialPlanning - Muster.pdf`** (23 Seiten) — Taxware-Output für fiktives Ehepaar Muster (Ralph 1967, Stephanie 1972, Steuerkanton ZH). Liefert die Referenzwerte, gegen die unsere Engine validieren muss. Beispiele: AHV-Ehepaarrente CHF 33'072 p.a., Nettovermögen 2024 CHF 1'854'826, Total Steuern Ausgangslage 2024–2036 CHF 446'037.
-- **`Pensionsplanung_Typeform_Optimierung (1).docx`** — Spec für das Eingabe-Datenmodell. Blöcke A–S, ~50 Felder mit Feldtypen (ST/LT/EM/NR/DT/Y/N/SC/MC/DD). Switch in Block A6 (Einzelperson/Paar/Konkubinat) steuert die gesamte Paar-Logik. Diese Spec ist die Quelle für unsere Zod-Schemas.
+- **`docs/Def.FinancialPlanning - Muster.pdf`** (23 Seiten) — Taxware-Output für fiktives Ehepaar Muster (Ralph 1967, Stephanie 1972, Steuerkanton ZH). Liefert die Referenzwerte, gegen die unsere Engine validieren muss. Beispiele: AHV-Ehepaarrente CHF 33'072 p.a. (Stand 2024 ohne 13. AHV), Nettovermögen 2024 CHF 1'854'826.
+- **`docs/Pensionsplanung_Typeform_Optimierung (1).docx`** — Spec für das Eingabe-Datenmodell. Blöcke A–S, ~50 Felder mit Feldtypen. Switch in Block A6 (Einzelperson/Paar/Konkubinat) steuert die gesamte Paar-Logik.
 
-## Tech-Stack-Entscheidungen (verbindlich)
+## Tech-Stack (verbindlich)
 
-| Bereich | Entscheidung | Warum |
+| Bereich | Entscheidung |
+|---|---|
+| Frontend | Next.js 15 + React 19 + TypeScript strict + Tailwind v4 |
+| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v17) |
+| Forms | controlled inputs gegen Zustand-Store, kein React Hook Form |
+| Charts (geplant) | Recharts |
+| **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |
+| Tests | Vitest, validiert gegen Eckwerte aus Muster-PDF |
+| Auth + DB (ab Etappe 4) | Supabase Frankfurt |
+| Deploy | Vercel (siehe Abschnitt "Deployment") |
+
+## Wizard-Reihenfolge (10 Blöcke)
+
+| # | Block | Engine-Anbindung |
 |---|---|---|
-| Frontend | Next.js 15 + React + TypeScript + Tailwind | Standard-Stack, 1-Klick-Deploy auf Vercel |
-| State | Zustand + LocalStorage-Persistierung | Klein, schnell, reaktiv |
-| Forms + Validierung | React Hook Form + Zod | Zod-Schema = Single Source of Truth (UI, Validierung, Engine-Input) |
-| Charts | Recharts | Reicht für Stacked-Bars/Lines à la Taxware |
-| **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** | Echtzeit-Reaktivität (sub-50ms), kein Server-Round-Trip |
-| Tests | Vitest, gegen Taxware-Muster-Werte | Engine ist das Herzstück — falsche Zahlen = wertlos |
-| Auth + DB (ab Etappe 4) | Supabase (Region Frankfurt) | DSG-tauglich, gratis bis ~50k Nutzer |
-| PDF-Export (Etappe 3) | Puppeteer serverseitig | Layout am Taxware-PDF orientiert |
-| Deploy | Vercel, Domain `plan.cuirapartners.ch` | Free-Tier reicht für Etappe 0–3 |
+| 1 | Personen | Stammdaten, Kinder, Adresse |
+| 2 | Ziele & Wünsche | Pensionierungsalter (Wunsch + ordentlich), einmalige Ausgaben |
+| 3 | Budget | Einnahmen-Perioden, Ausgaben Total/Detailliert, Wunsch-Verbrauch |
+| 4 | 1. Säule (AHV) | `engine/ahv.ts` |
+| 5 | 2. Säule (Pensionskasse) | `engine/bvg.ts` |
+| 6 | 3. Säule (3a / 3b) | `engine/saeule3.ts` |
+| 7 | Vermögen | `engine/vermoegen.ts` |
+| 8 | Immobilien | `engine/immobilien.ts` |
+| 9 | Firma / Selbständigkeit | inline |
+| 10 | Nachlass | reine Status-Erfassung |
 
-## Geplante Engine-Module
+**Kontextsensitivität:** Sektion-Titel wechseln je Fallart (Einzelperson → "Personendaten", Paar → "Person 1 — Vorname"). Zivilstand-Optionen abhängig von Fallart.
+
+## Engine-Module (Stand 73 Tests grün)
 
 ```
-engine/
-  ahv.ts         1. Säule — Vollrenten 2026, Splitting, Fehljahre, Frühbezug/Aufschub
-  bvg.ts         2. Säule — Altersguthaben, Umwandlungssatz, WEF, Einkäufe + 3y-Sperrfrist
-  saeule3.ts     3a/3b — Max-Beitrag, Staffelbezug, Bank- vs. Versicherungsgefäss
-  realestate.ts  Eigenmietwert, Schuldzinsabzug, GGSt, Hypothek-Tranchen
-  tax.ts         Eink./Verm./Kap.steuer (Bund + Kanton, Start ZH/ZG)
-  cashflow.ts    25-Jahres-Projektion, kombiniert alle Module
-  scenario.ts    Szenario-Vergleich (Ausgangslage vs. Variante 1/2)
+src/engine/
+  ahv.ts             1. Säule, BSV-Werte 2025 (Min 15'120, Max 30'240, Plafond
+                     Ehepaar 45'360), 13. AHV ab 2026 (Faktor 13/12), Vorbezug
+                     max 2 J. (6.8%/J.), Aufschub max 5 J. (BSV-Tabelle)
+  bvg.ts             2. Säule, UWS pro Person, Mindestzinssatz 1.25%, Einkäufe
+                     verzinst, 3-J.-Sperrfrist-Warnung; Freizügigkeit als
+                     eigene Auszahlung mit Auszahlungsjahr + Rendite
+  saeule3.ts         3a/3b — Konto (mit Rendite-Projektion) oder Versicherung
+                     (Rückkaufswert + Ablaufwert + Ablaufjahr)
+  vermoegen.ts       Konten, Depots, Darlehen mit Rendite + Hauptkonto-Flag
+  immobilien.ts      Verkehrswert, Hypotheken-Tranchen, Plan behalten/verkaufen,
+                     Mieteinnahmen für Renditeliegenschaften
+  vermoegensbilanz.ts  Quick-Cashflow-Engine: Stichtag heute / Pension / +20 J.
+                       Aggregiert alle Module, dokumentierte Vereinfachungen.
 ```
 
-**Validierungs-Regel:** Jedes Engine-Modul hat einen Vitest-Test, der gegen einen konkreten Wert aus dem Muster-PDF rechnet. Solange die Muster-Zahlen nicht reproduziert werden, gilt die Engine als nicht funktional.
+**Validierungs-Regel:** Jedes Engine-Modul hat Vitest-Tests mit konkreten Werten (BSV 2025, Plafond-Tests, Edge-Cases).
+
+## Vereinfachungen Etappe 1 (dokumentiert in den Modul-Headern)
+
+- AHV: lineare Approximation der Skala 44 statt echter BSV-Tabellen → Etappe 1.5
+- BVG: Pauschaler UWS pro Person, keine Beitrags-Sparphase modelliert
+- Vermögensbilanz: keine Inflation, keine Steuern, Immobilien-Wert konstant,
+  Hypothek-Amortisation nicht modelliert, lineare Pensionsphase
+- Frauen-Übergangsalter (AHV21, Jahrgänge 1961–1963) noch nicht abgebildet
 
 ## Etappenplan
 
-| # | Inhalt | Erfolgskriterium |
+| # | Inhalt | Status |
 |---|---|---|
-| 0 | Repo + Wizard-Skelett A–G + Engine v0 (AHV, BVG, 3a, Einzelperson) | Cashflow Einzelperson rechnet ±2% Hand-Rechnung |
-| 1 | Alle Blöcke E–S, Cashflow + Vermögen + Steuern (1 Kanton) | Ralph solo → Taxware-Zahlen reproduziert |
-| 2 | Paare + Szenario-Vergleich + Auto-Massnahmen | Muster-Ehepaar, alle 3 Taxware-Szenarien reproduziert |
-| 3 | Immobilien (WEF, GGSt) + Multi-Kanton + PDF-Export | Kunden-Handover-PDF generierbar |
-| 4 | Supabase-Auth + Berater-Dashboard + Sharing | Erste Cuira-Partner nutzen es live |
-| 5 | B2C-Self-Service + Pricing + Zahlungsabwicklung | Erster bezahlter Endkunde ohne Berater |
+| 0 | Repo + Wizard-Skelett + Engine v0 | ✅ |
+| 1 | Alle 10 Blöcke + Engines + Vermögensbilanz | ✅ |
+| 1.5 | BSV-Rententabellen statt Linear-Approx | offen |
+| 2 | Cashflow-Engine mit Jahres-Iteration + Charts (Recharts) | offen |
+| 2.5 | Steuer-Engine ZH/ZG (Eink./Verm./Kap./GGSt) | offen |
+| 3 | Multi-Kanton + PDF-Export (Puppeteer) | offen |
+| 4 | Supabase-Auth + Berater-Dashboard + Sharing | offen |
+| 5 | B2C-Self-Service + Pricing | offen |
 
 ## Invarianten (nicht verhandelbar)
 
-- **Sprache UI:** Deutsch (Schweizerdeutsch-Wording, "Sie"-Form für Endkunde, "Du"-Form für Partner — siehe Typeform-Spec)
-- **Recht:** Schweizer Recht. AHV/BVG/3a-Regeln Stand aktuelles Jahr. DSG-konform (revidiertes DSG seit Sept. 2023).
-- **Daten-Region:** Server in der Schweiz oder EU (Supabase Frankfurt). Keine US-Hosts für PII.
-- **Echtzeit-Reaktivität:** Jede Eingabeänderung muss in <100ms im Dashboard sichtbar sein. Wenn ein Feature das verletzt, wird es anders gelöst (z.B. Web Worker), nicht durch Loading-Spinner kaschiert.
-- **Validierung gegen Taxware:** Jeder Engine-PR enthält den Test gegen mindestens einen Muster-PDF-Wert.
+- **Sprache UI:** Deutsch (Schweizerdeutsch-Wording)
+- **Recht:** Schweizer Recht, AHV21-Stand, DSG-konform
+- **Daten-Region:** Server in CH oder EU (Supabase Frankfurt). Keine US-Hosts für PII.
+- **Echtzeit-Reaktivität:** Eingabe-Änderungen müssen <100ms im Dashboard sichtbar sein.
+- **Validierung:** Jeder Engine-PR enthält Test gegen mindestens einen konkreten Wert.
 
-## Arbeitsweise mit diesem Repo
+## Arbeitsweise
 
-- **Solo-Coder:** Kathir codet allein. Keine PR-Reviews nötig — direkt in `main` arbeiten ist OK.
-- **Tiago** ist Produkt-/Finance-Brain, schreibt keinen Code. Output für ihn: lauffähige Demos, keine Code-Reviews.
-- **Quellprüfung:** Bei Engine-Logik immer das Taxware-PDF konsultieren (Seite und Zahl in den Test-Kommentar).
-- **Steuerdaten:** Müssen pro Kanton recherchiert werden (~1 Tag/Kanton). Quellen: ESTV, kantonale Steuerverwaltung. Tabellen als TypeScript-Konstanten in `engine/tax-data/<kanton>.ts` ablegen.
+- **Solo-Coder:** Kathir codet allein, direkt auf `main`
+- **Tiago** ist Produkt/Finance-Brain, schreibt keinen Code
+- **Erstes Code-Projekt** für Kathir — Tooling-Konzepte beim ersten Vorkommen kurz erklären
+- **Auto-push-Modus**: kleine, isolierte Commits gehen sofort auf `main`. Nur bei Force-Push, DB-Migrationen oder externen API-Calls explizit nachfragen.
+- **Git-Identität in Commits:** `git -c user.name="Kathir" -c user.email="kathir@cuirapartners.ch" commit ...` — globale Konfiguration setzt Kathir ggf. selbst
+- **Schema-Bump:** bei jeder Strukturänderung in `src/lib/store.ts` den Storage-Namen erhöhen (`cuira-plan-vNN+1`), damit alte LocalStorage-States nicht in inkompatible Strukturen rehydrieren
 
 ## Commands
 
-*Wird ergänzt, sobald Etappe 0 das Next.js-Projekt aufgesetzt hat. Erwartete Standards:*
-
 ```bash
-# Erwartete Standards nach Etappe 0:
-# pnpm install
-# pnpm dev              # Dev-Server localhost:3000
-# pnpm test             # Vitest (Engine-Tests gegen Taxware-Werte)
-# pnpm test:watch       # Vitest watch mode
-# pnpm typecheck        # TS strict check
-# pnpm build            # Production build
+pnpm install               # Dependencies
+pnpm dev                   # Dev-Server localhost:3000
+pnpm test                  # Vitest single-run (73 Tests aktuell)
+pnpm test:watch            # Vitest watch mode
+pnpm typecheck             # TS strict check (tsc --noEmit)
+pnpm build                 # Production build
 ```
+
+## Pnpm-Spezifisches
+
+- **`verify-deps-before-run=false`** ist global konfiguriert (siehe `.npmrc`),
+  damit pnpm 11 nicht bei jedem `pnpm <script>` einen impliziten Dep-Check fährt.
+- **Build-Scripts** (esbuild, sharp, unrs-resolver) sind in
+  `package.json` unter `pnpm.onlyBuiltDependencies` whitelisted — auf neuem
+  Rechner einmal `pnpm rebuild esbuild sharp unrs-resolver` ausführen.
+
+## Deployment
+
+Aktuell nur lokal (`pnpm dev`). Vercel-Deploy ist vorbereitet (Repo ist privat
+unter `CuiraTool/finanzplanung`, Next.js-Standard-Config, kein Custom-Build).
+Schritte siehe `docs/DEPLOY.md`.
+
+## Bekannte Drift gegen Muster-PDF (Stand: erwartet)
+
+Die Linear-Approximation der AHV-Skala 44 plus 13. AHV ergibt für Ehepaar Muster
+(Ralph + Stephanie, beide Vollrente bei Maximum) andere Werte als die im PDF
+ausgewiesenen CHF 33'072 p.a. (Stand 2024, ohne 13. AHV, mit individueller
+massgebender Einkommens-Berechnung). Der Test in `src/engine/ahv.test.ts`
+dokumentiert diese erwartete Diskrepanz und wird in Etappe 1.5 mit echten
+BSV-Tabellen aufgelöst.

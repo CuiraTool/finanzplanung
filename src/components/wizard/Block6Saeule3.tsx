@@ -4,6 +4,8 @@ import { usePlanStore, type SaeuleDreiEntry, type SaeuleDreiTyp } from "@/lib/st
 import { personLabel } from "@/lib/pension";
 import { saeuleDreiAuszahlung } from "@/engine/saeule3";
 import { formatChf } from "@/lib/format";
+import { Field } from "@/components/ui/Field";
+import { inputClass } from "@/components/ui/styles";
 
 export function Block6Saeule3() {
   const fallart = usePlanStore((s) => s.fallart);
@@ -274,23 +276,3 @@ function VersicherungsFelder({
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";

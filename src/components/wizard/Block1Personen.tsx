@@ -11,6 +11,9 @@ import {
   KANTONE,
 } from "@/lib/store";
 import { personLabel } from "@/lib/pension";
+import { Field } from "@/components/ui/Field";
+import { Section } from "@/components/ui/Section";
+import { inputClass, selectClass } from "@/components/ui/styles";
 
 const FALLARTEN: { value: Fallart; label: string }[] = [
   { value: "einzel", label: "Einzelperson" },
@@ -268,44 +271,3 @@ function PersonForm({
   );
 }
 
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-      <legend className="px-1 text-sm font-semibold text-slate-700">
-        {title}
-        {hint && <span className="ml-2 text-xs font-normal text-slate-400">{hint}</span>}
-      </legend>
-      {children}
-    </fieldset>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
-const selectClass = `${inputClass} appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22%2364748b%22 d=%22M6 8L2 4h8z%22/></svg>')] bg-[length:12px] bg-[right_10px_center] bg-no-repeat pr-8`;
