@@ -77,15 +77,13 @@ export interface PersonInput {
  * Liegt bewusst nicht in PersonInput — das massgebende Einkommen ist
  * eine AHV-Berechnungsgrösse, keine Stammdate.
  */
-export type TriState = "ja" | "nein" | "unbekannt";
-
 export interface AhvInput {
   einkommenP1: number | null;
   einkommenP2: number | null;
-  ikAuszugP1: TriState;
-  ikAuszugP2: TriState;
-  fehljahreStatusP1: TriState;
-  fehljahreStatusP2: TriState;
+  hatIkAuszugP1: boolean;
+  hatIkAuszugP2: boolean;
+  hatFehljahreP1: boolean;
+  hatFehljahreP2: boolean;
   fehljahreAnzahlP1: number;
   fehljahreAnzahlP2: number;
 }
@@ -178,10 +176,10 @@ const initialPerson: PersonInput = {
 const initialAhv: AhvInput = {
   einkommenP1: null,
   einkommenP2: null,
-  ikAuszugP1: "unbekannt",
-  ikAuszugP2: "unbekannt",
-  fehljahreStatusP1: "unbekannt",
-  fehljahreStatusP2: "unbekannt",
+  hatIkAuszugP1: false,
+  hatIkAuszugP2: false,
+  hatFehljahreP1: false,
+  hatFehljahreP2: false,
   fehljahreAnzahlP1: 0,
   fehljahreAnzahlP2: 0,
 };
@@ -362,7 +360,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v7",
+      name: "cuira-plan-v8",
     }
   )
 );

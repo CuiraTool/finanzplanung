@@ -33,8 +33,7 @@ export function Dashboard() {
         details: ["Massgebendes Einkommen fehlt — Block 4"],
       };
 
-    const fehljahreP1 =
-      ahvInput.fehljahreStatusP1 === "ja" ? ahvInput.fehljahreAnzahlP1 : 0;
+    const fehljahreP1 = ahvInput.hatFehljahreP1 ? ahvInput.fehljahreAnzahlP1 : 0;
 
     // AHV-Bezugsalter wird auf [63, 70] geclamped — der Wunschalter aus Block 2
     // kann auch tiefer sein (z.B. 58 für reine BVG-Frühpensionierung), aber AHV
@@ -72,8 +71,7 @@ export function Dashboard() {
         details: ["Massgebendes Einkommen Person 2 fehlt — Block 4"],
       };
 
-    const fehljahreP2 =
-      ahvInput.fehljahreStatusP2 === "ja" ? ahvInput.fehljahreAnzahlP2 : 0;
+    const fehljahreP2 = ahvInput.hatFehljahreP2 ? ahvInput.fehljahreAnzahlP2 : 0;
     const bezugsalterP2 = clampAhvAlter(ziele.bezugsalterP2);
     const bezugsjahrP2 = pensionsjahr(person2.geburtsdatum, bezugsalterP2);
 

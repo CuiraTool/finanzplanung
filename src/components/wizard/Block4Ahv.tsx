@@ -1,13 +1,7 @@
 "use client";
 
-import { usePlanStore, type AhvInput, type TriState } from "@/lib/store";
+import { usePlanStore, type AhvInput } from "@/lib/store";
 import { personLabel } from "@/lib/pension";
-
-const TRISTATE_OPTIONS: { value: TriState; label: string }[] = [
-  { value: "ja", label: "Ja" },
-  { value: "nein", label: "Nein" },
-  { value: "unbekannt", label: "Weiss nicht" },
-];
 
 export function Block4Ahv() {
   const fallart = usePlanStore((s) => s.fallart);
@@ -21,8 +15,8 @@ export function Block4Ahv() {
       <PersonAhvForm
         title={personLabel(1, person1.vorname, fallart)}
         einkommen={ahv.einkommenP1}
-        ikAuszug={ahv.ikAuszugP1}
-        fehljahreStatus={ahv.fehljahreStatusP1}
+        hatIkAuszug={ahv.hatIkAuszugP1}
+        hatFehljahre={ahv.hatFehljahreP1}
         fehljahreAnzahl={ahv.fehljahreAnzahlP1}
         onPatch={(p) => setAhv(mapToP1(p))}
       />
@@ -31,8 +25,8 @@ export function Block4Ahv() {
         <PersonAhvForm
           title={personLabel(2, person2.vorname, fallart)}
           einkommen={ahv.einkommenP2}
-          ikAuszug={ahv.ikAuszugP2}
-          fehljahreStatus={ahv.fehljahreStatusP2}
+          hatIkAuszug={ahv.hatIkAuszugP2}
+          hatFehljahre={ahv.hatFehljahreP2}
           fehljahreAnzahl={ahv.fehljahreAnzahlP2}
           onPatch={(p) => setAhv(mapToP2(p))}
         />
@@ -47,16 +41,16 @@ export function Block4Ahv() {
 
 interface PersonAhvPatch {
   einkommen?: number | null;
-  ikAuszug?: TriState;
-  fehljahreStatus?: TriState;
+  hatIkAuszug?: boolean;
+  hatFehljahre?: boolean;
   fehljahreAnzahl?: number;
 }
 
 function mapToP1(p: PersonAhvPatch): Partial<AhvInput> {
   const r: Partial<AhvInput> = {};
   if (p.einkommen !== undefined) r.einkommenP1 = p.einkommen;
-  if (p.ikAuszug !== undefined) r.ikAuszugP1 = p.ikAuszug;
-  if (p.fehljahreStatus !== undefined) r.fehljahreStatusP1 = p.fehljahreStatus;
+  if (p.hatIkAuszug !== undefined) r.hatIkAuszugP1 = p.hatIkAuszug;
+  if (p.hatFehljahre !== undefined) r.hatFehljahreP1 = p.hatFehljahre;
   if (p.fehljahreAnzahl !== undefined) r.fehljahreAnzahlP1 = p.fehljahreAnzahl;
   return r;
 }
@@ -64,8 +58,8 @@ function mapToP1(p: PersonAhvPatch): Partial<AhvInput> {
 function mapToP2(p: PersonAhvPatch): Partial<AhvInput> {
   const r: Partial<AhvInput> = {};
   if (p.einkommen !== undefined) r.einkommenP2 = p.einkommen;
-  if (p.ikAuszug !== undefined) r.ikAuszugP2 = p.ikAuszug;
-  if (p.fehljahreStatus !== undefined) r.fehljahreStatusP2 = p.fehljahreStatus;
+  if (p.hatIkAuszug !== undefined) r.hatIkAuszugP2 = p.hatIkAuszug;
+  if (p.hatFehljahre !== undefined) r.hatFehljahreP2 = p.hatFehljahre;
   if (p.fehljahreAnzahl !== undefined) r.fehljahreAnzahlP2 = p.fehljahreAnzahl;
   return r;
 }
@@ -73,15 +67,15 @@ function mapToP2(p: PersonAhvPatch): Partial<AhvInput> {
 function PersonAhvForm({
   title,
   einkommen,
-  ikAuszug,
-  fehljahreStatus,
+  hatIkAuszug,
+  hatFehljahre,
   fehljahreAnzahl,
   onPatch,
 }: {
   title: string;
   einkommen: number | null;
-  ikAuszug: TriState;
-  fehljahreStatus: TriState;
+  hatIkAuszug: boolean;
+  hatFehljahre: boolean;
   fehljahreAnzahl: number;
   onPatch: (p: PersonAhvPatch) => void;
 }) {
@@ -111,7 +105,7 @@ function PersonAhvForm({
         <div className="mb-1 text-xs font-medium text-slate-600">
           Aktueller IK-Auszug vorhanden?
         </div>
-        <TriStateButtons value={ikAuszug} onChange={(v) => onPatch({ ikAuszug: v })} />
+        <YesNoButtons value={hatIkAuszug} onChange={(v) => onPatch({ hatIkAuszug: v })} />
       </div>
 
       <div>
@@ -121,16 +115,16 @@ function PersonAhvForm({
         <div className="mb-1 text-xs text-slate-400">
           z.B. Auslandjahre, Studium ohne AHV-Beitrag, Lücken
         </div>
-        <TriStateButtons
-          value={fehljahreStatus}
+        <YesNoButtons
+          value={hatFehljahre}
           onChange={(v) =>
             onPatch({
-              fehljahreStatus: v,
-              ...(v !== "ja" ? { fehljahreAnzahl: 0 } : {}),
+              hatFehljahre: v,
+              ...(v === false ? { fehljahreAnzahl: 0 } : {}),
             })
           }
         />
-        {fehljahreStatus === "ja" && (
+        {hatFehljahre && (
           <div className="mt-3">
             <Field label="Anzahl Fehljahre">
               <input
@@ -151,27 +145,30 @@ function PersonAhvForm({
   );
 }
 
-function TriStateButtons({
+function YesNoButtons({
   value,
   onChange,
 }: {
-  value: TriState;
-  onChange: (v: TriState) => void;
+  value: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
     <div className="flex gap-2">
-      {TRISTATE_OPTIONS.map((o) => (
+      {[
+        { v: true, l: "Ja" },
+        { v: false, l: "Nein" },
+      ].map((o) => (
         <button
-          key={o.value}
+          key={o.l}
           type="button"
-          onClick={() => onChange(o.value)}
+          onClick={() => onChange(o.v)}
           className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
-            value === o.value
+            value === o.v
               ? "border-blue-600 bg-blue-50 text-blue-700"
               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
           }`}
         >
-          {o.label}
+          {o.l}
         </button>
       ))}
     </div>
