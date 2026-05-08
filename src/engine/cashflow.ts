@@ -69,6 +69,32 @@ export function applyOverrides(
   base: CashflowInput,
   overrides: import("@/lib/store").SzenarioBOverrides
 ): CashflowInput {
+  // Einkommens-Multiplikator auf alle Perioden anwenden
+  const mult = overrides.einkommensMultiplikator;
+  const einkommen = mult != null && mult !== 1
+    ? base.budget.einkommen.map((e) => ({
+        ...e,
+        betragMonatlich:
+          e.betragMonatlich != null
+            ? Math.round(e.betragMonatlich * mult)
+            : null,
+      }))
+    : base.budget.einkommen;
+
+  // Immobilien-Plan-Overrides
+  const immoOv = overrides.immobilienOverrides ?? {};
+  const immobilien = {
+    items: base.immobilien.items.map((im) => {
+      const ov = immoOv[im.id];
+      if (!ov) return im;
+      return {
+        ...im,
+        plan: ov.plan ?? im.plan,
+        verkaufsjahr: ov.verkaufsjahr ?? im.verkaufsjahr,
+      };
+    }),
+  };
+
   return {
     ...base,
     ziele: {
@@ -95,6 +121,19 @@ export function applyOverrides(
           overrides.bvgBezugspraeferenzP2 ?? base.bvg.p2.bezugspraeferenz,
       },
     },
+    budget: {
+      ...base.budget,
+      einkommen,
+      wunschverbrauchPension:
+        overrides.wunschverbrauchPension !== undefined
+          ? overrides.wunschverbrauchPension
+          : base.budget.wunschverbrauchPension,
+      ausgabenTotal:
+        overrides.ausgabenTotal !== undefined
+          ? overrides.ausgabenTotal
+          : base.budget.ausgabenTotal,
+    },
+    immobilien,
   };
 }
 

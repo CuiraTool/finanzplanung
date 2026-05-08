@@ -2,10 +2,11 @@
 
 import {
   usePlanStore,
-  type SzenarioBOverrides,
   type BezugsPraeferenz,
+  type ImmobilienPlan,
 } from "@/lib/store";
 import { personLabel } from "@/lib/pension";
+import { formatChf } from "@/lib/format";
 
 const PRAEFERENZEN: { value: BezugsPraeferenz; label: string }[] = [
   { value: "rente", label: "Rente" },
@@ -20,6 +21,8 @@ export function SzenarioPanel() {
   const ziele = usePlanStore((s) => s.ziele);
   const ahv = usePlanStore((s) => s.ahv);
   const bvg = usePlanStore((s) => s.bvg);
+  const budget = usePlanStore((s) => s.budget);
+  const immobilien = usePlanStore((s) => s.immobilien);
   const szenarioB = usePlanStore((s) => s.szenarioB);
   const setAktiv = usePlanStore((s) => s.setSzenarioBAktiv);
   const setOverride = usePlanStore((s) => s.setSzenarioBOverride);
@@ -69,44 +72,182 @@ export function SzenarioPanel() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <PersonSpalte
-          title={personLabel(1, person1.vorname, fallart)}
-          bezugsalterPlanA={ziele.bezugsalterP1}
-          ahvBezugsalterPlanA={ahv.ahvBezugsalterP1}
-          bvgPraefPlanA={bvg.p1.bezugspraeferenz}
-          eff={{
-            bezugsalter: eff.bezugsalterP1,
-            ahvBezugsalter: eff.ahvBezugsalterP1,
-            bvgPraef: eff.bvgPraefP1,
-          }}
-          onPatch={(p) =>
-            setOverride({
-              bezugsalterP1: p.bezugsalter,
-              ahvBezugsalterP1: p.ahvBezugsalter,
-              bvgBezugspraeferenzP1: p.bvgPraef,
-            })
-          }
-        />
-        {fallart === "paar" && (
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <PersonSpalte
-            title={personLabel(2, person2.vorname, fallart)}
-            bezugsalterPlanA={ziele.bezugsalterP2}
-            ahvBezugsalterPlanA={ahv.ahvBezugsalterP2}
-            bvgPraefPlanA={bvg.p2.bezugspraeferenz}
+            title={personLabel(1, person1.vorname, fallart)}
+            bezugsalterPlanA={ziele.bezugsalterP1}
+            ahvBezugsalterPlanA={ahv.ahvBezugsalterP1}
+            bvgPraefPlanA={bvg.p1.bezugspraeferenz}
             eff={{
-              bezugsalter: eff.bezugsalterP2,
-              ahvBezugsalter: eff.ahvBezugsalterP2,
-              bvgPraef: eff.bvgPraefP2,
+              bezugsalter: eff.bezugsalterP1,
+              ahvBezugsalter: eff.ahvBezugsalterP1,
+              bvgPraef: eff.bvgPraefP1,
             }}
             onPatch={(p) =>
               setOverride({
-                bezugsalterP2: p.bezugsalter,
-                ahvBezugsalterP2: p.ahvBezugsalter,
-                bvgBezugspraeferenzP2: p.bvgPraef,
+                bezugsalterP1: p.bezugsalter,
+                ahvBezugsalterP1: p.ahvBezugsalter,
+                bvgBezugspraeferenzP1: p.bvgPraef,
               })
             }
           />
+          {fallart === "paar" && (
+            <PersonSpalte
+              title={personLabel(2, person2.vorname, fallart)}
+              bezugsalterPlanA={ziele.bezugsalterP2}
+              ahvBezugsalterPlanA={ahv.ahvBezugsalterP2}
+              bvgPraefPlanA={bvg.p2.bezugspraeferenz}
+              eff={{
+                bezugsalter: eff.bezugsalterP2,
+                ahvBezugsalter: eff.ahvBezugsalterP2,
+                bvgPraef: eff.bvgPraefP2,
+              }}
+              onPatch={(p) =>
+                setOverride({
+                  bezugsalterP2: p.bezugsalter,
+                  ahvBezugsalterP2: p.ahvBezugsalter,
+                  bvgBezugspraeferenzP2: p.bvgPraef,
+                })
+              }
+            />
+          )}
+        </div>
+
+        {/* Cashflow-Stellschrauben */}
+        <div className="space-y-2 rounded-md border border-violet-200 bg-white p-3">
+          <div className="text-xs font-medium text-slate-700">Cashflow-Varianten</div>
+
+          <Compact label="Erwerbseinkommen ×">
+            <select
+              value={szenarioB.overrides.einkommensMultiplikator ?? 1}
+              onChange={(e) =>
+                setOverride({
+                  einkommensMultiplikator: Number(e.target.value),
+                })
+              }
+              className={selectClass}
+            >
+              <option value={0.7}>0.7 (−30%)</option>
+              <option value={0.8}>0.8 (−20%)</option>
+              <option value={0.9}>0.9 (−10%)</option>
+              <option value={1}>1.0 (Plan A)</option>
+              <option value={1.1}>1.1 (+10%)</option>
+              <option value={1.2}>1.2 (+20%)</option>
+              <option value={1.3}>1.3 (+30%)</option>
+            </select>
+          </Compact>
+
+          <Compact label={`Wunschverbrauch Pension (CHF/Mt)`}>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={
+                szenarioB.overrides.wunschverbrauchPension ??
+                budget.wunschverbrauchPension ??
+                ""
+              }
+              onChange={(e) =>
+                setOverride({
+                  wunschverbrauchPension:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              placeholder={
+                budget.wunschverbrauchPension != null
+                  ? `Plan A: ${formatChf(budget.wunschverbrauchPension)}`
+                  : "z.B. 6'000"
+              }
+              className={`${inputClass} tabular-nums`}
+            />
+          </Compact>
+
+          <Compact label="Ausgaben heute total (CHF/Mt)">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={
+                szenarioB.overrides.ausgabenTotal ??
+                budget.ausgabenTotal ??
+                ""
+              }
+              onChange={(e) =>
+                setOverride({
+                  ausgabenTotal:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              placeholder={
+                budget.ausgabenTotal != null
+                  ? `Plan A: ${formatChf(budget.ausgabenTotal)}`
+                  : "z.B. 8'500"
+              }
+              className={`${inputClass} tabular-nums`}
+            />
+          </Compact>
+        </div>
+
+        {/* Immobilien-Plan-Overrides */}
+        {immobilien.items.length > 0 && (
+          <div className="space-y-2 rounded-md border border-violet-200 bg-white p-3">
+            <div className="text-xs font-medium text-slate-700">
+              Immobilien-Pläne
+            </div>
+            {immobilien.items.map((im, idx) => {
+              const ov = szenarioB.overrides.immobilienOverrides?.[im.id];
+              const effPlan = ov?.plan ?? im.plan;
+              const effJahr = ov?.verkaufsjahr ?? im.verkaufsjahr;
+              return (
+                <div
+                  key={im.id}
+                  className="grid grid-cols-[1fr_140px_100px] items-center gap-2 text-xs"
+                >
+                  <span className="truncate text-slate-700">
+                    {im.beschreibung || `Immobilie ${idx + 1}`}
+                  </span>
+                  <select
+                    value={effPlan}
+                    onChange={(e) => {
+                      const aktuelleOv = szenarioB.overrides.immobilienOverrides ?? {};
+                      setOverride({
+                        immobilienOverrides: {
+                          ...aktuelleOv,
+                          [im.id]: { ...ov, plan: e.target.value as ImmobilienPlan },
+                        },
+                      });
+                    }}
+                    className={selectClass}
+                  >
+                    <option value="behalten">
+                      Behalten{im.plan === "behalten" ? " (Plan A)" : ""}
+                    </option>
+                    <option value="verkaufen">
+                      Verkaufen{im.plan === "verkaufen" ? " (Plan A)" : ""}
+                    </option>
+                  </select>
+                  {effPlan === "verkaufen" && (
+                    <input
+                      type="number"
+                      min={2024}
+                      max={2080}
+                      value={effJahr}
+                      onChange={(e) => {
+                        const aktuelleOv =
+                          szenarioB.overrides.immobilienOverrides ?? {};
+                        setOverride({
+                          immobilienOverrides: {
+                            ...aktuelleOv,
+                            [im.id]: { ...ov, verkaufsjahr: Number(e.target.value) },
+                          },
+                        });
+                      }}
+                      className={`${selectClass} tabular-nums`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -212,4 +353,6 @@ function alterRange(min: number, max: number): number[] {
 }
 
 const selectClass =
+  "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:border-violet-500 focus:outline-none";
+const inputClass =
   "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:border-violet-500 focus:outline-none";

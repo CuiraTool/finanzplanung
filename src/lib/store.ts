@@ -210,20 +210,30 @@ export interface FirmaInput {
   verkaufsjahr: number;
 }
 
+/** Override pro Immobilie für Variante B (Plan + ggf. Verkaufsjahr). */
+export interface ImmobilieOverride {
+  plan?: ImmobilienPlan;
+  verkaufsjahr?: number;
+}
+
 /** Szenario-Vergleich — optionale Variante B mit Overrides. */
 export interface SzenarioBOverrides {
-  /** Pensionierungsalter Person 1 — z.B. 63 für Frühpensionierung. */
+  // Pensionierungs-Stellschrauben
   bezugsalterP1?: number;
-  /** Pensionierungsalter Person 2 (bei Paar). */
   bezugsalterP2?: number;
-  /** AHV-Bezugsalter Person 1. */
   ahvBezugsalterP1?: number;
-  /** AHV-Bezugsalter Person 2 (bei Paar). */
   ahvBezugsalterP2?: number;
-  /** BVG-Bezugspräferenz Person 1 — z.B. "kapital" statt "rente". */
   bvgBezugspraeferenzP1?: BezugsPraeferenz;
-  /** BVG-Bezugspräferenz Person 2 (bei Paar). */
   bvgBezugspraeferenzP2?: BezugsPraeferenz;
+  // Cashflow-Stellschrauben
+  /** Multiplikator auf alle Erwerbseinkommens-Perioden (z.B. 1.1 = +10%). */
+  einkommensMultiplikator?: number;
+  /** Override Wunschverbrauch in Pensionierung (CHF/Monat). */
+  wunschverbrauchPension?: number | null;
+  /** Override aktuelles Total-Budget (CHF/Monat). */
+  ausgabenTotal?: number | null;
+  /** Pro Immobilie: Plan-Override (Behalten ↔ Verkaufen) + Verkaufsjahr. */
+  immobilienOverrides?: Record<string, ImmobilieOverride>;
 }
 
 export interface SzenarioB {
