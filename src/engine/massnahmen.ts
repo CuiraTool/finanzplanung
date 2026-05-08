@@ -11,6 +11,7 @@
 
 import type { PlanState } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
+import { block1MinimumErfuellt } from "@/lib/validation";
 
 export type MassnahmenWer = "p1" | "p2" | "beide";
 export type MassnahmenKategorie =
@@ -32,6 +33,11 @@ export interface Massnahme {
 }
 
 export function massnahmenAusState(state: PlanState): Massnahme[] {
+  // Ohne Block-1-Pflichtdaten (Vorname / Geburtsdatum / Kanton) keine
+  // Massnahmen ableiten — sonst würde die Default-Nachlass-Liste schon
+  // beim leeren Plan erscheinen, was verwirrend ist.
+  if (!block1MinimumErfuellt(state).komplett) return [];
+
   const heute = new Date().getFullYear();
   const out: Massnahme[] = [];
 
