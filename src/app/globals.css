@@ -16,3 +16,16 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Number-Input-Spinner global ausblenden — sonst kürzen sie den nutzbaren
+   Innen-Bereich und text-center wirkt visuell links-verschoben gegenüber
+   text-Inputs in derselben Zeile. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
