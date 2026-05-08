@@ -3,13 +3,14 @@
 import { useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
 import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
-import { cashflowReihe } from "@/engine/cashflow";
+import { cashflowReihe, applyOverrides } from "@/engine/cashflow";
 import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
 import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { MassnahmenListe } from "./MassnahmenListe";
+import { SzenarioPanel } from "./SzenarioPanel";
 import { massnahmenAusState } from "@/engine/massnahmen";
 
 const PROJEKTIONS_END_ALTER = 85;
@@ -28,6 +29,7 @@ export function Dashboard() {
   const budget = usePlanStore((s) => s.budget);
   const adresse = usePlanStore((s) => s.adresse);
   const einmaligeAusgaben = usePlanStore((s) => s.einmaligeAusgaben);
+  const szenarioB = usePlanStore((s) => s.szenarioB);
 
   const heutigesJahr = new Date().getFullYear();
 
@@ -66,7 +68,6 @@ export function Dashboard() {
 
   const bilanz = useMemo(() => vermoegensbilanz(cashflowState), [cashflowState]);
 
-  // Cashflow-Reihe von heute bis Alter 85 der älteren Person
   const endJahr = useMemo(() => {
     const j1 = chartEndJahr(person1.geburtsdatum, PROJEKTIONS_END_ALTER);
     if (fallart === "einzel") return j1 ?? heutigesJahr + 30;
@@ -74,15 +75,21 @@ export function Dashboard() {
     return Math.max(j1 ?? 0, j2 ?? 0) || heutigesJahr + 30;
   }, [fallart, person1.geburtsdatum, person2.geburtsdatum, heutigesJahr]);
 
-  const cashflow = useMemo(
+  const cashflowA = useMemo(
     () => cashflowReihe(cashflowState, heutigesJahr, endJahr),
     [cashflowState, heutigesJahr, endJahr]
   );
 
+  // Variante B: zweite Cashflow-Reihe mit Overrides
+  const cashflowB = useMemo(() => {
+    if (!szenarioB.aktiv) return null;
+    const stateB = applyOverrides(cashflowState, szenarioB.overrides);
+    return cashflowReihe(stateB, heutigesJahr, endJahr);
+  }, [cashflowState, szenarioB.aktiv, szenarioB.overrides, heutigesJahr, endJahr]);
+
   const fullState = usePlanStore();
   const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
 
-  // Marker-Jahre für die Charts
   const ordPensionsjahr = useMemo(
     () => pensionsjahr(person1.geburtsdatum, ORDENTLICHES_AHV_ALTER),
     [person1.geburtsdatum]
@@ -91,6 +98,23 @@ export function Dashboard() {
     if (ziele.bezugsalterP1 === ORDENTLICHES_AHV_ALTER) return null;
     return pensionsjahr(person1.geburtsdatum, ziele.bezugsalterP1);
   }, [person1.geburtsdatum, ziele.bezugsalterP1]);
+
+  // Differenz B − A für 3 Stichtage
+  const diffPension = useMemo(() => {
+    if (!cashflowB || !ordPensionsjahr) return null;
+    const aZeile = cashflowA.find((z) => z.jahr === ordPensionsjahr);
+    const bZeile = cashflowB.find((z) => z.jahr === ordPensionsjahr);
+    if (!aZeile || !bZeile) return null;
+    return bZeile.vermoegenNetto - aZeile.vermoegenNetto;
+  }, [cashflowA, cashflowB, ordPensionsjahr]);
+
+  const diff85 = useMemo(() => {
+    if (!cashflowB) return null;
+    const aLetzte = cashflowA[cashflowA.length - 1];
+    const bLetzte = cashflowB[cashflowB.length - 1];
+    if (!aLetzte || !bLetzte) return null;
+    return bLetzte.vermoegenNetto - aLetzte.vermoegenNetto;
+  }, [cashflowA, cashflowB]);
 
   return (
     <div className="space-y-6">
@@ -104,13 +128,14 @@ export function Dashboard() {
           </p>
         </div>
         <span className="text-xs text-slate-400">
-          {cashflow.length > 0
-            ? `${heutigesJahr}–${endJahr} (${cashflow.length} Jahre)`
+          {cashflowA.length > 0
+            ? `${heutigesJahr}–${endJahr} (${cashflowA.length} Jahre)`
             : "Etappe 2 — Cashflow-Iteration"}
         </span>
       </header>
 
-      {/* 3 KPI-Karten */}
+      <SzenarioPanel />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <KpiCard
           label="Nettovermögen heute"
@@ -131,6 +156,7 @@ export function Dashboard() {
               ? "Geburtsdatum + Pensionsalter eingeben"
               : "PK-Kapitalanteil + 3a/FZ-Auszahlungen + Rest-Vermögen"
           }
+          diff={diffPension}
         />
         <KpiCard
           label="Nettovermögen mit 85"
@@ -145,27 +171,29 @@ export function Dashboard() {
               ? "—"
               : "Bei Pension + 20 × (Renten + Mieten − Verbrauch − Steuern)"
           }
+          diff={diff85}
         />
       </div>
 
-      {/* Charts */}
       <div className="space-y-4">
-        {cashflow.length > 0 ? (
+        {cashflowA.length > 0 ? (
           <>
             <EinnahmenAusgabenChart
-              daten={cashflow}
+              daten={cashflowA}
+              datenB={cashflowB}
               pensionsjahr={ordPensionsjahr}
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
             />
             <VermoegensChart
-              daten={cashflow}
+              daten={cashflowA}
+              datenB={cashflowB}
               pensionsjahr={ordPensionsjahr}
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
             />
             <SteuerChart
-              daten={cashflow}
+              daten={cashflowA}
               pensionsjahr={ordPensionsjahr}
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
@@ -198,11 +226,13 @@ function KpiCard({
   jahr,
   value,
   hint,
+  diff,
 }: {
   label: string;
   jahr: number | null;
   value: string;
   hint: string;
+  diff?: number | null;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
@@ -215,6 +245,16 @@ function KpiCard({
       <div className="mt-2 text-3xl font-semibold tabular-nums text-[var(--color-cuira-deep)]">
         {value}
       </div>
+      {diff != null && (
+        <div
+          className={`mt-1 text-xs font-medium tabular-nums ${
+            diff >= 0 ? "text-emerald-700" : "text-rose-700"
+          }`}
+        >
+          Variante B: {diff >= 0 ? "+" : ""}
+          {formatChf(diff)}
+        </div>
+      )}
       <div className="mt-2 text-xs text-slate-400">{hint}</div>
     </div>
   );

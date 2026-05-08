@@ -61,6 +61,43 @@ export type CashflowInput = Pick<
   | "einmaligeAusgaben"
 >;
 
+/**
+ * Wendet Szenario-B-Overrides auf einen CashflowInput an. Felder im Overlay
+ * überschreiben die entsprechenden State-Felder; alles andere bleibt gleich.
+ */
+export function applyOverrides(
+  base: CashflowInput,
+  overrides: import("@/lib/store").SzenarioBOverrides
+): CashflowInput {
+  return {
+    ...base,
+    ziele: {
+      ...base.ziele,
+      bezugsalterP1: overrides.bezugsalterP1 ?? base.ziele.bezugsalterP1,
+      bezugsalterP2: overrides.bezugsalterP2 ?? base.ziele.bezugsalterP2,
+    },
+    ahv: {
+      ...base.ahv,
+      ahvBezugsalterP1:
+        overrides.ahvBezugsalterP1 ?? base.ahv.ahvBezugsalterP1,
+      ahvBezugsalterP2:
+        overrides.ahvBezugsalterP2 ?? base.ahv.ahvBezugsalterP2,
+    },
+    bvg: {
+      p1: {
+        ...base.bvg.p1,
+        bezugspraeferenz:
+          overrides.bvgBezugspraeferenzP1 ?? base.bvg.p1.bezugspraeferenz,
+      },
+      p2: {
+        ...base.bvg.p2,
+        bezugspraeferenz:
+          overrides.bvgBezugspraeferenzP2 ?? base.bvg.p2.bezugspraeferenz,
+      },
+    },
+  };
+}
+
 export interface CashflowZeile {
   jahr: number;
   alterP1: number | null;

@@ -210,6 +210,27 @@ export interface FirmaInput {
   verkaufsjahr: number;
 }
 
+/** Szenario-Vergleich — optionale Variante B mit Overrides. */
+export interface SzenarioBOverrides {
+  /** Pensionierungsalter Person 1 — z.B. 63 für Frühpensionierung. */
+  bezugsalterP1?: number;
+  /** Pensionierungsalter Person 2 (bei Paar). */
+  bezugsalterP2?: number;
+  /** AHV-Bezugsalter Person 1. */
+  ahvBezugsalterP1?: number;
+  /** AHV-Bezugsalter Person 2 (bei Paar). */
+  ahvBezugsalterP2?: number;
+  /** BVG-Bezugspräferenz Person 1 — z.B. "kapital" statt "rente". */
+  bvgBezugspraeferenzP1?: BezugsPraeferenz;
+  /** BVG-Bezugspräferenz Person 2 (bei Paar). */
+  bvgBezugspraeferenzP2?: BezugsPraeferenz;
+}
+
+export interface SzenarioB {
+  aktiv: boolean;
+  overrides: SzenarioBOverrides;
+}
+
 /** Nachlass — Block 10. Status pro Vorsorge-/Nachlassdokument. */
 export type NachlassThemaKey =
   | "vorsorgeauftrag"
@@ -285,6 +306,7 @@ export interface PlanState {
   immobilien: ImmobilienInput;
   firma: FirmaInput;
   nachlass: NachlassInput;
+  szenarioB: SzenarioB;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -351,6 +373,8 @@ export interface PlanState {
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
   setNachlass: (key: NachlassThemaKey, value: boolean) => void;
   setFirma: (patch: Partial<FirmaInput>) => void;
+  setSzenarioBAktiv: (aktiv: boolean) => void;
+  setSzenarioBOverride: (patch: Partial<SzenarioBOverrides>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -484,6 +508,10 @@ export const usePlanStore = create<PlanState>()(
         testament: false,
         erbvertrag: false,
         ehevertrag: false,
+      },
+      szenarioB: {
+        aktiv: false,
+        overrides: {},
       },
       aktiverBlock: 1,
 
@@ -884,6 +912,15 @@ export const usePlanStore = create<PlanState>()(
       setNachlass: (key, value) =>
         set((s) => ({ nachlass: { ...s.nachlass, [key]: value } })),
       setFirma: (patch) => set((s) => ({ firma: { ...s.firma, ...patch } })),
+      setSzenarioBAktiv: (aktiv) =>
+        set((s) => ({ szenarioB: { ...s.szenarioB, aktiv } })),
+      setSzenarioBOverride: (patch) =>
+        set((s) => ({
+          szenarioB: {
+            ...s.szenarioB,
+            overrides: { ...s.szenarioB.overrides, ...patch },
+          },
+        })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -916,11 +953,15 @@ export const usePlanStore = create<PlanState>()(
             erbvertrag: false,
             ehevertrag: false,
           },
+          szenarioB: {
+            aktiv: false,
+            overrides: {},
+          },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v19",
+      name: "cuira-plan-v20",
     }
   )
 );

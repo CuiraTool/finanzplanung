@@ -16,6 +16,7 @@ import { JahrAlterTick, X_ACHSEN_HOEHE } from "./chart-shared";
 
 interface Props {
   daten: CashflowZeile[];
+  datenB?: CashflowZeile[] | null;
   pensionsjahr: number | null;
   wunschPensionsjahr: number | null;
   fallart: "einzel" | "paar";
@@ -33,10 +34,16 @@ const FARBE = {
 
 export function VermoegensChart({
   daten,
+  datenB,
   pensionsjahr,
   wunschPensionsjahr,
   fallart,
 }: Props) {
+  // Daten mit B-Netto kombinieren (für die zweite Linie im selben Chart)
+  const dataMerged = daten.map((d, i) => ({
+    ...d,
+    vermoegenNettoB: datenB?.[i]?.vermoegenNetto ?? null,
+  }));
   const formatChfKurz = (value: number) => {
     if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
     if (Math.abs(value) >= 1_000) return `${Math.round(value / 1000)}k`;
@@ -59,7 +66,7 @@ export function VermoegensChart({
 
       <ResponsiveContainer width="100%" height={460}>
         <ComposedChart
-          data={daten}
+          data={dataMerged}
           margin={{ top: 36, right: 16, left: 12, bottom: 8 }}
         >
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -144,7 +151,7 @@ export function VermoegensChart({
             name="Schulden"
           />
 
-          {/* Netto als dicke Linie */}
+          {/* Netto als dicke Linie (Plan A) */}
           <Line
             type="monotone"
             dataKey="vermoegenNetto"
@@ -153,6 +160,19 @@ export function VermoegensChart({
             dot={false}
             name="Netto"
           />
+
+          {/* Netto-Linie B (Variante B) gestrichelt — nur wenn vorhanden */}
+          {datenB && (
+            <Line
+              type="monotone"
+              dataKey="vermoegenNettoB"
+              stroke="#7c3aed"
+              strokeWidth={2.5}
+              strokeDasharray="6 3"
+              dot={false}
+              name="Netto B"
+            />
+          )}
 
           {pensionsjahr != null && (
             <ReferenceLine

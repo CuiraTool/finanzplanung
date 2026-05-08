@@ -16,6 +16,7 @@ import { JahrAlterTick, X_ACHSEN_HOEHE } from "./chart-shared";
 
 interface Props {
   daten: CashflowZeile[];
+  datenB?: CashflowZeile[] | null;
   pensionsjahr: number | null;
   wunschPensionsjahr: number | null;
   fallart: "einzel" | "paar";
@@ -34,6 +35,7 @@ const FARBE = {
 
 export function EinnahmenAusgabenChart({
   daten,
+  datenB,
   pensionsjahr,
   wunschPensionsjahr,
   fallart,
@@ -49,11 +51,12 @@ export function EinnahmenAusgabenChart({
   // Diverging-Bars: Ausgaben werden für die Visualisierung negativ — Recharts
   // stackt sie dann nach unten. Originaldaten bleiben positiv und tauchen im
   // Tooltip absolut auf.
-  const datenViz = daten.map((d) => ({
+  const datenViz = daten.map((d, i) => ({
     ...d,
     ausgabenHaushaltViz: -d.ausgabenHaushalt,
     ausgabenSteuernViz: -d.ausgabenSteuern,
     ausgabenEinmaligViz: -d.ausgabenEinmalig,
+    saldoB: datenB?.[i]?.saldo ?? null,
   }));
 
   return (
@@ -137,7 +140,7 @@ export function EinnahmenAusgabenChart({
             name="Einmalige"
           />
 
-          {/* Saldo-Linie über den Bars */}
+          {/* Saldo-Linie A über den Bars */}
           <Line
             type="monotone"
             dataKey="saldo"
@@ -146,6 +149,19 @@ export function EinnahmenAusgabenChart({
             dot={false}
             name="Saldo"
           />
+
+          {/* Saldo-Linie B (Variante B) als gestrichelt — nur wenn vorhanden */}
+          {datenB && (
+            <Line
+              type="monotone"
+              dataKey="saldoB"
+              stroke="#7c3aed"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+              dot={false}
+              name="Saldo B"
+            />
+          )}
 
           {pensionsjahr != null && (
             <ReferenceLine
