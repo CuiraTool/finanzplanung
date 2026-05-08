@@ -1,0 +1,19 @@
+# Netlify-Build-Konfiguration für Next.js 15 + pnpm.
+# Netlify erkennt Next.js automatisch via @netlify/plugin-nextjs (kommt mit
+# der Next.js-Runtime mit). Diese Datei macht Build-Command und Node-Version
+# explizit, damit es keine Überraschungen beim ersten Deploy gibt.
+
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm build"
+  publish = ".next"
+
+[build.environment]
+  # Node-Version pinnen — verhindert Drift, wenn Netlify ihre Defaults updated.
+  NODE_VERSION = "20"
+  # pnpm via corepack aktivieren (Netlify-Standard)
+  NPM_FLAGS = "--version"
+  PNPM_FLAGS = "--frozen-lockfile"
+
+# Next.js Plugin sollte automatisch installiert werden — falls nicht, manuell
+# im Netlify-UI unter Site Settings → Build & Deploy → Build Plugins:
+# "@netlify/plugin-nextjs" hinzufügen.

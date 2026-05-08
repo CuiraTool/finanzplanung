@@ -1,84 +1,109 @@
-# Deployment auf Vercel
+# Deployment
 
-## Erstes Deployment (~ 15 Minuten)
+Aktuelle Empfehlung: **Netlify** (du hast den Account schon). Vercel als Alternative — beide haben Free-Tiers, beide reichen für Etappe 1–3.
 
-### 1. Vercel-Account anlegen
+---
 
-1. Gehe auf [vercel.com](https://vercel.com)
-2. **Sign Up** → wähle "Continue with GitHub" (verknüpft direkt mit deinem GitHub-Account `rise4best`)
-3. Auf der Pricing-Seite: **Hobby (Free)** auswählen — reicht für Etappe 1–3 vollständig
+## Netlify (~ 15 Min)
 
-### 2. Projekt importieren
+### 1. Site importieren
 
-1. Im Vercel-Dashboard auf **Add New… → Project**
-2. **Install GitHub App** falls Vercel deine Repos noch nicht sieht
-   - "Only select repositories" wählen → `CuiraTool/finanzplanung` markieren
-   - Authorize
-3. Zurück im Dashboard: `CuiraTool/finanzplanung` erscheint in der Liste, **Import** klicken
-4. Im Konfigurations-Screen:
-   - **Framework Preset:** Next.js (sollte automatisch erkannt sein)
-   - **Build Command:** leer lassen (Default `next build`)
-   - **Output Directory:** leer lassen (Default `.next`)
-   - **Install Command:** `pnpm install --frozen-lockfile`
-   - **Root Directory:** `.` (Default)
-5. **Deploy** klicken
+1. [app.netlify.com](https://app.netlify.com) öffnen, mit deinem Account einloggen
+2. **Add new site → Import an existing project**
+3. **GitHub** wählen → ggf. Netlify als App in deinem GitHub-Account installieren (du siehst nur Repos, die du autorisierst)
+4. **Repository auswählen**: `CuiraTool/finanzplanung`
 
-Das erste Deployment dauert ~ 2–3 Minuten. Vercel liefert dir am Ende eine URL wie `finanzplanung-xyz.vercel.app`.
+### 2. Build-Konfiguration
 
-### 3. Auto-Deploy bei jedem Push
+Netlify schlägt automatisch eine Konfiguration vor. Die wichtigen Werte:
 
-Ist automatisch konfiguriert: jeder neue Commit auf `main` triggert automatisch ein neues Deployment. Pull Requests bekommen Preview-URLs.
+| Feld | Wert |
+|---|---|
+| Branch to deploy | `main` |
+| Base directory | (leer lassen) |
+| Build command | `pnpm install --frozen-lockfile && pnpm build` |
+| Publish directory | `.next` |
+| Functions directory | (leer lassen) |
 
-## Custom Domain `plan.cuirapartners.ch`
+Diese Werte stehen auch in der `netlify.toml` im Repo — Netlify liest sie automatisch und überschreibt das UI.
 
-Wenn du das Tool unter eurer eigenen Subdomain laufen lassen willst:
+### 3. Next.js-Plugin
 
-### 1. In Vercel
+Netlify installiert `@netlify/plugin-nextjs` automatisch beim ersten Build. Falls nicht (selten):
 
-1. Projekt-Einstellungen → **Domains**
-2. `plan.cuirapartners.ch` eingeben → **Add**
-3. Vercel zeigt dir DNS-Records, die du beim Domain-Anbieter (vermutlich euer Hosting für `cuirapartners.ch`) eintragen musst:
-   - Typ: `CNAME`
-   - Name: `plan`
-   - Wert: `cname.vercel-dns.com`
+- Site Settings → Build & Deploy → Build Plugins → **Add plugin** → `@netlify/plugin-nextjs`
 
-### 2. Beim Domain-Provider
+### 4. Deploy
 
-Im DNS-Bereich der `cuirapartners.ch` den CNAME-Eintrag setzen. Propagierung dauert 5 Minuten bis 24 Stunden, meistens unter einer Stunde.
+- **Deploy site** klicken
+- Erster Build ~ 3–5 Min (pnpm install + Next.js compile)
+- URL wird als `<random>.netlify.app` vergeben — kannst du in den Site-Settings auf was Sinnvolles wie `cuira-finanzplanung` umstellen
 
-### 3. Vercel verifiziert automatisch
+### 5. Auto-Deploy
 
-Sobald DNS resolved, schaltet Vercel SSL/HTTPS frei (Let's Encrypt). Ab dann ist die App unter `https://plan.cuirapartners.ch` erreichbar.
+Ist automatisch konfiguriert: jeder Commit auf `main` triggert ein neues Deploy. Pull Requests bekommen Deploy-Previews unter eigenen URLs.
 
-## Wichtige Hinweise
+### Custom Domain `plan.cuirapartners.ch`
 
-**Datenschutz / DSG:**
-Bisher speichert das Tool **alle Daten nur im Browser des Users** (LocalStorage). Es geht nichts an einen Server. Damit ist Vercel-Hosting heute unbedenklich — die App ist eine reine Client-Side-App.
+Sobald du das willst:
 
-**Achtung ab Etappe 4:** Sobald wir Supabase einbauen (Auth + Backend), müssen die Daten in einer EU-Region liegen (Supabase Frankfurt). Vercel selbst kann dann auf Frankfurt-Edge konfiguriert werden, aber die DSG-relevante Datenhaltung ist Supabase, nicht Vercel.
+1. **Netlify**: Site Settings → Domain Management → **Add custom domain** → `plan.cuirapartners.ch`
+2. Netlify zeigt dir den DNS-Eintrag, den du beim Domain-Provider (vermutlich euer Hosting für `cuirapartners.ch`) machen musst:
+   - Typ `CNAME`, Name `plan`, Wert `<deine-site>.netlify.app`
+3. Beim Provider eintragen, 5 Min bis 1 Stunde warten
+4. Netlify schaltet **Let's-Encrypt-SSL** automatisch frei → `https://plan.cuirapartners.ch`
 
-**Free-Tier-Grenzen:**
-- 100 GB Bandwidth/Monat → reicht für >100k Page Views
-- 6'000 Build-Minuten/Monat → mehr als genug
+### Free-Tier-Grenzen
+
+- 100 GB Bandwidth/Monat
+- 300 Build-Minuten/Monat
 - Auto-Deployment, Preview-URLs, SSL inklusive
+- Reicht für Etappe 1–3 voll und ganz
 
-**Wenn die URL nicht öffentlich sein soll:**
-Vercel Pro ($20/Monat) hat **Password Protection** — du kannst die Preview-Deployments hinter einem Passwort verstecken, ohne Auth in der App zu bauen. Sinnvoll, wenn du Tiago oder Test-Personen einen Link gibst, ohne dass die URL geleakt sein darf.
+### Pro-Tier ($19/Monat) brauchst du erst, wenn:
+
+- Password Protection auf Preview-URLs (für unauthorisierte Drittpersonen-Zugriffe)
+- Mehr Build-Minuten (>300/Monat — bei kleinem Repo unrealistisch)
+- Team-Funktionen
+
+---
+
+## Vercel — Alternative
+
+Funktioniert exakt gleich wie Netlify, etwas tiefere Next.js-Integration (ist von der Next.js-Firma selbst gebaut). Wenn du später wechseln willst, kein Drama: gleicher Workflow, gleiches Repo.
+
+Schritte:
+1. [vercel.com](https://vercel.com) → Sign Up mit GitHub
+2. Add New → Project → `CuiraTool/finanzplanung`
+3. Framework Preset: Next.js (auto-detected)
+4. Install Command: `pnpm install --frozen-lockfile`
+5. Deploy
+
+Die `netlify.toml` wird von Vercel ignoriert — kein Konflikt.
+
+---
+
+## Datenschutz
+
+Aktuell speichert das Tool **alle Daten nur im Browser des Users** (LocalStorage). Es geht nichts an einen Server. Damit ist sowohl Netlify- als auch Vercel-Hosting heute unbedenklich.
+
+**Achtung ab Etappe 4** (Supabase-Integration): Daten müssen in einer EU-Region liegen (Supabase Frankfurt). Hosting bleibt unkritisch, weil Supabase die persistente Schicht ist.
+
+---
 
 ## Troubleshooting
 
+**Build schlägt fehl: "pnpm not found"**
+→ Netlify aktiviert pnpm via Corepack automatisch. Falls Probleme: in den Site-Settings unter Build & Deploy → Environment → Variable `PNPM_VERSION = 11` setzen.
+
 **Build schlägt fehl: "Cannot find module"**
-→ Lokal `pnpm install` einmal frisch durchziehen, lockfile committen, neu pushen
+→ Lokal `pnpm install` durchziehen, `pnpm-lock.yaml` committen, neu pushen. Lockfile muss mitcommitet sein.
 
 **Build dauert > 5 Minuten**
-→ `next build` cacht zwischen den Builds. Bei sehr grossen Repos in den Vercel-Settings → Build & Development → Cache aktivieren.
+→ Build-Cache in Netlify-Settings prüfen — sollte die zweite Runde auf < 2 Minuten drücken.
 
-**Deploy preview zeigt veraltete Daten**
-→ LocalStorage des Users ist persistent über Deploys hinweg. Beim Schema-Bump (z.B. `v17 → v18`) wird automatisch frisch gestartet — siehe `src/lib/store.ts` `name`-Property.
+**Charts laden weisse Seite**
+→ Browser-Konsole öffnen. Recharts kann mit Hydration-Issues auftauchen, wenn Server- und Client-Render nicht synchronisieren. Alle Chart-Komponenten haben `"use client"` — sollte robust sein.
 
-## Mein nächster Schritt
-
-Sobald das Deployment läuft:
-1. URL ins README einfügen
-2. Tiago den Link schicken
-3. Vorausschau Etappe 4: Supabase-Account anlegen (Region Frankfurt) und in Vercel als Env-Variablen `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` einrichten — passiert wenn Auth dran ist.
+**LocalStorage-State ist nach Deploy weg**
+→ Erwartet: jeder Schema-Bump (siehe `src/lib/store.ts` `name`-Property) startet frisch. Beim ersten Besuch der neuen Version sieht der User Default-Werte.

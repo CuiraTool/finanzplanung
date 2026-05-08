@@ -45,7 +45,7 @@ Roadmap-Etappen 1.5 (BSV-Tabellen), 2 (Cashflow + Charts), 2.5 (Steuer-Engine), 
 
 ## Deployment
 
-Aktuell nur lokal. Vercel-Setup vorbereitet — Anleitung unter [`docs/DEPLOY.md`](docs/DEPLOY.md). Nach erstem Deploy ist die App unter einer Vercel-URL erreichbar (später `plan.cuirapartners.ch`).
+Aktuell nur lokal. Netlify-Setup vorbereitet (`netlify.toml` im Repo, Vercel als Alternative) — Anleitung unter [`docs/DEPLOY.md`](docs/DEPLOY.md). Nach erstem Deploy ist die App unter einer Netlify-URL erreichbar (später `plan.cuirapartners.ch`).
 
 ## Mehr Kontext
 
