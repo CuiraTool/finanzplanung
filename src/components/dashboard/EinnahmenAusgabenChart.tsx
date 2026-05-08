@@ -48,7 +48,7 @@ export function EinnahmenAusgabenChart({
         <Legende />
       </header>
 
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={420}>
         <ComposedChart
           data={daten}
           margin={{ top: 8, right: 12, left: 12, bottom: 8 }}

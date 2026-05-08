@@ -222,7 +222,7 @@ function KpiCard({
 
 function ChartPlaceholder({ title }: { title: string }) {
   return (
-    <div className="flex h-72 flex-col rounded-xl border border-dashed border-slate-300 bg-white p-5">
+    <div className="flex h-[480px] flex-col rounded-xl border border-dashed border-slate-300 bg-white p-5">
       <div className="text-base font-semibold text-slate-700">{title}</div>
       <div className="grid flex-1 place-items-center text-sm text-slate-400">
         Chart kommt mit der Cashflow-Engine V2

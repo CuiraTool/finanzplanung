@@ -59,7 +59,7 @@ export function MassnahmenListe({
           Vorsorgekapital), erscheinen hier die Schritte.
         </div>
       ) : (
-        <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
+        <ul className="max-h-[640px] divide-y divide-slate-100 overflow-y-auto">
           {massnahmen.map((m) => (
             <MassnahmeRow
               key={m.id}
