@@ -94,9 +94,32 @@ export interface ZieleWuensche {
   bezugsalterP2: number;
 }
 
+export interface Einkommensperiode {
+  id: string;
+  beschreibung: string;
+  personIdx: 1 | 2; // bei Einzelperson immer 1
+  betragMonatlich: number;
+  von: string; // ISO YYYY-MM, leer = offen
+  bis: string; // ISO YYYY-MM, leer = offen / bis Pension
+}
+
+export type AusgabenModus = "total" | "detailliert";
+
+export interface AusgabenKategorien {
+  lebenshaltung: number | null;
+  wohnen: number | null;
+  mobilitaet: number | null;
+  versicherungen: number | null;
+  ferienHobby: number | null;
+  sonstiges: number | null;
+}
+
 export interface Budget {
-  monatlichHeute: number | null;
-  monatlichPension: number | null;
+  einkommen: Einkommensperiode[];
+  ausgabenModus: AusgabenModus;
+  ausgabenTotal: number | null;
+  ausgabenKategorien: AusgabenKategorien;
+  wunschverbrauchPension: number | null;
 }
 
 export interface PlanState {
@@ -124,7 +147,13 @@ export interface PlanState {
   addEinmaligAusgabe: () => void;
   updateEinmaligAusgabe: (id: string, patch: Partial<EinmaligAusgabe>) => void;
   removeEinmaligAusgabe: (id: string) => void;
-  setBudget: (patch: Partial<Budget>) => void;
+  addEinkommensperiode: () => void;
+  updateEinkommensperiode: (id: string, patch: Partial<Einkommensperiode>) => void;
+  removeEinkommensperiode: (id: string) => void;
+  setAusgabenModus: (m: AusgabenModus) => void;
+  setAusgabenTotal: (v: number | null) => void;
+  setAusgabenKategorie: (key: keyof AusgabenKategorien, v: number | null) => void;
+  setWunschverbrauchPension: (v: number | null) => void;
   setAhv: (patch: Partial<AhvInput>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
@@ -156,9 +185,24 @@ const initialZiele: ZieleWuensche = {
 };
 
 const initialBudget: Budget = {
-  monatlichHeute: null,
-  monatlichPension: null,
+  einkommen: [],
+  ausgabenModus: "total",
+  ausgabenTotal: null,
+  ausgabenKategorien: {
+    lebenshaltung: null,
+    wohnen: null,
+    mobilitaet: null,
+    versicherungen: null,
+    ferienHobby: null,
+    sonstiges: null,
+  },
+  wunschverbrauchPension: null,
 };
+
+function currentYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -240,7 +284,52 @@ export const usePlanStore = create<PlanState>()(
         set((s) => ({
           einmaligeAusgaben: s.einmaligeAusgaben.filter((a) => a.id !== id),
         })),
-      setBudget: (patch) => set((s) => ({ budget: { ...s.budget, ...patch } })),
+      addEinkommensperiode: () =>
+        set((s) => ({
+          budget: {
+            ...s.budget,
+            einkommen: [
+              ...s.budget.einkommen,
+              {
+                id: newId(),
+                beschreibung: "",
+                personIdx: 1,
+                betragMonatlich: 0,
+                von: currentYearMonth(),
+                bis: "",
+              },
+            ],
+          },
+        })),
+      updateEinkommensperiode: (id, patch) =>
+        set((s) => ({
+          budget: {
+            ...s.budget,
+            einkommen: s.budget.einkommen.map((e) =>
+              e.id === id ? { ...e, ...patch } : e
+            ),
+          },
+        })),
+      removeEinkommensperiode: (id) =>
+        set((s) => ({
+          budget: {
+            ...s.budget,
+            einkommen: s.budget.einkommen.filter((e) => e.id !== id),
+          },
+        })),
+      setAusgabenModus: (m) =>
+        set((s) => ({ budget: { ...s.budget, ausgabenModus: m } })),
+      setAusgabenTotal: (v) =>
+        set((s) => ({ budget: { ...s.budget, ausgabenTotal: v } })),
+      setAusgabenKategorie: (key, v) =>
+        set((s) => ({
+          budget: {
+            ...s.budget,
+            ausgabenKategorien: { ...s.budget.ausgabenKategorien, [key]: v },
+          },
+        })),
+      setWunschverbrauchPension: (v) =>
+        set((s) => ({ budget: { ...s.budget, wunschverbrauchPension: v } })),
       setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
@@ -259,7 +348,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v4",
+      name: "cuira-plan-v5",
     }
   )
 );
