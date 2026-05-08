@@ -31,8 +31,6 @@ export interface Massnahme {
   detail?: string;
 }
 
-const MAX_3A_BEITRAG_2025 = 7258;
-
 export function massnahmenAusState(state: PlanState): Massnahme[] {
   const heute = new Date().getFullYear();
   const out: Massnahme[] = [];
@@ -51,21 +49,34 @@ export function massnahmenAusState(state: PlanState): Massnahme[] {
         ]
       : [{ idx: "p1", vorname: state.person1.vorname, pj: pj1 }];
 
-  // 1. 3a-Maximum jährlich
+  // 1. 3a-Einzahlungen — pro Item, pro Jahr im einzahlungAb..einzahlungBis-Fenster
+  // (nur die nächsten 3 Jahre als Reminder, sonst wird die Liste zu lang)
   for (const p of personen) {
-    if (p.pj == null) continue;
-    const beitrag = MAX_3A_BEITRAG_2025;
-    for (let j = heute; j < p.pj; j++) {
-      out.push({
-        id: `3a-max-${p.idx}-${j}`,
-        jahr: j,
-        monat: 1,
-        wer: p.idx,
-        kategorie: "vorsorge",
-        titel: `Säule 3a Maximalbeitrag ${formatChfKurz(beitrag)}`,
-        detail: `Voller steuerlicher Abzug — bis ${p.vorname || "Pension"}`,
-      });
-      if (j >= heute + 3) break; // nur die nächsten 3 Jahre als Reminder
+    const items = p.idx === "p1" ? state.saeuleDrei.p1 : state.saeuleDrei.p2;
+    for (const it of items) {
+      if (it.jaehrlicheEinzahlung == null || it.jaehrlicheEinzahlung <= 0)
+        continue;
+      const von = Math.max(it.einzahlungAb, heute);
+      const bis = Math.min(it.einzahlungBis, heute + 3);
+      const label =
+        it.type === "konto" ? "3a-Einzahlung Konto" : "3a-Prämie Versicherung";
+      const beschreibung = it.beschreibung
+        ? ` (${it.beschreibung})`
+        : "";
+      for (let j = von; j <= bis; j++) {
+        out.push({
+          id: `3a-einzahlung-${p.idx}-${it.id}-${j}`,
+          jahr: j,
+          monat: 1,
+          wer: p.idx,
+          kategorie: "vorsorge",
+          titel: `${label} ${formatChfKurz(it.jaehrlicheEinzahlung)}${beschreibung}`,
+          detail:
+            it.type === "konto"
+              ? "Voller steuerlicher Abzug bei Veranlagung"
+              : "Versicherungsprämie — Abzug nur bei reiner 3a-Police",
+        });
+      }
     }
   }
 

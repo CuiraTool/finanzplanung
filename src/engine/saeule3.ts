@@ -32,6 +32,10 @@ export interface SaeuleDreiItem {
   rueckkaufswert: number | null;
   ablaufswert: number | null; // Erlebensfallleistung (höher als Rückkaufswert wegen Überschüssen)
   ablaufjahr: number;
+  // Einzahlungen:
+  jaehrlicheEinzahlung: number | null;
+  einzahlungAb: number;
+  einzahlungBis: number;
 }
 
 export interface SaeuleDreiAuszahlung {

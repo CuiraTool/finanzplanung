@@ -17,6 +17,9 @@ function konto(overrides: Partial<SaeuleDreiItem> = {}): SaeuleDreiItem {
     rueckkaufswert: null,
     ablaufswert: null,
     ablaufjahr: 2030,
+    jaehrlicheEinzahlung: null,
+    einzahlungAb: 2026,
+    einzahlungBis: 2029,
     ...overrides,
   };
 }
@@ -32,6 +35,9 @@ function versicherung(overrides: Partial<SaeuleDreiItem> = {}): SaeuleDreiItem {
     rueckkaufswert: 30_000,
     ablaufswert: null,
     ablaufjahr: 2032,
+    jaehrlicheEinzahlung: null,
+    einzahlungAb: 2026,
+    einzahlungBis: 2031,
     ...overrides,
   };
 }

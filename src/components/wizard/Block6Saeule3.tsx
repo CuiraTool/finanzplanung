@@ -156,6 +156,8 @@ function SaeuleDreiCard({
         <VersicherungsFelder item={item} onUpdate={onUpdate} />
       )}
 
+      <EinzahlungsFelder item={item} onUpdate={onUpdate} />
+
       {auszahlung && (
         <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
           <span className="text-slate-500">Voraussichtliche Auszahlung im Jahr {auszahlung.jahr}:</span>{" "}
@@ -216,6 +218,73 @@ function KontoFelder({
         </Field>
       </div>
     </>
+  );
+}
+
+function EinzahlungsFelder({
+  item,
+  onUpdate,
+}: {
+  item: SaeuleDreiEntry;
+  onUpdate: (p: Partial<Omit<SaeuleDreiEntry, "id">>) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/50 p-3">
+      <div>
+        <div className="text-xs font-medium text-slate-700">
+          {item.type === "konto" ? "Jährliche Einzahlung" : "Jahresprämie"}
+        </div>
+        <div className="text-xs text-slate-400">
+          {item.type === "konto"
+            ? "z.B. CHF 7'258 (Maximum mit PK)"
+            : "feste Prämie laut Police"}
+          {" — "}leer lassen wenn nicht regelmässig eingezahlt
+        </div>
+      </div>
+      <Field label="Betrag (CHF / Jahr)">
+        <input
+          type="number"
+          inputMode="numeric"
+          value={item.jaehrlicheEinzahlung ?? ""}
+          onChange={(e) =>
+            onUpdate({
+              jaehrlicheEinzahlung:
+                e.target.value === "" ? null : Number(e.target.value),
+            })
+          }
+          placeholder={item.type === "konto" ? "z.B. 7258" : "z.B. 6000"}
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
+      {item.jaehrlicheEinzahlung != null && item.jaehrlicheEinzahlung > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Von Jahr">
+            <input
+              type="number"
+              min={2000}
+              max={2080}
+              value={item.einzahlungAb}
+              onChange={(e) =>
+                onUpdate({ einzahlungAb: Number(e.target.value) })
+              }
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
+          <Field label="Bis Jahr">
+            <input
+              type="number"
+              min={2000}
+              max={2080}
+              value={item.einzahlungBis}
+              onChange={(e) =>
+                onUpdate({ einzahlungBis: Number(e.target.value) })
+              }
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
+        </div>
+      )}
+    </div>
   );
 }
 

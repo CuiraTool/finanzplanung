@@ -145,6 +145,10 @@ export interface SaeuleDreiEntry {
   rueckkaufswert: number | null;
   ablaufswert: number | null; // Erlebensfallleistung — wird im Ablaufjahr ausbezahlt
   ablaufjahr: number;
+  // Einzahlungen (Konto: jährlicher Beitrag, Versicherung: Jahresprämie):
+  jaehrlicheEinzahlung: number | null;
+  einzahlungAb: number;
+  einzahlungBis: number;
 }
 
 export interface SaeuleDreiInput {
@@ -694,7 +698,8 @@ export const usePlanStore = create<PlanState>()(
       addSaeuleDrei: (personIdx, type) =>
         set((s) => {
           const key = personIdx === 1 ? "p1" : "p2";
-          const naechstesJahr = new Date().getFullYear() + 5;
+          const aktJahr = new Date().getFullYear();
+          const naechstesJahr = aktJahr + 5;
           const neu: SaeuleDreiEntry = {
             id: newId(),
             type,
@@ -705,6 +710,9 @@ export const usePlanStore = create<PlanState>()(
             rueckkaufswert: null,
             ablaufswert: null,
             ablaufjahr: naechstesJahr,
+            jaehrlicheEinzahlung: null,
+            einzahlungAb: aktJahr,
+            einzahlungBis: naechstesJahr - 1,
           };
           return {
             saeuleDrei: {
@@ -912,7 +920,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v18",
+      name: "cuira-plan-v19",
     }
   )
 );
