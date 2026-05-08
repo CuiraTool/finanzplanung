@@ -6,14 +6,14 @@ import { formatChf } from "@/lib/format";
 
 export function Dashboard() {
   const fallart = usePlanStore((s) => s.fallart);
-  const person1 = usePlanStore((s) => s.person1);
-  const person2 = usePlanStore((s) => s.person2);
+  const ahvInput = usePlanStore((s) => s.ahv);
 
   const ahv = computeAhv();
 
   function computeAhv(): { haushalt: number | null; details: string } {
-    const e1 = person1.massgebendesEinkommen;
-    if (e1 == null) return { haushalt: null, details: "Massgebendes Einkommen Person 1 fehlt" };
+    const e1 = ahvInput.einkommenP1;
+    if (e1 == null)
+      return { haushalt: null, details: "Eingabe folgt in Block 4 (AHV)" };
 
     if (fallart === "einzel") {
       return {
@@ -22,8 +22,9 @@ export function Dashboard() {
       };
     }
 
-    const e2 = person2.massgebendesEinkommen;
-    if (e2 == null) return { haushalt: null, details: "Massgebendes Einkommen Person 2 fehlt" };
+    const e2 = ahvInput.einkommenP2;
+    if (e2 == null)
+      return { haushalt: null, details: "Eingabe folgt in Block 4 (AHV)" };
 
     const out = ahvCouplePension({ einkommenP1: e1, einkommenP2: e2 });
     return {

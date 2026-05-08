@@ -264,20 +264,6 @@ function PersonForm({
           />
         </Field>
       </div>
-      <Field label="Massgebendes Jahreseinkommen (CHF)" hint="durchschnittlich über die Karriere">
-        <input
-          type="number"
-          inputMode="numeric"
-          value={person.massgebendesEinkommen ?? ""}
-          onChange={(e) =>
-            onChange({
-              massgebendesEinkommen: e.target.value === "" ? null : Number(e.target.value),
-            })
-          }
-          placeholder="z.B. 80'000"
-          className={`${inputClass} tabular-nums`}
-        />
-      </Field>
     </Section>
   );
 }

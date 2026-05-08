@@ -70,7 +70,16 @@ export interface PersonInput {
   geburtsdatum: string;
   telefon: string;
   email: string;
-  massgebendesEinkommen: number | null;
+}
+
+/**
+ * AHV-spezifische Eingaben (Block 4).
+ * Liegt bewusst nicht in PersonInput — das massgebende Einkommen ist
+ * eine AHV-Berechnungsgrösse, keine Stammdate.
+ */
+export interface AhvInput {
+  einkommenP1: number | null;
+  einkommenP2: number | null;
 }
 
 export interface EinmaligAusgabe {
@@ -100,6 +109,7 @@ export interface PlanState {
   ziele: ZieleWuensche;
   einmaligeAusgaben: EinmaligAusgabe[];
   budget: Budget;
+  ahv: AhvInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -115,6 +125,7 @@ export interface PlanState {
   updateEinmaligAusgabe: (id: string, patch: Partial<EinmaligAusgabe>) => void;
   removeEinmaligAusgabe: (id: string) => void;
   setBudget: (patch: Partial<Budget>) => void;
+  setAhv: (patch: Partial<AhvInput>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -125,7 +136,11 @@ const initialPerson: PersonInput = {
   geburtsdatum: "",
   telefon: "",
   email: "",
-  massgebendesEinkommen: null,
+};
+
+const initialAhv: AhvInput = {
+  einkommenP1: null,
+  einkommenP2: null,
 };
 
 const initialAdresse: Adresse = {
@@ -168,6 +183,7 @@ export const usePlanStore = create<PlanState>()(
       ziele: { ...initialZiele },
       einmaligeAusgaben: [],
       budget: { ...initialBudget },
+      ahv: { ...initialAhv },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -225,6 +241,7 @@ export const usePlanStore = create<PlanState>()(
           einmaligeAusgaben: s.einmaligeAusgaben.filter((a) => a.id !== id),
         })),
       setBudget: (patch) => set((s) => ({ budget: { ...s.budget, ...patch } })),
+      setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -237,11 +254,12 @@ export const usePlanStore = create<PlanState>()(
           ziele: { ...initialZiele },
           einmaligeAusgaben: [],
           budget: { ...initialBudget },
+          ahv: { ...initialAhv },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v3",
+      name: "cuira-plan-v4",
     }
   )
 );
