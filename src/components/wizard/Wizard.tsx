@@ -9,6 +9,7 @@ import { Block5Bvg } from "./Block5Bvg";
 import { Block6Saeule3 } from "./Block6Saeule3";
 import { Block7Vermoegen } from "./Block7Vermoegen";
 import { Block8Immobilien } from "./Block8Immobilien";
+import { Block9Firma } from "./Block9Firma";
 import { Block10Nachlass } from "./Block10Nachlass";
 
 /**
@@ -35,7 +36,7 @@ const BLOCKS = [
   { id: 6, title: "3. Säule (3a / 3b)", implemented: true },
   { id: 7, title: "Vermögen", implemented: true },
   { id: 8, title: "Immobilien", implemented: true },
-  { id: 9, title: "Firma / Selbständigkeit", implemented: false },
+  { id: 9, title: "Firma / Selbständigkeit", implemented: true },
   { id: 10, title: "Nachlass", implemented: true },
 ] as const;
 
@@ -94,6 +95,7 @@ export function Wizard() {
       {aktiverBlock === 6 && <Block6Saeule3 />}
       {aktiverBlock === 7 && <Block7Vermoegen />}
       {aktiverBlock === 8 && <Block8Immobilien />}
+      {aktiverBlock === 9 && <Block9Firma />}
       {aktiverBlock === 10 && <Block10Nachlass />}
     </div>
   );

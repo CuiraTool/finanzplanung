@@ -185,6 +185,27 @@ function ImmobilieCard({
         />
       </Field>
 
+      {item.typ === "rendite" && (
+        <Field
+          label="Jährliche Mieteinnahmen brutto (CHF)"
+          hint="fliesst in den Cashflow — bei Verkauf ab Verkaufsjahr nicht mehr"
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            value={item.jaehrlicheMieteinnahmen ?? ""}
+            onChange={(e) =>
+              onUpdate({
+                jaehrlicheMieteinnahmen:
+                  e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+            placeholder="z.B. 48'000"
+            className={`${inputClass} tabular-nums`}
+          />
+        </Field>
+      )}
+
       <HypothekenListe
         hypotheken={item.hypotheken}
         onAdd={onAddHypothek}
@@ -378,14 +399,17 @@ function KpiPill({
 
 function Field({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
       <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
+      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
       {children}
     </label>
   );

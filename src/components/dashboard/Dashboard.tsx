@@ -1,226 +1,14 @@
 "use client";
 
 import { usePlanStore } from "@/lib/store";
-import { ahvCouplePension, ahvJahresrenteEinzel } from "@/engine/ahv";
-import {
-  bvgBezug,
-  bvgGesamtkapitalBeiBezug,
-  freizuegigkeitAuszahlung,
-} from "@/engine/bvg";
-import { saeuleDreiTotal } from "@/engine/saeule3";
-import { vermoegenStandHeute } from "@/engine/vermoegen";
-import { immobilienAufteilung } from "@/engine/immobilien";
-import type { BvgPersonInput } from "@/lib/store";
-import { pensionsjahr } from "@/lib/pension";
+import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
 import { formatChf } from "@/lib/format";
 
 export function Dashboard() {
-  const fallart = usePlanStore((s) => s.fallart);
-  const ahvInput = usePlanStore((s) => s.ahv);
-  const bvgInput = usePlanStore((s) => s.bvg);
-  const saeule3 = usePlanStore((s) => s.saeuleDrei);
-  const vermoegen = usePlanStore((s) => s.vermoegen);
-  const immobilien = usePlanStore((s) => s.immobilien);
-  const ziele = usePlanStore((s) => s.ziele);
-  const person1 = usePlanStore((s) => s.person1);
-  const person2 = usePlanStore((s) => s.person2);
+  const state = usePlanStore();
+  const bilanz = vermoegensbilanz(state);
 
-  const ahv = computeAhv();
-  const bvg = computeBvg();
-  const saeule3Total =
-    saeuleDreiTotal(saeule3.p1) +
-    (fallart === "paar" ? saeuleDreiTotal(saeule3.p2) : 0);
-  const saeule3Anzahl = saeule3.p1.length + (fallart === "paar" ? saeule3.p2.length : 0);
-
-  const fzTotal = computeFzTotal();
-  const vermoegenHeute = vermoegenStandHeute(vermoegen.items);
-  const immoAufteilung = immobilienAufteilung(
-    immobilien.items.map((im) => ({
-      verkehrswert: im.verkehrswert,
-      hypothekenSumme: im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0),
-      plan: im.plan,
-      verkaufsjahr: im.verkaufsjahr,
-    }))
-  );
-
-  function computeFzTotal(): number {
-    let total = 0;
-    for (const fz of bvgInput.p1.freizuegigkeit) {
-      if (fz.saldoHeute == null) continue;
-      total += freizuegigkeitAuszahlung(
-        {
-          saldoHeute: fz.saldoHeute,
-          auszahlungsjahr: fz.auszahlungsjahr,
-          renditeProzent: fz.renditeProzent,
-        }
-      ).betrag;
-    }
-    if (fallart === "paar") {
-      for (const fz of bvgInput.p2.freizuegigkeit) {
-        if (fz.saldoHeute == null) continue;
-        total += freizuegigkeitAuszahlung(
-          {
-            saldoHeute: fz.saldoHeute,
-            auszahlungsjahr: fz.auszahlungsjahr,
-            renditeProzent: fz.renditeProzent,
-          }
-        ).betrag;
-      }
-    }
-    return total;
-  }
-
-  function computeAhv(): {
-    haushaltJahres: number | null;
-    monatsrente: number | null;
-    details: string[];
-  } {
-    const e1 = ahvInput.einkommenP1;
-    if (e1 == null)
-      return {
-        haushaltJahres: null,
-        monatsrente: null,
-        details: ["Einkommen fehlt — Block 4"],
-      };
-
-    const fehljahreP1 = ahvInput.hatFehljahreP1 ? ahvInput.fehljahreAnzahlP1 : 0;
-    const bezugsalterP1 = ahvInput.ahvBezugsalterP1;
-    const bezugsjahrP1 =
-      pensionsjahr(person1.geburtsdatum, bezugsalterP1) ?? new Date().getFullYear();
-
-    if (fallart === "einzel") {
-      const r = ahvJahresrenteEinzel({
-        massgebendesEinkommen: e1,
-        fehljahre: fehljahreP1,
-        bezugsalter: bezugsalterP1,
-        bezugsjahr: bezugsjahrP1,
-      });
-      return {
-        haushaltJahres: r.jahresrente,
-        monatsrente: r.monatsrente,
-        details: buildAhvHints({
-          fehljahre: fehljahreP1,
-          vorbezug: r.vorbezugJahre,
-          aufschub: r.aufschubJahre,
-          hat13te: r.hat13te,
-        }),
-      };
-    }
-
-    const e2 = ahvInput.einkommenP2;
-    if (e2 == null)
-      return {
-        haushaltJahres: null,
-        monatsrente: null,
-        details: ["Einkommen P2 fehlt — Block 4"],
-      };
-
-    const fehljahreP2 = ahvInput.hatFehljahreP2 ? ahvInput.fehljahreAnzahlP2 : 0;
-    const bezugsalterP2 = ahvInput.ahvBezugsalterP2;
-    const bezugsjahrP2 = pensionsjahr(person2.geburtsdatum, bezugsalterP2);
-
-    const bezugsjahrPlafond = Math.max(
-      bezugsjahrP1,
-      bezugsjahrP2 ?? bezugsjahrP1
-    );
-
-    const out = ahvCouplePension({
-      einkommenP1: e1,
-      einkommenP2: e2,
-      fehljahreP1,
-      fehljahreP2,
-      bezugsalterP1,
-      bezugsalterP2,
-      bezugsjahr: bezugsjahrPlafond,
-    });
-
-    const monatsrente = out.hat13te
-      ? Math.round(out.haushaltsRente / 13)
-      : Math.round(out.haushaltsRente / 12);
-
-    return {
-      haushaltJahres: out.haushaltsRente,
-      monatsrente,
-      details: [
-        out.plafoniert ? "Ehepaar plafoniert (150% Max)" : "Ehepaar mit Splitting",
-        ...(out.hat13te ? ["inkl. 13. AHV (ab 2026)"] : []),
-        ...(fehljahreP1 > 0 ? [`P1: ${fehljahreP1} Fehljahre`] : []),
-        ...(fehljahreP2 > 0 ? [`P2: ${fehljahreP2} Fehljahre`] : []),
-      ],
-    };
-  }
-
-  function computeBvg(): {
-    saldoBeiBezug: number | null;
-    jahresrente: number | null;
-    kapital: number | null;
-    details: string[];
-  } {
-    const persons: { p: BvgPersonInput; bezugsjahr: number | null }[] = [];
-    if (bvgInput.p1.aktiverAnschluss && bvgInput.p1.altersguthabenBeiBezug != null) {
-      persons.push({
-        p: bvgInput.p1,
-        bezugsjahr: pensionsjahr(person1.geburtsdatum, ziele.bezugsalterP1),
-      });
-    }
-    if (
-      fallart === "paar" &&
-      bvgInput.p2.aktiverAnschluss &&
-      bvgInput.p2.altersguthabenBeiBezug != null
-    ) {
-      persons.push({
-        p: bvgInput.p2,
-        bezugsjahr: pensionsjahr(person2.geburtsdatum, ziele.bezugsalterP2),
-      });
-    }
-
-    if (persons.length === 0) {
-      return {
-        saldoBeiBezug: null,
-        jahresrente: null,
-        kapital: null,
-        details: ["Altersguthaben fehlt — Block 5"],
-      };
-    }
-
-    let saldo = 0;
-    let rente = 0;
-    let kapital = 0;
-    const detSet = new Set<string>();
-    for (const it of persons) {
-      const bj = it.bezugsjahr ?? new Date().getFullYear();
-      const ekGueltig = it.p.einkaeufe
-        .filter((e) => e.betrag != null)
-        .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
-
-      const gesamt = bvgGesamtkapitalBeiBezug({
-        altersguthabenBeiBezug: it.p.altersguthabenBeiBezug as number,
-        bezugsjahr: bj,
-        einkaeufe: ekGueltig,
-      });
-
-      const out = bvgBezug({
-        saldoBeiBezug: gesamt,
-        bezugspraeferenz: it.p.bezugspraeferenz,
-        kapitalanteilProzent: it.p.kapitalanteil,
-        umwandlungssatz: it.p.umwandlungssatzProzent / 100,
-      });
-      saldo += out.saldoBeiBezug;
-      rente += out.jahresrente;
-      kapital += out.kapitalauszahlung;
-      detSet.add(praefLabel(it.p.bezugspraeferenz, it.p.kapitalanteil));
-    }
-
-    return {
-      saldoBeiBezug: saldo,
-      jahresrente: rente,
-      kapital,
-      details: [
-        ...Array.from(detSet),
-        `inkl. Einkäufe verzinst`,
-      ],
-    };
-  }
+  const heutigesJahr = new Date().getFullYear();
 
   return (
     <div className="space-y-6">
@@ -231,74 +19,50 @@ export function Dashboard() {
             Aktualisiert sich auf jede Eingabe in Echtzeit
           </p>
         </div>
-        <span className="text-xs text-slate-400">Etappe 1 — AHV + BVG live</span>
+        <span className="text-xs text-slate-400">
+          Etappe 1 — vereinfachte Vermögensbilanz
+        </span>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      {/* 3 KPIs: heute / Pensionierung / 20 Jahre nach Pensionierung */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <KpiCard
-          label="AHV p.a. Haushalt"
-          value={formatChf(ahv.haushaltJahres)}
-          hints={ahv.details}
+          label="Nettovermögen heute"
+          jahr={heutigesJahr}
+          value={formatChf(bilanz.heute)}
+          hint="Summe aller eingegebenen Aktiva minus Schulden"
         />
         <KpiCard
-          label="AHV pro Monat"
-          value={formatChf(ahv.monatsrente)}
-          hints={ahv.haushaltJahres ? ["reguläre Monatszahlung"] : []}
-        />
-        <KpiCard
-          label="PK-Saldo bei Bezug"
-          value={formatChf(bvg.saldoBeiBezug)}
-          hints={bvg.details.slice(-1)}
-        />
-        <KpiCard
-          label="PK-Auszahlung"
+          label="Nettovermögen bei Pension"
+          jahr={bilanz.pensionierungsjahr}
           value={
-            bvg.jahresrente == null
+            bilanz.pensionierungsjahr == null ? "—" : formatChf(bilanz.beiPensionierung)
+          }
+          hint={
+            bilanz.pensionierungsjahr == null
+              ? "Geburtsdatum + Pensionsalter eingeben"
+              : "PK-Kapitalanteil + 3a/FZ-Auszahlungen + Rest-Vermögen"
+          }
+        />
+        <KpiCard
+          label="Nettovermögen nach 20 J."
+          jahr={bilanz.zwanzigJahreReferenzjahr}
+          value={
+            bilanz.zwanzigJahreReferenzjahr == null
               ? "—"
-              : `${formatChf(bvg.jahresrente)} p.a.`
+              : formatChf(bilanz.zwanzig20JahreSpaeter)
           }
-          hints={[
-            ...(bvg.kapital ? [`+ Kapital: ${formatChf(bvg.kapital)}`] : []),
-            ...bvg.details.filter((d) => !d.startsWith("Mindest")),
-          ]}
-        />
-        <KpiCard
-          label="3. Säule Total"
-          value={saeule3Anzahl === 0 ? "—" : formatChf(saeule3Total)}
-          hints={
-            saeule3Anzahl === 0
-              ? ["Block 6 in Arbeit"]
-              : [`${saeule3Anzahl} Eintrag/Einträge`, "Konten + Versicherungen"]
-          }
-        />
-        <KpiCard
-          label="Freizügigkeit Total"
-          value={fzTotal === 0 ? "—" : formatChf(fzTotal)}
-          hints={fzTotal === 0 ? [] : ["Auszahlung im jeweiligen Jahr"]}
-        />
-        <KpiCard
-          label="Vermögen heute"
-          value={vermoegen.items.length === 0 ? "—" : formatChf(vermoegenHeute)}
-          hints={[`${vermoegen.items.length} Position(en) in Block 7`]}
-        />
-        <KpiCard
-          label="Immobilien Netto"
-          value={
-            immobilien.items.length === 0 ? "—" : formatChf(immoAufteilung.netto)
-          }
-          hints={
-            immobilien.items.length === 0
-              ? ["Block 8 in Arbeit"]
-              : [
-                  `Wert ${formatChf(immoAufteilung.aktivaImmobilien)}`,
-                  `Hypotheken ${formatChf(immoAufteilung.hypothekenTotal)}`,
-                ]
+          hint={
+            bilanz.zwanzigJahreReferenzjahr == null
+              ? "—"
+              : "Bei Pension + 20 × (Renten + Mieten − Verbrauch)"
           }
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartPlaceholder title="Einnahmen/Ausgaben" />
+      {/* 4 Chart-Slots vertikal gestapelt */}
+      <div className="space-y-4">
+        <ChartPlaceholder title="Einnahmen / Ausgaben" />
         <ChartPlaceholder title="Vermögensentwicklung" />
         <ChartPlaceholder title="Steuerentwicklung" />
         <ChartPlaceholder title="Massnahmen-Liste" />
@@ -307,57 +71,37 @@ export function Dashboard() {
   );
 }
 
-function buildAhvHints(args: {
-  fehljahre: number;
-  vorbezug: number;
-  aufschub: number;
-  hat13te: boolean;
-}): string[] {
-  const hints: string[] = ["Einzelperson"];
-  if (args.vorbezug > 0)
-    hints.push(`Vorbezug ${args.vorbezug} J. (-${(args.vorbezug * 6.8).toFixed(1)}%)`);
-  if (args.aufschub > 0) hints.push(`Aufschub ${args.aufschub} J.`);
-  if (args.hat13te) hints.push("inkl. 13. AHV");
-  if (args.fehljahre > 0) hints.push(`${args.fehljahre} Fehljahre`);
-  return hints;
-}
-
-function praefLabel(p: "rente" | "kapital" | "mischung", anteil: number): string {
-  if (p === "rente") return "Rente 100%";
-  if (p === "kapital") return "Kapital 100%";
-  return `Mischung ${anteil}/${100 - anteil}`;
-}
-
 function KpiCard({
   label,
+  jahr,
   value,
-  hints,
+  hint,
 }: {
   label: string;
+  jahr: number | null;
   value: string;
-  hints?: string[];
+  hint: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
-      {hints && hints.length > 0 && (
-        <ul className="mt-1 space-y-0.5 text-xs text-slate-400">
-          {hints.map((h) => (
-            <li key={h}>{h}</li>
-          ))}
-        </ul>
-      )}
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="flex items-baseline justify-between">
+        <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+        {jahr != null && (
+          <div className="text-xs tabular-nums text-slate-400">{jahr}</div>
+        )}
+      </div>
+      <div className="mt-2 text-3xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-2 text-xs text-slate-400">{hint}</div>
     </div>
   );
 }
 
 function ChartPlaceholder({ title }: { title: string }) {
   return (
-    <div className="flex h-56 flex-col rounded-xl border border-dashed border-slate-300 bg-white p-4">
-      <div className="text-sm font-medium text-slate-700">{title}</div>
-      <div className="grid flex-1 place-items-center text-xs text-slate-400">
-        Chart kommt mit den nächsten Blöcken
+    <div className="flex h-72 flex-col rounded-xl border border-dashed border-slate-300 bg-white p-5">
+      <div className="text-base font-semibold text-slate-700">{title}</div>
+      <div className="grid flex-1 place-items-center text-sm text-slate-400">
+        Chart kommt mit der Cashflow-Engine (Etappe 2)
       </div>
     </div>
   );

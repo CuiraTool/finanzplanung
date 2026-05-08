@@ -189,10 +189,21 @@ export interface Immobilie {
   hypotheken: Hypothek[];
   plan: ImmobilienPlan;
   verkaufsjahr: number;
+  /** Nur bei Typ "rendite" relevant — jährliche Bruttomieteinnahmen. */
+  jaehrlicheMieteinnahmen: number | null;
 }
 
 export interface ImmobilienInput {
   items: Immobilie[];
+}
+
+/** Firma / Selbständigkeit — Block 9. */
+export interface FirmaInput {
+  vorhanden: boolean;
+  firmenname: string;
+  moeglicherVerkaufserloes: number | null;
+  plan: "behalten" | "verkaufen";
+  verkaufsjahr: number;
 }
 
 /** Nachlass — Block 10. Status pro Vorsorge-/Nachlassdokument. */
@@ -261,6 +272,7 @@ export interface PlanState {
   saeuleDrei: SaeuleDreiInput;
   vermoegen: VermoegenInput;
   immobilien: ImmobilienInput;
+  firma: FirmaInput;
   nachlass: NachlassInput;
   aktiverBlock: number;
 
@@ -325,6 +337,7 @@ export interface PlanState {
   ) => void;
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
   setNachlass: (key: NachlassThemaKey, value: boolean) => void;
+  setFirma: (patch: Partial<FirmaInput>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -441,6 +454,13 @@ export const usePlanStore = create<PlanState>()(
       saeuleDrei: { p1: [], p2: [] },
       vermoegen: makeInitialVermoegen(),
       immobilien: { items: [] },
+      firma: {
+        vorhanden: false,
+        firmenname: "",
+        moeglicherVerkaufserloes: null,
+        plan: "behalten",
+        verkaufsjahr: new Date().getFullYear() + 10,
+      },
       nachlass: {
         vorsorgeauftrag: false,
         patientenverfuegung: false,
@@ -755,6 +775,7 @@ export const usePlanStore = create<PlanState>()(
             hypotheken: [],
             plan: "behalten",
             verkaufsjahr: jahr + 10,
+            jaehrlicheMieteinnahmen: null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
@@ -821,6 +842,7 @@ export const usePlanStore = create<PlanState>()(
         })),
       setNachlass: (key, value) =>
         set((s) => ({ nachlass: { ...s.nachlass, [key]: value } })),
+      setFirma: (patch) => set((s) => ({ firma: { ...s.firma, ...patch } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -838,6 +860,13 @@ export const usePlanStore = create<PlanState>()(
           saeuleDrei: { p1: [], p2: [] },
           vermoegen: makeInitialVermoegen(),
           immobilien: { items: [] },
+          firma: {
+            vorhanden: false,
+            firmenname: "",
+            moeglicherVerkaufserloes: null,
+            plan: "behalten",
+            verkaufsjahr: new Date().getFullYear() + 10,
+          },
           nachlass: {
             vorsorgeauftrag: false,
             patientenverfuegung: false,
@@ -850,7 +879,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v16",
+      name: "cuira-plan-v17",
     }
   )
 );

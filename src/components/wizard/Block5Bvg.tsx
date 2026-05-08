@@ -209,13 +209,6 @@ function PersonBvgForm({
             </Field>
           )}
 
-          <Freizuegigkeit
-            items={person.freizuegigkeit}
-            onAdd={onAddFz}
-            onUpdate={onUpdateFz}
-            onRemove={onRemoveFz}
-          />
-
           <Einkaeufe
             items={person.einkaeufe}
             bezugsjahr={bezugsjahr}
@@ -229,6 +222,15 @@ function PersonBvgForm({
           />
         </>
       )}
+
+      {/* Freizügigkeit ist unabhängig vom aktiven Anschluss — auch ohne PK
+          kann Freizügigkeit aus früheren Anstellungen vorhanden sein. */}
+      <Freizuegigkeit
+        items={person.freizuegigkeit}
+        onAdd={onAddFz}
+        onUpdate={onUpdateFz}
+        onRemove={onRemoveFz}
+      />
     </fieldset>
   );
 }
