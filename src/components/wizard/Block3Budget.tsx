@@ -68,7 +68,7 @@ export function Block3Budget() {
         <legend className="px-1 text-sm font-semibold text-slate-700">
           Einnahmen
           <span className="ml-2 text-xs font-normal text-slate-400">
-            mehrere Perioden möglich (Job-Wechsel, Pensumsreduktion …)
+            brutto vor Steuer — mehrere Perioden möglich
           </span>
         </legend>
 
@@ -124,7 +124,10 @@ export function Block3Budget() {
                 </Field>
               )}
 
-              <Field label="Betrag pro Monat (CHF, netto)">
+              <Field
+                label="Betrag pro Monat (CHF, brutto)"
+                hint="vor Steuerabzug — Steuern werden separat berechnet (Block 3 unten)"
+              >
                 <input
                   type="number"
                   inputMode="numeric"
@@ -135,7 +138,7 @@ export function Block3Budget() {
                         ev.target.value === "" ? null : Number(ev.target.value),
                     })
                   }
-                  placeholder="z.B. 8'000"
+                  placeholder="z.B. 8'500"
                   className={`${inputClass} tabular-nums`}
                 />
               </Field>
