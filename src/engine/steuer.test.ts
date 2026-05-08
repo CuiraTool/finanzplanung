@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { steuerProJahr, indikativeSteuerHeute } from "./steuer";
 import { bundessteuer } from "./steuer-bund";
+import {
+  einfacheStaatssteuerZh,
+  kantonsteuerZh,
+  ZH_STEUERFUSS_KANTON,
+  ZH_STEUERFUSS_STADT_ZH,
+} from "./steuer-zh";
 
 describe("Bundessteuer — DBG progressive Tarife", () => {
   it("Einzeltarif: Einkommen unter 14'500 = 0", () => {
@@ -36,8 +42,72 @@ describe("Bundessteuer — DBG progressive Tarife", () => {
   });
 });
 
+describe("Kantonsteuer ZH — progressive Tarife (§35 StG)", () => {
+  it("Grundtarif: Einkommen unter 6'700 = 0", () => {
+    expect(einfacheStaatssteuerZh(0, "grundtarif")).toBe(0);
+    expect(einfacheStaatssteuerZh(6_700, "grundtarif")).toBe(0);
+  });
+
+  it("Grundtarif bei 50'000: Stufe 43'700-56'100, Basis 1'646 + 7%", () => {
+    // 1'646 + 7% × (50'000 - 43'700) = 1'646 + 441 = 2'087
+    expect(einfacheStaatssteuerZh(50_000, "grundtarif")).toBeCloseTo(2_087, 0);
+  });
+
+  it("Grundtarif bei 100'000: Stufe 73'000-105'500, Basis 3'866 + 9%", () => {
+    // 3'866 + 9% × (100'000 - 73'000) = 3'866 + 2'430 = 6'296
+    expect(einfacheStaatssteuerZh(100_000, "grundtarif")).toBeCloseTo(6_296, 0);
+  });
+
+  it("Verheiratetentarif bei 100'000: günstiger als Grundtarif", () => {
+    const grundtarif = einfacheStaatssteuerZh(100_000, "grundtarif");
+    const verheiratet = einfacheStaatssteuerZh(100_000, "verheiratet");
+    expect(verheiratet).toBeLessThan(grundtarif);
+  });
+
+  it("Höchste Stufe ab 254'900 (Grundtarif): 13% Marginalsatz", () => {
+    // bei 300'000: 23'565 + 13% × (300'000 - 254'900) = 23'565 + 5'863 = 29'428
+    expect(einfacheStaatssteuerZh(300_000, "grundtarif")).toBeCloseTo(29_428, 0);
+  });
+
+  it("kantonsteuerZh wendet Steuerfuss 2.27 an (Stadt ZH + Kirche reformiert)", () => {
+    // einfache 6'296 × (0.98 + 1.19 + 0.10) = 6'296 × 2.27 = 14'292
+    const total = kantonsteuerZh({
+      steuerbaresEinkommen: 100_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(total).toBeCloseTo(14_292, 0);
+  });
+
+  it("Religion 'keine' ergibt Steuerfuss 2.17 (ohne Kirche)", () => {
+    const reformiert = kantonsteuerZh({
+      steuerbaresEinkommen: 100_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    const keine = kantonsteuerZh({
+      steuerbaresEinkommen: 100_000,
+      kategorie: "grundtarif",
+      religion: "keine",
+    });
+    expect(keine).toBeLessThan(reformiert);
+    // Kirchen-Anteil = 6'296 × 0.10 = 630
+    expect(reformiert - keine).toBeCloseTo(630, 0);
+  });
+
+  it("Steuerfuss-Konstanten korrekt", () => {
+    expect(ZH_STEUERFUSS_KANTON).toBe(0.98);
+    expect(ZH_STEUERFUSS_STADT_ZH).toBe(1.19);
+  });
+});
+
 describe("Steuer — Default-Sätze pro Kanton", () => {
-  it("ZH bei 100'000 Brutto-Einkommen liefert plausible Total-Steuer (~22'000)", () => {
+  it("ZH bei 100'000 Brutto-Einkommen (single, reformiert): ~13'000 CHF", () => {
+    // Mit echtem ZH-Tarif (Phase 4.3): steuerbar 85'000
+    //   Bund: 1'427.80 + 6.6% × (85'000 - 78'100) ≈ 1'883
+    //   ZH-Grundtarif: 3'866 + 9% × (85'000 - 73'000) = 4'946
+    //   × Steuerfuss (0.98 + 1.19 + 0.10) = 2.27 → 11'227
+    //   Total ≈ 13'110
     const out = steuerProJahr({
       einkommenJahr: 100_000,
       vermoegenJahr: 0,
@@ -45,10 +115,8 @@ describe("Steuer — Default-Sätze pro Kanton", () => {
       kanton: "ZH",
       religion: "reformiert",
     });
-    // Bund + Kanton sollten zusammen plausibel sein (im Bereich 20-25k bei
-    // 100k Brutto, mittlerer Single-Steuerbelastung in ZH)
-    expect(out.einkommen).toBeGreaterThan(18_000);
-    expect(out.einkommen).toBeLessThan(26_000);
+    expect(out.einkommen).toBeGreaterThan(11_500);
+    expect(out.einkommen).toBeLessThan(15_000);
     expect(out.einkommenBund).toBeGreaterThan(0);
     expect(out.einkommenKanton).toBeGreaterThan(0);
     expect(out.kalibriert).toBe(false);
@@ -142,8 +210,9 @@ describe("Steuer — Anker-Kalibrierung", () => {
       ankerEinkommenHeute: 0,
     });
     expect(out.kalibriert).toBe(false);
-    expect(out.einkommen).toBeGreaterThan(18_000);
-    expect(out.einkommen).toBeLessThan(26_000);
+    // ZH echter Tarif: ~13'100
+    expect(out.einkommen).toBeGreaterThan(11_500);
+    expect(out.einkommen).toBeLessThan(15_000);
   });
 });
 

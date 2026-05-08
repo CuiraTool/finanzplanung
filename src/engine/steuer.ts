@@ -29,6 +29,7 @@ import {
   type Religion,
 } from "./steuer-data";
 import { bundessteuer, bruttoZuSteuerbarApprox } from "./steuer-bund";
+import { kantonsteuerZh } from "./steuer-zh";
 
 export interface SteuerInput {
   einkommenJahr: number;
@@ -69,16 +70,27 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   const steuerbaresEinkommen = bruttoZuSteuerbarApprox(input.einkommenJahr);
   const bundSteuer = bundessteuer(steuerbaresEinkommen, dbgKategorie);
 
-  // Kanton + Gemeinde + Religion: weiter pauschaler Satz minus Bund-Anteil
-  // (typischer Bund-Anteil 4-7%, daher abziehen damit kein Doppel-Counting)
-  const kantonsteuer_brutto = input.einkommenJahr * ekSatz * relMult;
-  // Annahme: vom pauschalen Mischsatz waren ca. 5% Bundessteuer drin →
-  // korrigieren wir das raus. Vereinfacht durch Anteil-Schätzung.
-  const bundAnteilImPauschalsatz = 0.05; // ca. 5% bei mittlerem Einkommen
-  const kantonsteuer_netto = Math.max(
-    0,
-    kantonsteuer_brutto - input.einkommenJahr * bundAnteilImPauschalsatz
-  );
+  // Kanton + Gemeinde + Religion
+  let kantonsteuer_netto: number;
+  if (kanton === "ZH") {
+    // Phase 4.3: echter ZH-Tarif (progressiv) × Steuerfuss Stadt Zürich
+    kantonsteuer_netto = kantonsteuerZh({
+      steuerbaresEinkommen,
+      kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
+      religion: input.religion,
+    });
+  } else {
+    // Andere Kantone: weiter pauschaler Mischsatz minus Bund-Anteil
+    // (typischer Bund-Anteil 4-7%, daher abziehen damit kein Doppel-Counting)
+    const kantonsteuer_brutto = input.einkommenJahr * ekSatz * relMult;
+    // Annahme: vom pauschalen Mischsatz waren ca. 5% Bundessteuer drin →
+    // korrigieren wir das raus. Vereinfacht durch Anteil-Schätzung.
+    const bundAnteilImPauschalsatz = 0.05; // ca. 5% bei mittlerem Einkommen
+    kantonsteuer_netto = Math.max(
+      0,
+      kantonsteuer_brutto - input.einkommenJahr * bundAnteilImPauschalsatz
+    );
+  }
 
   // Anker-Modus: User-Eingabe überschreibt Default
   let einkommensteuerKantonal: number = kantonsteuer_netto;
