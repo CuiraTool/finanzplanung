@@ -45,3 +45,4 @@ yarn-error.log*
 # Claude Code (lokale, persönliche Settings — gitignored, geteilt: settings.json)
 .claude/settings.local.json
 .claude/.credentials.json
+.claude/worktrees/
