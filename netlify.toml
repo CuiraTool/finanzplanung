@@ -4,11 +4,10 @@
 # explizit, damit es keine Überraschungen beim ersten Deploy gibt.
 
 [build]
-  # --ignore-scripts: pnpm 11 exit 1 bei "ignored builds" trotz
-  # pnpm.onlyBuiltDependencies in package.json — CI-Quirk. Wir umgehen das
-  # explizit. esbuild/sharp/unrs-resolver haben JS-Fallbacks, Next.js baut
-  # sauber durch.
-  command = "pnpm install --frozen-lockfile --ignore-scripts && pnpm build"
+  # pnpm 9 ist nicht so streng mit Build-Scripts wie pnpm 10/11 (die mit
+  # ERR_PNPM_IGNORED_BUILDS exit 1 werfen, auch wenn pnpm.onlyBuiltDependencies
+  # gesetzt ist). Wir pinnen pnpm 9 via packageManager-Field in package.json.
+  command = "pnpm install --frozen-lockfile && pnpm build"
   publish = ".next"
 
 [build.environment]
