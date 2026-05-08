@@ -114,8 +114,27 @@ function PersonBvgForm({
       {person.aktiverAnschluss && (
         <>
           <Field
+            label="Aktuelles Altersguthaben heute (CHF)"
+            hint="vom letzten PK-Ausweis — informativ, nicht für Bezugsberechnung"
+          >
+            <input
+              type="number"
+              inputMode="numeric"
+              value={person.altersguthabenHeute ?? ""}
+              onChange={(e) =>
+                onPatch({
+                  altersguthabenHeute:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              placeholder="z.B. 320'000"
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
+
+          <Field
             label={`Voraussichtliches Altersguthaben mit Alter ${bezugsalter} (CHF)`}
-            hint="vom PK-Ausweis (Bezugsalter aus Block 2)"
+            hint="vom PK-Ausweis (Bezugsalter aus Block 2) — wird für die Berechnung genutzt"
           >
             <input
               type="number"

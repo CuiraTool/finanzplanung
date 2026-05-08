@@ -111,7 +111,9 @@ export interface EinkaufEntry {
 
 export interface BvgPersonInput {
   aktiverAnschluss: boolean;
-  /** Voraussichtliches Altersguthaben beim Bezugsalter (vom PK-Ausweis). */
+  /** Aktuelles PK-Altersguthaben heute (vom PK-Ausweis, informativ). */
+  altersguthabenHeute: number | null;
+  /** Voraussichtliches Altersguthaben beim Bezugsalter (vom PK-Ausweis, für Bezugsberechnung). */
   altersguthabenBeiBezug: number | null;
   /** PK-spezifischer Umwandlungssatz in Prozent (z.B. 6.8 für 6.8%). */
   umwandlungssatzProzent: number;
@@ -272,6 +274,7 @@ const initialAhv: AhvInput = {
 
 const initialBvgPerson: BvgPersonInput = {
   aktiverAnschluss: true,
+  altersguthabenHeute: null,
   altersguthabenBeiBezug: null,
   umwandlungssatzProzent: 6.8,
   bezugspraeferenz: "rente",
@@ -604,7 +607,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v12",
+      name: "cuira-plan-v13",
     }
   )
 );
