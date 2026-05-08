@@ -249,12 +249,19 @@ export interface AusgabenKategorien {
   sonstiges: number | null;
 }
 
+export type Religion = "katholisch" | "reformiert" | "keine";
+
 export interface Budget {
   einkommen: Einkommensperiode[];
   ausgabenModus: AusgabenModus;
   ausgabenTotal: number | null;
   ausgabenKategorien: AusgabenKategorien;
   wunschverbrauchPension: number | null;
+  /** Anker fürs aktuelle Jahr: Total Einkommens-/Vermögenssteuer (laut letzter Veranlagung). */
+  steuernHeute: number | null;
+  /** Anker-Bruttojahreseinkommen, das zu `steuernHeute` gehört. */
+  einkommenHeute: number | null;
+  religion: Religion;
 }
 
 export interface PlanState {
@@ -295,6 +302,8 @@ export interface PlanState {
   setAusgabenTotal: (v: number | null) => void;
   setAusgabenKategorie: (key: keyof AusgabenKategorien, v: number | null) => void;
   setWunschverbrauchPension: (v: number | null) => void;
+  setSteuerAnker: (steuern: number | null, einkommen: number | null) => void;
+  setReligion: (r: Religion) => void;
   setAhv: (patch: Partial<AhvInput>) => void;
   setBvgP1: (patch: Partial<BvgPersonInput>) => void;
   setBvgP2: (patch: Partial<BvgPersonInput>) => void;
@@ -404,6 +413,9 @@ const initialBudget: Budget = {
     sonstiges: null,
   },
   wunschverbrauchPension: null,
+  steuernHeute: null,
+  einkommenHeute: null,
+  religion: "keine",
 };
 
 function currentYearMonth(): string {
@@ -571,6 +583,11 @@ export const usePlanStore = create<PlanState>()(
         })),
       setWunschverbrauchPension: (v) =>
         set((s) => ({ budget: { ...s.budget, wunschverbrauchPension: v } })),
+      setSteuerAnker: (steuern, einkommen) =>
+        set((s) => ({
+          budget: { ...s.budget, steuernHeute: steuern, einkommenHeute: einkommen },
+        })),
+      setReligion: (r) => set((s) => ({ budget: { ...s.budget, religion: r } })),
       setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
       setBvgP1: (patch) =>
         set((s) => ({ bvg: { ...s.bvg, p1: { ...s.bvg.p1, ...patch } } })),
@@ -895,7 +912,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v17",
+      name: "cuira-plan-v18",
     }
   )
 );

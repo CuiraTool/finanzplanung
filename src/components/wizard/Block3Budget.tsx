@@ -1,8 +1,15 @@
 "use client";
 
-import { usePlanStore, type AusgabenKategorien, type AusgabenModus } from "@/lib/store";
+import {
+  usePlanStore,
+  type AusgabenKategorien,
+  type AusgabenModus,
+  type Religion,
+} from "@/lib/store";
+import { indikativeSteuerHeute } from "@/engine/steuer";
 import { Field } from "@/components/ui/Field";
 import { inputClass, selectClass } from "@/components/ui/styles";
+import { formatChf } from "@/lib/format";
 
 const KATEGORIEN: { key: keyof AusgabenKategorien; label: string; hint?: string }[] = [
   {
@@ -34,6 +41,14 @@ export function Block3Budget() {
   const setTotal = usePlanStore((s) => s.setAusgabenTotal);
   const setKategorie = usePlanStore((s) => s.setAusgabenKategorie);
   const setWunsch = usePlanStore((s) => s.setWunschverbrauchPension);
+  const setSteuerAnker = usePlanStore((s) => s.setSteuerAnker);
+  const setReligion = usePlanStore((s) => s.setReligion);
+  const adresse = usePlanStore((s) => s.adresse);
+
+  const indikativHeute =
+    budget.einkommenHeute != null && budget.einkommenHeute > 0
+      ? indikativeSteuerHeute(budget.einkommenHeute, 0, adresse.kanton, budget.religion)
+      : null;
 
   function personOption(idx: 1 | 2): string {
     const v = (idx === 1 ? person1.vorname : person2.vorname).trim();
@@ -249,6 +264,80 @@ export function Block3Budget() {
             className={`${inputClass} tabular-nums`}
           />
         </Field>
+      </fieldset>
+
+      {/* Steuern — Anker-Werte fürs aktuelle Jahr */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">
+          Steuern
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            Anker fürs aktuelle Jahr — Folgejahre proportional
+          </span>
+        </legend>
+
+        <Field
+          label="Religion"
+          hint="für Kirchensteuer-Multiplikator"
+        >
+          <select
+            value={budget.religion}
+            onChange={(e) => setReligion(e.target.value as Religion)}
+            className={selectClass}
+          >
+            <option value="keine">Keine</option>
+            <option value="reformiert">Reformiert</option>
+            <option value="katholisch">Katholisch</option>
+          </select>
+        </Field>
+
+        <Field
+          label="Bruttojahreseinkommen Haushalt heute (CHF)"
+          hint="Referenz für die Steuer-Hochrechnung"
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            value={budget.einkommenHeute ?? ""}
+            onChange={(e) =>
+              setSteuerAnker(
+                budget.steuernHeute,
+                e.target.value === "" ? null : Number(e.target.value)
+              )
+            }
+            placeholder="z.B. 184'000"
+            className={`${inputClass} tabular-nums`}
+          />
+        </Field>
+
+        <Field
+          label="Aktuelle Jahressteuer (CHF) — laut letzter Veranlagung"
+          hint="leer lassen, wenn unbekannt — dann nutzt die Engine den Kantons-Default"
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            value={budget.steuernHeute ?? ""}
+            onChange={(e) =>
+              setSteuerAnker(
+                e.target.value === "" ? null : Number(e.target.value),
+                budget.einkommenHeute
+              )
+            }
+            placeholder={
+              indikativHeute != null
+                ? `z.B. ${formatChf(indikativHeute)} (indikativ)`
+                : "z.B. 30'000"
+            }
+            className={`${inputClass} tabular-nums`}
+          />
+        </Field>
+
+        {indikativHeute != null && budget.steuernHeute == null && (
+          <p className="text-xs text-amber-700">
+            Ohne Anker rechnet die Engine mit indikativem Kantons-Satz: ca.{" "}
+            {formatChf(indikativHeute)} Steuer auf {formatChf(budget.einkommenHeute)} Einkommen.
+          </p>
+        )}
       </fieldset>
     </div>
   );

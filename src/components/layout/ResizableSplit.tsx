@@ -88,7 +88,7 @@ export function ResizableSplit({ left, right }: ResizableSplitProps) {
     <div
       ref={containerRef}
       style={styleVars}
-      className="flex h-screen flex-col lg:flex-row"
+      className="flex h-full flex-col lg:flex-row"
     >
       <aside className="w-full overflow-y-auto border-b border-slate-200 bg-white lg:w-[var(--cuira-left-w)] lg:border-b-0 lg:border-r">
         {left}

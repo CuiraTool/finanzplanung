@@ -3,11 +3,15 @@
 import { useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
 import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
+import { cashflowReihe } from "@/engine/cashflow";
+import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
+import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
+import { VermoegensChart } from "./VermoegensChart";
+
+const PROJEKTIONS_END_ALTER = 85;
 
 export function Dashboard() {
-  // Spezifische Selectoren statt usePlanStore() ohne Argumente — verhindert,
-  // dass das gesamte Dashboard bei jedem Tastendruck im Wizard re-rendert.
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
@@ -19,22 +23,27 @@ export function Dashboard() {
   const firma = usePlanStore((s) => s.firma);
   const ziele = usePlanStore((s) => s.ziele);
   const budget = usePlanStore((s) => s.budget);
+  const adresse = usePlanStore((s) => s.adresse);
+  const einmaligeAusgaben = usePlanStore((s) => s.einmaligeAusgaben);
 
-  const bilanz = useMemo(
-    () =>
-      vermoegensbilanz({
-        fallart,
-        person1,
-        person2,
-        ahv,
-        bvg,
-        saeuleDrei,
-        vermoegen,
-        immobilien,
-        firma,
-        ziele,
-        budget,
-      }),
+  const heutigesJahr = new Date().getFullYear();
+
+  const cashflowState = useMemo(
+    () => ({
+      fallart,
+      person1,
+      person2,
+      ahv,
+      bvg,
+      saeuleDrei,
+      vermoegen,
+      immobilien,
+      firma,
+      ziele,
+      budget,
+      adresse,
+      einmaligeAusgaben,
+    }),
     [
       fallart,
       person1,
@@ -47,25 +56,55 @@ export function Dashboard() {
       firma,
       ziele,
       budget,
+      adresse,
+      einmaligeAusgaben,
     ]
   );
 
-  const heutigesJahr = new Date().getFullYear();
+  const bilanz = useMemo(() => vermoegensbilanz(cashflowState), [cashflowState]);
+
+  // Cashflow-Reihe von heute bis Alter 85 der älteren Person
+  const endJahr = useMemo(() => {
+    const j1 = chartEndJahr(person1.geburtsdatum, PROJEKTIONS_END_ALTER);
+    if (fallart === "einzel") return j1 ?? heutigesJahr + 30;
+    const j2 = chartEndJahr(person2.geburtsdatum, PROJEKTIONS_END_ALTER);
+    return Math.max(j1 ?? 0, j2 ?? 0) || heutigesJahr + 30;
+  }, [fallart, person1.geburtsdatum, person2.geburtsdatum, heutigesJahr]);
+
+  const cashflow = useMemo(
+    () => cashflowReihe(cashflowState, heutigesJahr, endJahr),
+    [cashflowState, heutigesJahr, endJahr]
+  );
+
+  // Marker-Jahre für die Charts
+  const ordPensionsjahr = useMemo(
+    () => pensionsjahr(person1.geburtsdatum, ORDENTLICHES_AHV_ALTER),
+    [person1.geburtsdatum]
+  );
+  const wunschPensionsjahr = useMemo(() => {
+    if (ziele.bezugsalterP1 === ORDENTLICHES_AHV_ALTER) return null;
+    return pensionsjahr(person1.geburtsdatum, ziele.bezugsalterP1);
+  }, [person1.geburtsdatum, ziele.bezugsalterP1]);
 
   return (
     <div className="space-y-6">
       <header className="flex items-baseline justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Live-Dashboard</h2>
+          <h2 className="text-2xl font-semibold text-[var(--color-cuira-deep)]">
+            Live-Dashboard
+          </h2>
           <p className="text-xs text-slate-400">
             Aktualisiert sich auf jede Eingabe in Echtzeit
           </p>
         </div>
         <span className="text-xs text-slate-400">
-          Etappe 1 — vereinfachte Vermögensbilanz
+          {cashflow.length > 0
+            ? `${heutigesJahr}–${endJahr} (${cashflow.length} Jahre)`
+            : "Etappe 2 — Cashflow-Iteration"}
         </span>
       </header>
 
+      {/* 3 KPI-Karten */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <KpiCard
           label="Nettovermögen heute"
@@ -88,7 +127,7 @@ export function Dashboard() {
           }
         />
         <KpiCard
-          label="Nettovermögen nach 20 J."
+          label="Nettovermögen mit 85"
           jahr={bilanz.zwanzigJahreReferenzjahr}
           value={
             bilanz.zwanzigJahreReferenzjahr == null
@@ -98,19 +137,44 @@ export function Dashboard() {
           hint={
             bilanz.zwanzigJahreReferenzjahr == null
               ? "—"
-              : "Bei Pension + 20 × (Renten + Mieten − Verbrauch)"
+              : "Bei Pension + 20 × (Renten + Mieten − Verbrauch − Steuern)"
           }
         />
       </div>
 
+      {/* Charts */}
       <div className="space-y-4">
-        <ChartPlaceholder title="Einnahmen / Ausgaben" />
-        <ChartPlaceholder title="Vermögensentwicklung" />
+        {cashflow.length > 0 ? (
+          <>
+            <EinnahmenAusgabenChart
+              daten={cashflow}
+              pensionsjahr={ordPensionsjahr}
+              wunschPensionsjahr={wunschPensionsjahr}
+              fallart={fallart}
+            />
+            <VermoegensChart
+              daten={cashflow}
+              pensionsjahr={ordPensionsjahr}
+              wunschPensionsjahr={wunschPensionsjahr}
+              fallart={fallart}
+            />
+          </>
+        ) : (
+          <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
+        )}
+
         <ChartPlaceholder title="Steuerentwicklung" />
         <ChartPlaceholder title="Massnahmen-Liste" />
       </div>
     </div>
   );
+}
+
+function chartEndJahr(geburtsdatum: string, endAlter: number): number | null {
+  if (!geburtsdatum) return null;
+  const j = Number.parseInt(geburtsdatum.slice(0, 4), 10);
+  if (!Number.isFinite(j)) return null;
+  return j + endAlter;
 }
 
 function KpiCard({
@@ -132,7 +196,9 @@ function KpiCard({
           <div className="text-xs tabular-nums text-slate-400">{jahr}</div>
         )}
       </div>
-      <div className="mt-2 text-3xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-2 text-3xl font-semibold tabular-nums text-[var(--color-cuira-deep)]">
+        {value}
+      </div>
       <div className="mt-2 text-xs text-slate-400">{hint}</div>
     </div>
   );
@@ -143,7 +209,7 @@ function ChartPlaceholder({ title }: { title: string }) {
     <div className="flex h-72 flex-col rounded-xl border border-dashed border-slate-300 bg-white p-5">
       <div className="text-base font-semibold text-slate-700">{title}</div>
       <div className="grid flex-1 place-items-center text-sm text-slate-400">
-        Chart kommt mit der Cashflow-Engine (Etappe 2)
+        Chart kommt mit der Cashflow-Engine V2
       </div>
     </div>
   );

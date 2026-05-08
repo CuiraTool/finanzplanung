@@ -1,9 +1,17 @@
 @import "tailwindcss";
 
 :root {
+  /* Cuira-Branding */
+  --color-cuira-deep: #0a2540;       /* Hauptmarken-Dunkelblau */
+  --color-cuira-deep-soft: #1e3a5f;  /* gedämpfte Variante */
   --color-cuira-ink: #0f172a;
   --color-cuira-bg: #fafaf7;
+  --color-cuira-bg-soft: #f4f6fa;
   --color-cuira-accent: #1d4ed8;
+  --color-cuira-gold: #f59e0b;        /* Pensionsalter-Marker */
+  --color-cuira-violet: #7c3aed;      /* Wunschalter-Marker */
+  --color-cuira-emerald: #10b981;
+  --color-cuira-rose: #f43f5e;
 }
 
 html, body {
