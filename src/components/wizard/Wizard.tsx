@@ -4,6 +4,7 @@ import { usePlanStore } from "@/lib/store";
 import { Block1Personen } from "./Block1Personen";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
+import { Block4Ahv } from "./Block4Ahv";
 
 /**
  * Wizard-Block-Reihenfolge.
@@ -24,7 +25,7 @@ const BLOCKS = [
   { id: 1, title: "Personen", implemented: true },
   { id: 2, title: "Ziele & Wünsche", implemented: true },
   { id: 3, title: "Budget", implemented: true },
-  { id: 4, title: "1. Säule (AHV)", implemented: false },
+  { id: 4, title: "1. Säule (AHV)", implemented: true },
   { id: 5, title: "2. Säule (Pensionskasse)", implemented: false },
   { id: 6, title: "3. Säule (3a / 3b)", implemented: false },
   { id: 7, title: "Vermögen", implemented: false },
@@ -83,6 +84,7 @@ export function Wizard() {
       {aktiverBlock === 1 && <Block1Personen />}
       {aktiverBlock === 2 && <Block2Wuensche />}
       {aktiverBlock === 3 && <Block3Budget />}
+      {aktiverBlock === 4 && <Block4Ahv />}
     </div>
   );
 }

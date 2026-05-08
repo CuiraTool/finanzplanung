@@ -13,20 +13,34 @@ export function Dashboard() {
   function computeAhv(): { haushalt: number | null; details: string } {
     const e1 = ahvInput.einkommenP1;
     if (e1 == null)
-      return { haushalt: null, details: "Eingabe folgt in Block 4 (AHV)" };
+      return { haushalt: null, details: "Massgebendes Einkommen fehlt — Block 4" };
+
+    const fehljahreP1 =
+      ahvInput.fehljahreStatusP1 === "ja" ? ahvInput.fehljahreAnzahlP1 : 0;
 
     if (fallart === "einzel") {
       return {
-        haushalt: vollrenteEinzelSkala44(e1),
-        details: "Einzelperson, Vollrente Skala 44 (lineare Approximation)",
+        haushalt: vollrenteEinzelSkala44(e1, fehljahreP1),
+        details:
+          fehljahreP1 > 0
+            ? `Einzelperson, ${fehljahreP1} Fehljahre`
+            : "Einzelperson, volle Beitragsdauer",
       };
     }
 
     const e2 = ahvInput.einkommenP2;
     if (e2 == null)
-      return { haushalt: null, details: "Eingabe folgt in Block 4 (AHV)" };
+      return { haushalt: null, details: "Massgebendes Einkommen P2 fehlt — Block 4" };
 
-    const out = ahvCouplePension({ einkommenP1: e1, einkommenP2: e2 });
+    const fehljahreP2 =
+      ahvInput.fehljahreStatusP2 === "ja" ? ahvInput.fehljahreAnzahlP2 : 0;
+
+    const out = ahvCouplePension({
+      einkommenP1: e1,
+      einkommenP2: e2,
+      fehljahreP1,
+      fehljahreP2,
+    });
     return {
       haushalt: out.haushaltsRente,
       details: out.plafoniert

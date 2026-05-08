@@ -10,8 +10,10 @@
  *   - Untere Grenze massg. Einkommen:       CHF 14'700/Jahr
  *   - Obere Grenze massg. Einkommen:        CHF 88'200/Jahr (= 6× Minimum)
  *
- * Vereinfachung Etappe 1: lineare Interpolation zwischen unterer und oberer Grenze.
- * In Etappe 1.5 durch echte BSV-Rententabelle (gestaffelte Funktion) ersetzen.
+ * Vereinfachungen Etappe 1:
+ *   - Lineare Interpolation zwischen unterer und oberer Einkommensgrenze
+ *     (echte BSV-Skala ist gestaffelt — Ersatz in Etappe 1.5).
+ *   - Fehljahre wirken linear: Skala = (44 - fehljahre) / 44 × Vollrente.
  *
  * Quelle für Validierung: docs/Def.FinancialPlanning - Muster.pdf S.4
  *   Ehepaar Muster (Ralph 1967 + Stephanie 1972, beide Pensionierung Alter 65):
@@ -23,26 +25,43 @@ const MAX_RENTE_EINZEL = 29_400;
 const MAX_RENTE_EHEPAAR = 44_100;
 const UNTERE_GRENZE_EINKOMMEN = 14_700;
 const OBERE_GRENZE_EINKOMMEN = 88_200;
+const VOLLE_BEITRAGSDAUER = 44;
 
 /**
  * Vollrente Skala 44 (lückenlose Beitragsdauer 44 Jahre).
  * Lineare Approximation — siehe Modul-Header.
+ *
+ * @param fehljahre  Anzahl fehlender Beitragsjahre. Bei 0 = volle Rente,
+ *                   bei 44 oder mehr = 0 (keine Rente).
  */
-export function vollrenteEinzelSkala44(massgebendesEinkommen: number): number {
-  if (massgebendesEinkommen <= UNTERE_GRENZE_EINKOMMEN) return MIN_RENTE;
-  if (massgebendesEinkommen >= OBERE_GRENZE_EINKOMMEN) return MAX_RENTE_EINZEL;
+export function vollrenteEinzelSkala44(
+  massgebendesEinkommen: number,
+  fehljahre = 0
+): number {
+  let basisrente: number;
+  if (massgebendesEinkommen <= UNTERE_GRENZE_EINKOMMEN) {
+    basisrente = MIN_RENTE;
+  } else if (massgebendesEinkommen >= OBERE_GRENZE_EINKOMMEN) {
+    basisrente = MAX_RENTE_EINZEL;
+  } else {
+    const fraction =
+      (massgebendesEinkommen - UNTERE_GRENZE_EINKOMMEN) /
+      (OBERE_GRENZE_EINKOMMEN - UNTERE_GRENZE_EINKOMMEN);
+    basisrente = MIN_RENTE + fraction * (MAX_RENTE_EINZEL - MIN_RENTE);
+  }
 
-  const fraction =
-    (massgebendesEinkommen - UNTERE_GRENZE_EINKOMMEN) /
-    (OBERE_GRENZE_EINKOMMEN - UNTERE_GRENZE_EINKOMMEN);
-  return Math.round(MIN_RENTE + fraction * (MAX_RENTE_EINZEL - MIN_RENTE));
+  if (fehljahre <= 0) return Math.round(basisrente);
+  if (fehljahre >= VOLLE_BEITRAGSDAUER) return 0;
+
+  const beitragsjahre = VOLLE_BEITRAGSDAUER - fehljahre;
+  return Math.round(basisrente * (beitragsjahre / VOLLE_BEITRAGSDAUER));
 }
 
 export interface AhvCoupleInput {
   einkommenP1: number;
   einkommenP2: number;
-  beitragsjahreP1?: number; // Default 44
-  beitragsjahreP2?: number; // Default 44
+  fehljahreP1?: number;
+  fehljahreP2?: number;
 }
 
 export interface AhvCoupleOutput {
@@ -55,25 +74,36 @@ export interface AhvCoupleOutput {
 
 /**
  * Ehepaar-Splitting (vereinfacht): beide Einkommen während der Ehe werden zusammengezählt
- * und je hälftig zugerechnet, dann wird je eine Vollrente berechnet, dann plafoniert auf 150%.
+ * und je hälftig zugerechnet, dann wird je eine Vollrente berechnet (mit Fehljahren der
+ * jeweiligen Person), dann plafoniert auf 150%.
  *
  * Vereinfachung Etappe 1: Einkommen wird symmetrisch gesplittet (ehe-lebenslang).
- * Reale Berechnung berücksichtigt nur Beitragsjahre während der Ehe — das kommt später.
+ * Reale Berechnung berücksichtigt nur Beitragsjahre während der Ehe — kommt später.
  */
 export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
   const splitEinkommen = (input.einkommenP1 + input.einkommenP2) / 2;
-  const renteP1 = vollrenteEinzelSkala44(splitEinkommen);
-  const renteP2 = vollrenteEinzelSkala44(splitEinkommen);
+  const renteP1 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP1 ?? 0);
+  const renteP2 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP2 ?? 0);
   const summeUngekuerzt = renteP1 + renteP2;
   const plafoniert = summeUngekuerzt > MAX_RENTE_EHEPAAR;
-  const haushalt = plafoniert ? MAX_RENTE_EHEPAAR : summeUngekuerzt;
 
+  if (!plafoniert) {
+    return {
+      rentenP1: renteP1,
+      rentenP2: renteP2,
+      rentenSummeUngekuerzt: summeUngekuerzt,
+      plafoniert: false,
+      haushaltsRente: summeUngekuerzt,
+    };
+  }
+
+  // Plafond hälftig: jede Person bekommt 50% des Plafonds
   return {
-    rentenP1: plafoniert ? MAX_RENTE_EHEPAAR / 2 : renteP1,
-    rentenP2: plafoniert ? MAX_RENTE_EHEPAAR / 2 : renteP2,
+    rentenP1: MAX_RENTE_EHEPAAR / 2,
+    rentenP2: MAX_RENTE_EHEPAAR / 2,
     rentenSummeUngekuerzt: summeUngekuerzt,
-    plafoniert,
-    haushaltsRente: haushalt,
+    plafoniert: true,
+    haushaltsRente: MAX_RENTE_EHEPAAR,
   };
 }
 

@@ -22,6 +22,25 @@ describe("AHV — Einzelperson Vollrente Skala 44", () => {
   });
 });
 
+describe("AHV — Fehljahre kürzen die Rente proportional", () => {
+  it("0 Fehljahre = volle Rente", () => {
+    expect(vollrenteEinzelSkala44(88_200, 0)).toBe(29_400);
+  });
+
+  it("11 Fehljahre = 33/44 = 75% der Vollrente", () => {
+    expect(vollrenteEinzelSkala44(88_200, 11)).toBe(22_050);
+  });
+
+  it("22 Fehljahre = 50% der Vollrente", () => {
+    expect(vollrenteEinzelSkala44(88_200, 22)).toBe(14_700);
+  });
+
+  it("≥ 44 Fehljahre = 0 Rente", () => {
+    expect(vollrenteEinzelSkala44(88_200, 44)).toBe(0);
+    expect(vollrenteEinzelSkala44(88_200, 50)).toBe(0);
+  });
+});
+
 describe("AHV — Ehepaar Plafonierung", () => {
   it("Maximalwert CHF 44'100 für Jahre 2024–2026", () => {
     expect(ahvMaxCouplePension(2024)).toBe(44_100);
