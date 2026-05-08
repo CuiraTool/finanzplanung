@@ -17,7 +17,7 @@
  * R (Prioritäten), S (Abschluss). Kommen, wenn der Kern steht.
  */
 const BLOCKS = [
-  { id: 1, title: "Partner-Kopfdaten, Zivilstand & Familie" },
+  { id: 1, title: "Personen" },
   { id: 2, title: "Ziele & Wünsche" },
   { id: 3, title: "1. Säule (AHV)" },
   { id: 4, title: "2. Säule (Pensionskasse)" },
