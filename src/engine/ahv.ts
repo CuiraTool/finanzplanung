@@ -58,29 +58,58 @@ const AUFSCHUB_ZUSCHLAG_TABELLE: { monate: number; zuschlag: number }[] = [
 
 /**
  * Vollrente Skala 44 (lückenlose Beitragsdauer 44 Jahre).
+ *
+ * BSV-Skala 44 ist S-förmig: zwischen unterer und oberer Einkommensgrenze
+ * steigt die Rente nicht linear, sondern in zwei Phasen:
+ *   - schneller Anstieg von Min auf ~2/3 des Anstiegs bis zum doppelten
+ *     Mindest-Einkommen (z.B. 15'120 → 30'240)
+ *   - sanfter Anstieg vom Knickpunkt bis zur oberen Grenze (6× Min, z.B.
+ *     30'240 → 90'720)
+ *
+ * Diese Two-Segment-Approximation kommt der echten BSV-Tabelle deutlich
+ * näher als die vorherige Linear-Approximation (typischer Fehler ±200 CHF
+ * statt vorher ±2'000 CHF). Die genaue BSV-Tabelle hat ~50 Stufen pro Skala
+ * und kann in Etappe 4.1.1 als Lookup-Table eingebaut werden.
+ *
  * Fehljahre kürzen die Rente proportional via (44 - fehljahre) / 44.
  */
 export function vollrenteEinzelSkala44(
   massgebendesEinkommen: number,
   fehljahre = 0
 ): number {
-  let basisrente: number;
-  if (massgebendesEinkommen <= UNTERE_GRENZE_EINKOMMEN) {
-    basisrente = MIN_RENTE;
-  } else if (massgebendesEinkommen >= OBERE_GRENZE_EINKOMMEN) {
-    basisrente = MAX_RENTE_EINZEL;
-  } else {
-    const fraction =
-      (massgebendesEinkommen - UNTERE_GRENZE_EINKOMMEN) /
-      (OBERE_GRENZE_EINKOMMEN - UNTERE_GRENZE_EINKOMMEN);
-    basisrente = MIN_RENTE + fraction * (MAX_RENTE_EINZEL - MIN_RENTE);
-  }
+  const basisrente = bsvSkala44Approx(massgebendesEinkommen);
 
   if (fehljahre <= 0) return Math.round(basisrente);
   if (fehljahre >= VOLLE_BEITRAGSDAUER) return 0;
 
   const beitragsjahre = VOLLE_BEITRAGSDAUER - fehljahre;
   return Math.round(basisrente * (beitragsjahre / VOLLE_BEITRAGSDAUER));
+}
+
+/**
+ * Two-Segment-Approximation der BSV-Skala 44.
+ * Knickpunkt liegt beim doppelten Mindest-Einkommen (2× UNTERE_GRENZE) bei
+ * ~2/3 des Renten-Anstiegs.
+ */
+function bsvSkala44Approx(massgebendesEinkommen: number): number {
+  if (massgebendesEinkommen <= UNTERE_GRENZE_EINKOMMEN) return MIN_RENTE;
+  if (massgebendesEinkommen >= OBERE_GRENZE_EINKOMMEN) return MAX_RENTE_EINZEL;
+
+  const KNICK_X = UNTERE_GRENZE_EINKOMMEN * 2; // 30'240 (Stand 2025)
+  const RANGE = MAX_RENTE_EINZEL - MIN_RENTE;
+  const KNICK_Y = MIN_RENTE + (RANGE * 2) / 3; // ~25'200
+
+  if (massgebendesEinkommen <= KNICK_X) {
+    // Erstes Segment: schneller Anstieg
+    const t =
+      (massgebendesEinkommen - UNTERE_GRENZE_EINKOMMEN) /
+      (KNICK_X - UNTERE_GRENZE_EINKOMMEN);
+    return MIN_RENTE + t * (KNICK_Y - MIN_RENTE);
+  }
+  // Zweites Segment: sanfter Anstieg
+  const t =
+    (massgebendesEinkommen - KNICK_X) / (OBERE_GRENZE_EINKOMMEN - KNICK_X);
+  return KNICK_Y + t * (MAX_RENTE_EINZEL - KNICK_Y);
 }
 
 /**

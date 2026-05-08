@@ -21,22 +21,45 @@ describe("AHV — Einzelperson Vollrente Skala 44 (Stand 2025)", () => {
     expect(vollrenteEinzelSkala44(200_000)).toBe(30_240);
   });
 
-  it("interpoliert linear zwischen den Grenzen (Mitte ≈ CHF 22'680)", () => {
-    const mitte = (15_120 + 90_720) / 2;
-    expect(vollrenteEinzelSkala44(mitte)).toBe(22_680);
+  it("Knickpunkt bei doppeltem Mindest-Einkommen (30'240) ergibt ~2/3-Anstieg", () => {
+    // Two-Segment-Approx: bei 30'240 (= 2× Min) erreicht die Rente
+    // ~2/3 des Range zwischen Min (15'120) und Max (30'240)
+    const knickpunkt = 30_240;
+    const expected = 15_120 + ((30_240 - 15_120) * 2) / 3; // = 25'200
+    expect(vollrenteEinzelSkala44(knickpunkt)).toBe(expected);
+  });
+
+  it("Erstes Segment ist steil (Min bis 2× Min Einkommen)", () => {
+    // Bei der Hälfte des ersten Segments sollten ~50% des steilen Anstiegs sein
+    const halbweg = 15_120 + (30_240 - 15_120) / 2; // = 22'680
+    const ergebnis = vollrenteEinzelSkala44(halbweg);
+    // Erwartung: zwischen 15'120 und 25'200 (Knickpunkt) — ca. 20'160
+    expect(ergebnis).toBeGreaterThan(19_000);
+    expect(ergebnis).toBeLessThan(22_000);
+  });
+
+  it("Zweites Segment ist flach (2× Min bis 6× Min Einkommen)", () => {
+    // Bei der Hälfte des zweiten Segments sollten ~50% des flachen Anstiegs sein
+    const halbweg = 30_240 + (90_720 - 30_240) / 2; // = 60'480
+    const ergebnis = vollrenteEinzelSkala44(halbweg);
+    // Erwartung: zwischen Knickpunkt (25'200) und Max (30'240) — ca. 27'720
+    expect(ergebnis).toBeGreaterThan(27_000);
+    expect(ergebnis).toBeLessThan(28_500);
   });
 });
 
 describe("AHV — Fehljahre kürzen die Rente proportional", () => {
-  it("0 Fehljahre = volle Rente", () => {
+  it("0 Fehljahre bei Max-Einkommen = volle Maxrente", () => {
     expect(vollrenteEinzelSkala44(90_720, 0)).toBe(30_240);
   });
 
   it("11 Fehljahre = 33/44 = 75% der Vollrente", () => {
+    // Bei Max-Einkommen 90'720 → Vollrente 30'240 → 75% = 22'680
     expect(vollrenteEinzelSkala44(90_720, 11)).toBe(22_680);
   });
 
   it("22 Fehljahre = 50% der Vollrente", () => {
+    // 30'240 × 0.5 = 15'120
     expect(vollrenteEinzelSkala44(90_720, 22)).toBe(15_120);
   });
 
@@ -106,6 +129,18 @@ describe("AHV — Jahresrente Einzel mit allen Faktoren", () => {
     expect(r.hat13te).toBe(false);
   });
 
+  it("Realistisches Mittelstands-Einkommen 60'000 → Rente nahe Max (BSV-S-Kurve)", () => {
+    // Bei massg. Einkommen 60'000 (mittlerer Verdienst) ist die Rente bereits
+    // bei ~85% der Maxrente — die alte Linear-Approx hätte hier ~CHF 24'000
+    // gegeben, was deutlich zu tief war.
+    const r = ahvJahresrenteEinzel({
+      massgebendesEinkommen: 60_000,
+      bezugsjahr: 2025,
+    });
+    expect(r.jahresrente).toBeGreaterThan(27_000);
+    expect(r.jahresrente).toBeLessThan(28_500);
+  });
+
   it("Maxrente, ordentlich, Bezug 2026: CHF 32'760 (mit 13. AHV)", () => {
     const r = ahvJahresrenteEinzel({
       massgebendesEinkommen: 90_720,
@@ -167,9 +202,11 @@ describe("AHV — Ehepaar Plafonierung (Stand 2025 + 13. AHV)", () => {
   });
 
   it("nicht plafoniert bei niedrigem Einkommen — Splitting greift", () => {
+    // Mit Two-Segment-Approx ist bei mittlerem Einkommen die Rente nahe Max,
+    // daher braucht's tieferes Einkommen für nicht-plafonierten Test.
     const out = ahvCouplePension({
-      einkommenP1: 30_000,
-      einkommenP2: 30_000,
+      einkommenP1: 20_000,
+      einkommenP2: 20_000,
       bezugsjahr: 2025,
     });
     expect(out.plafoniert).toBe(false);
