@@ -2,6 +2,8 @@
 
 Interaktives Pensionsplanungs-Webtool für Cuira Partners GmbH. Live-Dashboard ersetzt das statische Taxware-PDF — Eingabe links (10-Block-Wizard), Vermögensbilanz und Charts rechts in Echtzeit.
 
+**Live: [cuira.netlify.app](https://cuira.netlify.app)** (Etappe 1, Daten nur im Browser, kein Server-Backend)
+
 ## Quick Start
 
 ```bash
@@ -45,7 +47,7 @@ Roadmap-Etappen 1.5 (BSV-Tabellen), 2 (Cashflow + Charts), 2.5 (Steuer-Engine), 
 
 ## Deployment
 
-Aktuell nur lokal. Netlify-Setup vorbereitet (`netlify.toml` im Repo, Vercel als Alternative) — Anleitung unter [`docs/DEPLOY.md`](docs/DEPLOY.md). Nach erstem Deploy ist die App unter einer Netlify-URL erreichbar (später `plan.cuirapartners.ch`).
+Live unter [cuira.netlify.app](https://cuira.netlify.app). Auto-Deploy bei jedem Push auf `main`. Build-Konfiguration in [`netlify.toml`](netlify.toml), Setup-Doku unter [`docs/DEPLOY.md`](docs/DEPLOY.md). Custom-Domain `plan.cuirapartners.ch` über Site-Settings → Domain Management einrichten, wenn soweit.
 
 ## Mehr Kontext
 

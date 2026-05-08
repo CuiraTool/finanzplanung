@@ -133,9 +133,10 @@ pnpm build                 # Production build
 
 ## Deployment
 
-Aktuell nur lokal (`pnpm dev`). Vercel-Deploy ist vorbereitet (Repo ist privat
-unter `CuiraTool/finanzplanung`, Next.js-Standard-Config, kein Custom-Build).
-Schritte siehe `docs/DEPLOY.md`.
+**Live unter https://cuira.netlify.app** — Auto-Deploy bei jedem Push auf `main`.
+Netlify-Konfiguration in `netlify.toml` (pnpm 9.12.0 gepinnt via `PNPM_VERSION`,
+Node 22 via `.nvmrc`). Custom-Domain `plan.cuirapartners.ch` ist vorbereitet,
+aber noch nicht aktiviert. Schritte siehe `docs/DEPLOY.md`.
 
 ## Bekannte Drift gegen Muster-PDF (Stand: erwartet)
 
