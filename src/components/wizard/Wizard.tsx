@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
 import { block1MinimumErfuellt } from "@/lib/validation";
 import { Block1Personen } from "./Block1Personen";
+import { DocUploadCenter } from "./DocUploadCenter";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
 import { Block4Ahv } from "./Block4Ahv";
@@ -63,6 +64,8 @@ export function Wizard() {
         <h1 className="text-xl font-semibold">Pensionsplanung</h1>
         <p className="text-sm text-slate-500">Eingabe</p>
       </header>
+
+      <DocUploadCenter />
 
       {!validation.komplett && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

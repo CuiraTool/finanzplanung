@@ -17,9 +17,11 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
-# Environment variables (Supabase keys, etc. — niemals committen)
+# Environment variables (Anthropic key, Supabase keys etc. — niemals committen)
+# .env.example bleibt commitet als Template
 .env
-.env*.local
+.env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
