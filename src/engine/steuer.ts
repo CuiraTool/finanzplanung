@@ -30,6 +30,7 @@ import {
 } from "./steuer-data";
 import { bundessteuer, bruttoZuSteuerbarApprox } from "./steuer-bund";
 import { kantonsteuerZh } from "./steuer-zh";
+import { kantonsteuerZg } from "./steuer-zg";
 
 export interface SteuerInput {
   einkommenJahr: number;
@@ -77,6 +78,13 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     kantonsteuer_netto = kantonsteuerZh({
       steuerbaresEinkommen,
       kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
+      religion: input.religion,
+    });
+  } else if (kanton === "ZG") {
+    // Phase 4.4: echter ZG-Tarif × Steuerfuss Stadt Zug
+    kantonsteuer_netto = kantonsteuerZg({
+      steuerbaresEinkommen,
+      kategorie: input.fallart === "paar" ? "mehrpersonen" : "grundtarif",
       religion: input.religion,
     });
   } else {

@@ -7,6 +7,12 @@ import {
   ZH_STEUERFUSS_KANTON,
   ZH_STEUERFUSS_STADT_ZH,
 } from "./steuer-zh";
+import {
+  einfacheKantonssteuerZg,
+  kantonsteuerZg,
+  ZG_STEUERFUSS_KANTON,
+  ZG_STEUERFUSS_STADT_ZUG,
+} from "./steuer-zg";
 
 describe("Bundessteuer — DBG progressive Tarife", () => {
   it("Einzeltarif: Einkommen unter 14'500 = 0", () => {
@@ -98,6 +104,48 @@ describe("Kantonsteuer ZH — progressive Tarife (§35 StG)", () => {
   it("Steuerfuss-Konstanten korrekt", () => {
     expect(ZH_STEUERFUSS_KANTON).toBe(0.98);
     expect(ZH_STEUERFUSS_STADT_ZH).toBe(1.19);
+  });
+});
+
+describe("Kantonsteuer ZG — progressive Tarife (§35 StG ZG, Steuerperiode 2025)", () => {
+  it("Grundtarif: Einkommen 0 = 0", () => {
+    expect(einfacheKantonssteuerZg(0, "grundtarif")).toBe(0);
+  });
+
+  it("Grundtarif bei 50'000: Stufe 46'400-59'700, Basis 1'800 + 5.5%", () => {
+    // 1'800 + 5.5% × (50'000 - 46'400) = 1'800 + 198 = 1'998
+    expect(einfacheKantonssteuerZg(50_000, "grundtarif")).toBeCloseTo(1_998, 0);
+  });
+
+  it("Grundtarif bei 100'000: Stufe 94'800-120'100, Basis 5'114.50 + 10%", () => {
+    // 5'114.50 + 10% × (100'000 - 94'800) = 5'114.50 + 520 = 5'634.50
+    expect(einfacheKantonssteuerZg(100_000, "grundtarif")).toBeCloseTo(5_634.5, 0);
+  });
+
+  it("Mehrpersonentarif bei 100'000: günstiger als Grundtarif (Splitting-Effekt)", () => {
+    const grundtarif = einfacheKantonssteuerZg(100_000, "grundtarif");
+    const mehrpersonen = einfacheKantonssteuerZg(100_000, "mehrpersonen");
+    expect(mehrpersonen).toBeLessThan(grundtarif);
+  });
+
+  it("Höchste Stufe ab 149'900 (Grundtarif): 8% Marginalsatz", () => {
+    // bei 200'000: 10'326.50 + 8% × (200'000 - 149'900) = 10'326.50 + 4'008 = 14'334.50
+    expect(einfacheKantonssteuerZg(200_000, "grundtarif")).toBeCloseTo(14_334.5, 0);
+  });
+
+  it("kantonsteuerZg wendet Steuerfuss 1.42 an (Stadt Zug + Kirche reformiert)", () => {
+    // einfache 5'634.50 × (0.82 + 0.51 + 0.09) = × 1.42 = 8'000.99
+    const total = kantonsteuerZg({
+      steuerbaresEinkommen: 100_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(total).toBeCloseTo(8_001, 0);
+  });
+
+  it("Steuerfuss-Konstanten korrekt", () => {
+    expect(ZG_STEUERFUSS_KANTON).toBe(0.82);
+    expect(ZG_STEUERFUSS_STADT_ZUG).toBe(0.51);
   });
 });
 
