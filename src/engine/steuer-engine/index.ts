@@ -272,6 +272,60 @@ export function bundessteuerKapitalNeu(
 }
 
 /**
+ * Kapitalauszahlungssteuer Kanton Zürich (§38 StG ZH).
+ *
+ * Bruchteilstarif "1/20-Methode" (ZStB 22.1):
+ *  1. Berechne Steuersatz auf fiktive Rente = Kapital/20 mit ZH-Einkommens-Tarif
+ *  2. Mindestsatz: 2% einfache Staatssteuer
+ *  3. × Steuerfuss (Kanton + Gemeinde + Kirche)
+ *
+ * Quelle: Weisung des kantonalen Steueramtes ZStB 22.1 (zh.ch).
+ */
+export function kantonsteuerKapitalZh(
+  kapital: number,
+  fallart: Fallart,
+  religion: Religion,
+  jahr: SteuerJahr,
+  bfsId?: number
+): number {
+  if (kapital <= 0) return 0;
+
+  const info = KANTON_INFO.ZH;
+  const tarifs = getTarifs(info.cantonId, jahr);
+  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", fallart);
+  if (!tarif) return 0;
+
+  // 1/20-Methode: Steuersatz auf fiktive Rente
+  const fiktiveRente = kapital / 20;
+  const splitRente = applySplitting(fiktiveRente, tarif, fallart);
+  const roundedRente = round100Down(splitRente, tarif);
+  const steuerAufRente = reverseSplitting(
+    calculateTaxes(roundedRente, tarif),
+    tarif,
+    fallart
+  );
+  const effektivsatz = fiktiveRente > 0 ? steuerAufRente / fiktiveRente : 0;
+
+  // Mindestsatz 2%
+  const angewendeterSatz = Math.max(effektivsatz, 0.02);
+  const einfache = kapital * angewendeterSatz;
+
+  // Steuerfuss
+  const factor = findFactor(info.cantonId, jahr, bfsId ?? info.bfsIdHauptort);
+  if (!factor) return einfache;
+
+  const kantonFuss = factor.IncomeRateCanton / 100;
+  const gemeindeFuss = factor.IncomeRateCity / 100;
+  const kircheFuss =
+    getKirchensatz(
+      factor as unknown as Record<string, unknown>,
+      "Income",
+      religion
+    ) / 100;
+  return einfache * (kantonFuss + gemeindeFuss + kircheFuss);
+}
+
+/**
  * Liste aller verfügbaren Kantons-Codes. Stabil sortiert nach Code.
  */
 export const ALLE_KANTONE: ReadonlyArray<KantonCode> = (

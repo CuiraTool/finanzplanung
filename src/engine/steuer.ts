@@ -25,13 +25,13 @@ import {
   vermoegensteuerKanton,
   bundessteuerEinkommen,
   bundessteuerKapitalNeu,
+  kantonsteuerKapitalZh,
   KANTON_INFO,
   type Fallart,
   type KantonCode,
   type Religion,
   type SteuerJahr,
 } from "./steuer-engine";
-import { kantonsteuerZhKapital } from "./steuer-zh";
 
 // Re-export für Backwards-Kompatibilität (Religion-Type wird aus dem Wizard
 // importiert und sollte mit der Engine-Religion identisch sein)
@@ -156,11 +156,13 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   if (kapital > 0) {
     kapitalBund = bundessteuerKapitalNeu(kapital, fallart, jahr);
     if (kantonCode === "ZH") {
-      kapitalKanton = kantonsteuerZhKapital({
+      kapitalKanton = kantonsteuerKapitalZh(
         kapital,
-        kategorie: fallart === "paar" ? "verheiratet" : "grundtarif",
+        fallart,
         religion,
-      });
+        jahr,
+        input.bfsId
+      );
     } else if (kantonCode) {
       // Andere Kantone: 1/5-Approximation des Einkommens-Tarifs als
       // Kapital-Sondertarif (übliche Daumenregel)
