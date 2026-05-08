@@ -2,7 +2,6 @@
 
 import { usePlanStore } from "@/lib/store";
 import { ORDENTLICHES_AHV_ALTER, pensionsjahr, personLabel } from "@/lib/pension";
-import { formatChfPlain } from "@/lib/format";
 
 export function Block2Wuensche() {
   const fallart = usePlanStore((s) => s.fallart);
@@ -154,7 +153,7 @@ function PensionierungZeile({
           {ORDENTLICHES_AHV_ALTER}
         </div>
         <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center tabular-nums text-slate-500">
-          {ordentlichJahr ? formatChfPlain(ordentlichJahr) : "—"}
+          {ordentlichJahr ?? "—"}
         </div>
 
         <div className="text-slate-700">Wunsch</div>
@@ -167,7 +166,7 @@ function PensionierungZeile({
           className={`${inputClass} text-center tabular-nums`}
         />
         <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center tabular-nums text-slate-500">
-          {wunschJahr ? formatChfPlain(wunschJahr) : "—"}
+          {wunschJahr ?? "—"}
         </div>
       </div>
     </div>
