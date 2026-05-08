@@ -79,9 +79,15 @@ export interface CashflowZeile {
   ausgabenTotal: number;
   kapAuszahlungen: number;
   saldo: number;
-  vermoegenAktiva: number;
-  vermoegenSchulden: number;
-  vermoegenNetto: number;
+  // Granular Vermögens-Komponenten (Snapshot zum Jahresende):
+  vermoegenLiquiditaet: number; // Block 7 Konten + Hauptkonto-Saldo
+  vermoegenWertschriften: number; // Block 7 Depots
+  vermoegenVorsorge: number; // PK + 3a + FZ vor Auszahlung
+  vermoegenImmobilien: number; // Verkehrswerte aller noch gehaltenen Liegenschaften
+  vermoegenFirma: number; // Verkaufserlös wenn behalten, 0 nach Verkauf
+  vermoegenSchulden: number; // Hypotheken (auf gehaltenen Liegenschaften) + Darlehen
+  vermoegenAktiva: number; // Liquid + Wertschriften + Vorsorge + Immobilien + Firma
+  vermoegenNetto: number; // Aktiva − Schulden
 }
 
 export function cashflowReihe(
@@ -110,12 +116,15 @@ export function cashflowReihe(
   const bvgRenteHaushalt = computeBvgRenteHaushalt(state);
   const bvgKapitalAuszahlungen = computeBvgKapitalAuszahlungen(state);
 
-  // Vermögen-Tracking: wir starten mit Block-7-Aktiva und Schulden
-  let vermoegenLiquid = vermoegenBlock7Aktiva(state.vermoegen.items);
-  let schuldenStand =
-    vermoegenBlock7Schulden(state.vermoegen.items) +
-    immobilienHypothekenTotal(state.immobilien.items);
-  let immobilienBestandWert = immobilienVerkehrswertTotal(state.immobilien.items);
+  // Per-Item Tracker für Block 7 — jedes Item hat seine eigene Rendite und
+  // wird Jahr für Jahr fortgeschrieben. Hauptkonto bekommt zusätzlich den
+  // Cashflow-Saldo + Kapitalauszahlungen.
+  type Block7Tracker = { item: VermoegenItem; saldo: number };
+  const block7: Block7Tracker[] = state.vermoegen.items.map((it) => ({
+    item: it,
+    saldo: it.saldoHeute ?? 0,
+  }));
+  const hauptkontoIdx = block7.findIndex((b) => b.item.istHauptkonto);
 
   for (let jahr = vonJahr; jahr <= bisJahr; jahr++) {
     const alterP1 = berechneAlter(state.person1.geburtsdatum, jahr);
@@ -170,9 +179,27 @@ export function cashflowReihe(
     const ausgabenHaushalt = haushaltsausgabenJahr(state.budget, istPensioniert);
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
 
-    // Vermögen vor Steuern (für Vermögenssteuer-Anker): Stand Jahresanfang
+    // Vermögen vor Steuern (Stand Jahresanfang) — vereinfacht: Block-7-Saldi
+    // VOR der Cashflow-Buchung in diesem Jahr, plus Immobilien minus Hypotheken.
+    const block7AktivaJahresanfang = block7
+      .filter((b) => b.item.typ !== "darlehen")
+      .reduce((s, b) => s + b.saldo, 0);
+    const block7DarlehenJahresanfang = block7
+      .filter((b) => b.item.typ === "darlehen")
+      .reduce((s, b) => s + b.saldo, 0);
+    const immoJahresanfang = immobilienWertAmJahresende(
+      state.immobilien.items,
+      jahr - 1
+    );
+    const hypoJahresanfang = hypothekenAmJahresende(
+      state.immobilien.items,
+      jahr - 1
+    );
     const vermoegenJahresanfang =
-      vermoegenLiquid + immobilienBestandWert - schuldenStand;
+      block7AktivaJahresanfang +
+      immoJahresanfang -
+      block7DarlehenJahresanfang -
+      hypoJahresanfang;
 
     const steuern = steuerProJahr({
       einkommenJahr: einnahmenErwerb + einnahmenMieten + einnahmenAhv + einnahmenBvgRente,
@@ -190,27 +217,60 @@ export function cashflowReihe(
 
     const ausgabenTotal = ausgabenHaushalt + ausgabenSteuern + ausgabenEinmalig;
 
-    // ─── Saldo + Vermögens-Update ────────────────────────────────
+    // ─── Saldo ───────────────────────────────────────────────────
     const saldo = einnahmenTotal - ausgabenTotal;
 
-    // Liquid-Vermögen wächst um Saldo + Kap.-Auszahlung; Block-7-Items haben
-    // eigene Rendite, vereinfacht hier als kombinierter Wachstumsfaktor
-    const renditeMix = vermoegenBlock7DurchschnittsRendite(state.vermoegen.items);
-    vermoegenLiquid =
-      vermoegenLiquid * (1 + renditeMix) + saldo + kapAuszahlungen;
+    // ─── Vermögens-Update: pro Bucket fortschreiben ─────────────
+    // 1. Block 7: jedes Item mit eigener Rendite verzinsen
+    for (const b of block7) {
+      b.saldo *= 1 + b.item.renditeProzent / 100;
+    }
+    // 2. Hauptkonto bekommt Cashflow-Saldo + Kapitalauszahlungen aus Vorsorge/
+    //    Immo-Verkauf/Firma-Verkauf
+    if (hauptkontoIdx >= 0) {
+      const hk = block7[hauptkontoIdx]!;
+      hk.saldo += saldo + kapAuszahlungen;
+    }
 
-    // Immobilien: bei Verkaufsjahr fliesst Netto-Erlös ab Vermögen, Wert wird 0
-    const verkaufteImmobilienAdjustment = immobilienVerkaufsAnpassung(
+    // 3. Snapshot: Liquidität / Wertschriften / Schulden aus Block 7
+    let vermoegenLiquiditaet = 0;
+    let vermoegenWertschriften = 0;
+    let darlehenStand = 0;
+    for (const b of block7) {
+      if (b.item.typ === "konto") vermoegenLiquiditaet += b.saldo;
+      else if (b.item.typ === "depot") vermoegenWertschriften += b.saldo;
+      else if (b.item.typ === "darlehen") darlehenStand += b.saldo;
+    }
+
+    // 4. Vorsorge-Bucket: PK + 3a + FZ — alle, die noch nicht ausbezahlt sind
+    const vermoegenVorsorge = vorsorgeVermoegenAmJahresende(
+      state,
+      jahr,
+      pkBezugsjahrP1,
+      pkBezugsjahrP2,
+      bvgKapitalAuszahlungen
+    );
+
+    // 5. Immobilien-Bucket: noch gehaltene Liegenschaften (vor Verkaufsjahr)
+    const vermoegenImmobilien = immobilienWertAmJahresende(
       state.immobilien.items,
       jahr
     );
-    immobilienBestandWert -= verkaufteImmobilienAdjustment.wertAbgang;
-    schuldenStand -= verkaufteImmobilienAdjustment.hypothekAbgang;
-    // Achtung: vermoegenLiquid hat bereits den Verkaufserlös via kapAuszahlungen
-    // bekommen, wenn der Verkauf in diesem Jahr ist (siehe kapitalauszahlungenJahr).
 
-    const vermoegenAktiva = vermoegenLiquid + immobilienBestandWert;
-    const vermoegenNetto = vermoegenAktiva - schuldenStand;
+    // 6. Firma-Bucket: möglicher Verkaufserlös solange noch nicht verkauft
+    const vermoegenFirma = firmaWertAmJahresende(state.firma, jahr);
+
+    // 7. Schulden: Hypotheken auf noch gehaltenen Liegenschaften + Darlehen
+    const hypothekenStand = hypothekenAmJahresende(state.immobilien.items, jahr);
+    const vermoegenSchulden = hypothekenStand + darlehenStand;
+
+    const vermoegenAktiva =
+      vermoegenLiquiditaet +
+      vermoegenWertschriften +
+      vermoegenVorsorge +
+      vermoegenImmobilien +
+      vermoegenFirma;
+    const vermoegenNetto = vermoegenAktiva - vermoegenSchulden;
 
     result.push({
       jahr,
@@ -230,8 +290,13 @@ export function cashflowReihe(
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
       saldo: Math.round(saldo),
+      vermoegenLiquiditaet: Math.round(vermoegenLiquiditaet),
+      vermoegenWertschriften: Math.round(vermoegenWertschriften),
+      vermoegenVorsorge: Math.round(vermoegenVorsorge),
+      vermoegenImmobilien: Math.round(vermoegenImmobilien),
+      vermoegenFirma: Math.round(vermoegenFirma),
+      vermoegenSchulden: Math.round(vermoegenSchulden),
       vermoegenAktiva: Math.round(vermoegenAktiva),
-      vermoegenSchulden: Math.round(schuldenStand),
       vermoegenNetto: Math.round(vermoegenNetto),
     });
   }
@@ -508,53 +573,108 @@ function einmaligeAusgabenJahr(
   return total;
 }
 
-function vermoegenBlock7Aktiva(items: VermoegenItem[]): number {
-  return items
-    .filter((i) => i.typ !== "darlehen" && i.saldoHeute != null)
-    .reduce((s, i) => s + (i.saldoHeute ?? 0), 0);
-}
+// ─── Bucket-Helper für die Vermögens-Granularisierung ──────────────
 
-function vermoegenBlock7Schulden(items: VermoegenItem[]): number {
-  return items
-    .filter((i) => i.typ === "darlehen" && i.saldoHeute != null)
-    .reduce((s, i) => s + (i.saldoHeute ?? 0), 0);
-}
+/**
+ * Vorsorge-Bucket = nicht ausbezahlte PK + 3a + FZ.
+ * - PK: vor Bezugsjahr → altersguthabenHeute (oder nichts wenn nicht angegeben);
+ *       nach Bezug → 0 bei reinem Kapital, sonst geht Rente in Cashflow ein
+ *       (Saldo aus Vorsorge "rausgeflossen"). Vereinfacht: ab Bezugsjahr 0.
+ * - 3a-Konto: vor auszahlungsjahr → aktuellerWert × Rendite^(jahr - jetzt);
+ *             ab Auszahlungsjahr → 0 (ist auf Hauptkonto via kapAuszahlungen).
+ * - 3a-Versicherung: vor ablaufjahr → rueckkaufswert (oder ablaufswert wenn vorh.);
+ *                    ab ablaufjahr → 0.
+ * - FZ: vor Auszahlungsjahr → saldoHeute × Rendite^(jahr - jetzt);
+ *       ab Auszahlungsjahr → 0.
+ */
+function vorsorgeVermoegenAmJahresende(
+  state: CashflowInput,
+  jahr: number,
+  pkBezugsjahrP1: number | null,
+  pkBezugsjahrP2: number | null,
+  bvgKap: ReturnType<typeof computeBvgKapitalAuszahlungen>
+): number {
+  let total = 0;
+  const jetzt = new Date().getFullYear();
 
-function vermoegenBlock7DurchschnittsRendite(items: VermoegenItem[]): number {
-  const aktiva = items.filter((i) => i.typ !== "darlehen" && i.saldoHeute != null);
-  if (aktiva.length === 0) return 0;
-  const total = aktiva.reduce((s, i) => s + (i.saldoHeute ?? 0), 0);
-  if (total === 0) return 0;
-  const gewichtet = aktiva.reduce(
-    (s, i) => s + (i.saldoHeute ?? 0) * (i.renditeProzent / 100),
-    0
-  );
-  return gewichtet / total;
-}
-
-function immobilienVerkehrswertTotal(items: Immobilie[]): number {
-  return items
-    .filter((i) => i.verkehrswert != null)
-    .reduce((s, i) => s + (i.verkehrswert ?? 0), 0);
-}
-
-function immobilienHypothekenTotal(items: Immobilie[]): number {
-  return items.reduce(
-    (s, im) => s + im.hypotheken.reduce((sh, h) => sh + (h.hoehe ?? 0), 0),
-    0
-  );
-}
-
-function immobilienVerkaufsAnpassung(
-  items: Immobilie[],
-  jahr: number
-): { wertAbgang: number; hypothekAbgang: number } {
-  let wert = 0;
-  let hypo = 0;
-  for (const im of items) {
-    if (im.plan !== "verkaufen" || im.verkaufsjahr !== jahr) continue;
-    if (im.verkehrswert != null) wert += im.verkehrswert;
-    hypo += im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+  // PK: aktuelles Altersguthaben heute (informativ) bis Bezugsjahr,
+  // danach 0 (Kapital ist auf Hauptkonto, Rente fliesst als Cashflow).
+  if (state.bvg.p1.aktiverAnschluss && state.bvg.p1.altersguthabenHeute != null) {
+    if (pkBezugsjahrP1 == null || jahr < pkBezugsjahrP1) {
+      total += state.bvg.p1.altersguthabenHeute;
+    } else if (jahr === pkBezugsjahrP1 && state.bvg.p1.bezugspraeferenz === "mischung") {
+      // Bei Mischung: Restbetrag, der für Rente reserviert ist, bleibt formal in Vorsorge.
+      // Vereinfacht: nicht separat ausgewiesen — Rente fliesst als Cashflow.
+      total += 0;
+    }
   }
-  return { wertAbgang: wert, hypothekAbgang: hypo };
+  if (
+    state.fallart === "paar" &&
+    state.bvg.p2.aktiverAnschluss &&
+    state.bvg.p2.altersguthabenHeute != null
+  ) {
+    if (pkBezugsjahrP2 == null || jahr < pkBezugsjahrP2) {
+      total += state.bvg.p2.altersguthabenHeute;
+    }
+  }
+
+  // 3a — pro Item bis Auszahlungs-/Ablaufjahr
+  for (const items of [state.saeuleDrei.p1, state.saeuleDrei.p2]) {
+    for (const it of items) {
+      if (it.type === "konto") {
+        if (it.aktuellerWert == null) continue;
+        if (jahr < it.auszahlungsjahr) {
+          const j = Math.max(0, jahr - jetzt);
+          total += it.aktuellerWert * Math.pow(1 + it.renditeProzent / 100, j);
+        }
+      } else {
+        const wert = it.ablaufswert ?? it.rueckkaufswert;
+        if (wert == null) continue;
+        if (jahr < it.ablaufjahr) total += wert;
+      }
+    }
+  }
+
+  // FZ — pro Item bis Auszahlungsjahr, mit Rendite verzinst
+  for (const fz of [
+    ...state.bvg.p1.freizuegigkeit,
+    ...state.bvg.p2.freizuegigkeit,
+  ]) {
+    if (fz.saldoHeute == null) continue;
+    if (jahr < fz.auszahlungsjahr) {
+      const j = Math.max(0, jahr - jetzt);
+      total += fz.saldoHeute * Math.pow(1 + fz.renditeProzent / 100, j);
+    }
+  }
+
+  return total;
+}
+
+function immobilienWertAmJahresende(items: Immobilie[], jahr: number): number {
+  let total = 0;
+  for (const im of items) {
+    if (im.verkehrswert == null) continue;
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    total += im.verkehrswert;
+  }
+  return total;
+}
+
+function hypothekenAmJahresende(items: Immobilie[], jahr: number): number {
+  let total = 0;
+  for (const im of items) {
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    total += im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+  }
+  return total;
+}
+
+function firmaWertAmJahresende(
+  firma: CashflowInput["firma"],
+  jahr: number
+): number {
+  if (!firma.vorhanden) return 0;
+  if (firma.moeglicherVerkaufserloes == null) return 0;
+  if (firma.plan === "verkaufen" && jahr >= firma.verkaufsjahr) return 0;
+  return firma.moeglicherVerkaufserloes;
 }
