@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { steuerProJahr, indikativeSteuerHeute } from "./steuer";
 import { bundessteuer, bundessteuerKapital } from "./steuer-bund";
-import { kantonsteuerZhKapital } from "./steuer-zh";
+import { kantonsteuerZhKapital, vermoegenssteuerZh } from "./steuer-zh";
 import {
   einfacheStaatssteuerZh,
   kantonsteuerZh,
@@ -209,7 +209,9 @@ describe("Steuer — Default-Sätze pro Kanton", () => {
     // Bundessteuer — der Effekt ist daher kleiner als 4% des Totals.
   });
 
-  it("Vermögensteuer additiv", () => {
+  it("Vermögenssteuer ZH progressiv (Phase 4.6): 1M single reformiert ~2'140", () => {
+    // ZH-Tarif §47: bis 80k = 0‰ (Freibetrag), Stufe 717-1353k: 1.5‰ marginal
+    // einfache: 518 + 1.5‰ × (1M - 717k) = 942.50 × 2.27 (Steuerfuss) = 2'139.48
     const out = steuerProJahr({
       einkommenJahr: 100_000,
       vermoegenJahr: 1_000_000,
@@ -217,8 +219,10 @@ describe("Steuer — Default-Sätze pro Kanton", () => {
       kanton: "ZH",
       religion: "reformiert",
     });
-    expect(out.vermoegen).toBe(3_000); // 1'000'000 × 3‰
-    expect(out.total).toBe(out.einkommen + out.vermoegen);
+    expect(out.vermoegen).toBeGreaterThan(2_000);
+    expect(out.vermoegen).toBeLessThan(2_300);
+    // Sum-of-rounded kann ±1 abweichen vom rounded-sum
+    expect(Math.abs(out.total - (out.einkommen + out.vermoegen))).toBeLessThanOrEqual(1);
   });
 
   it("Kapitalauszahlungssteuer ZH 500'000 (Bruchteilstarif): ~38'000", () => {
@@ -322,6 +326,118 @@ describe("Kapitalauszahlungssteuer — Phase 4.5 (Bund + ZH progressiv)", () => 
     expect(out.kapital).toBeLessThan(26_000);
     expect(out.kapitalBund).toBeGreaterThan(0);
     expect(out.kapitalKanton).toBeGreaterThan(0);
+  });
+});
+
+describe("Vermögenssteuer ZH — progressiver Tarif §47 StG (Phase 4.6)", () => {
+  it("Freibetrag 80'000 single (de-facto, 0‰-Stufe)", () => {
+    expect(
+      vermoegenssteuerZh({
+        vermoegen: 80_000,
+        kategorie: "grundtarif",
+        religion: "reformiert",
+      })
+    ).toBe(0);
+    expect(
+      vermoegenssteuerZh({
+        vermoegen: 50_000,
+        kategorie: "grundtarif",
+        religion: "reformiert",
+      })
+    ).toBe(0);
+  });
+
+  it("Freibetrag 159'000 verheiratet", () => {
+    expect(
+      vermoegenssteuerZh({
+        vermoegen: 159_000,
+        kategorie: "verheiratet",
+        religion: "reformiert",
+      })
+    ).toBe(0);
+  });
+
+  it("Bei 200'000 single (Stufe 80-318k, 0.5‰): einfache 60 × Steuerfuss", () => {
+    // 0 + 0.5‰ × (200'000 - 80'000) = 60. × 2.27 = 136.20
+    const s = vermoegenssteuerZh({
+      vermoegen: 200_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(s).toBeCloseTo(136.2, 0);
+  });
+
+  it("Bei 1'000'000 single: einfache 942.50 × 2.27 = 2'139", () => {
+    // Stufe 717'000-1'353'000: Basis 518, Marginal 1.5‰
+    // 518 + 1.5‰ × (1'000'000 - 717'000) = 518 + 424.50 = 942.50
+    const s = vermoegenssteuerZh({
+      vermoegen: 1_000_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(s).toBeCloseTo(2_139.48, 0);
+  });
+
+  it("Verheiratet günstiger als single (Splitting + höherer Freibetrag)", () => {
+    const single = vermoegenssteuerZh({
+      vermoegen: 1_000_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    const verh = vermoegenssteuerZh({
+      vermoegen: 1_000_000,
+      kategorie: "verheiratet",
+      religion: "reformiert",
+    });
+    expect(verh).toBeLessThan(single);
+  });
+
+  it("Höchste Stufe ab 3'262'000 single: 3‰ marginal", () => {
+    // Bei 4M: Basis 5'766.50 + 3‰ × (4M - 3.262M) = 5'766.50 + 2'214 = 7'980.50
+    // × Steuerfuss 2.27 = 18'115.74
+    const s = vermoegenssteuerZh({
+      vermoegen: 4_000_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(s).toBeCloseTo(18_115.74, 0);
+  });
+});
+
+describe("Vermögenssteuer — andere Kantone mit Default-Freibetrag", () => {
+  it("ZG bei 1M single: (1M - 80k) × 1.5‰ = 1'380", () => {
+    // ZG nutzt Pauschalsatz mit Default-Freibetrag (Phase 4.6)
+    const out = steuerProJahr({
+      einkommenJahr: 0,
+      vermoegenJahr: 1_000_000,
+      kapAuszahlungenJahr: 0,
+      kanton: "ZG",
+      religion: "reformiert",
+    });
+    expect(out.vermoegen).toBe(1_380); // (1'000'000 - 80'000) × 0.0015
+  });
+
+  it("Paar-Freibetrag 160k bei BE single 1M: (1M - 160k) × 3.5‰", () => {
+    const out = steuerProJahr({
+      einkommenJahr: 0,
+      vermoegenJahr: 1_000_000,
+      kapAuszahlungenJahr: 0,
+      kanton: "BE",
+      religion: "reformiert",
+      fallart: "paar",
+    });
+    expect(out.vermoegen).toBe(2_940); // (1'000'000 - 160'000) × 0.0035
+  });
+
+  it("Vermögen unter Freibetrag → 0", () => {
+    const out = steuerProJahr({
+      einkommenJahr: 0,
+      vermoegenJahr: 50_000,
+      kapAuszahlungenJahr: 0,
+      kanton: "BE",
+      religion: "reformiert",
+    });
+    expect(out.vermoegen).toBe(0);
   });
 });
 

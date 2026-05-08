@@ -25,6 +25,8 @@ import {
   DEFAULT_EINKOMMENSSATZ,
   DEFAULT_VERMOEGENSSATZ,
   DEFAULT_KAPITALSTEUER,
+  DEFAULT_VERMOEGEN_FREIBETRAG_SINGLE,
+  DEFAULT_VERMOEGEN_FREIBETRAG_PAAR,
   religionMultiplikator,
   type Religion,
 } from "./steuer-data";
@@ -33,7 +35,11 @@ import {
   bundessteuerKapital,
   bruttoZuSteuerbarApprox,
 } from "./steuer-bund";
-import { kantonsteuerZh, kantonsteuerZhKapital } from "./steuer-zh";
+import {
+  kantonsteuerZh,
+  kantonsteuerZhKapital,
+  vermoegenssteuerZh,
+} from "./steuer-zh";
 import { kantonsteuerZg } from "./steuer-zg";
 
 export interface SteuerInput {
@@ -124,7 +130,25 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   }
 
   const einkommensteuerTotal = bundSteuer + einkommensteuerKantonal;
-  const vermoegensteuer = Math.max(0, input.vermoegenJahr) * vmSatz;
+
+  // Vermögenssteuer (Phase 4.6): ZH echter progressiver Tarif mit Freibetrag,
+  // andere Kantone Pauschalsatz mit Default-Freibetrag (80k single / 160k paar)
+  let vermoegensteuer: number;
+  const vermoegen = Math.max(0, input.vermoegenJahr);
+  if (kanton === "ZH") {
+    vermoegensteuer = vermoegenssteuerZh({
+      vermoegen,
+      kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
+      religion: input.religion,
+    });
+  } else {
+    const freibetrag =
+      input.fallart === "paar"
+        ? DEFAULT_VERMOEGEN_FREIBETRAG_PAAR
+        : DEFAULT_VERMOEGEN_FREIBETRAG_SINGLE;
+    const steuerbaresVermoegen = Math.max(0, vermoegen - freibetrag);
+    vermoegensteuer = steuerbaresVermoegen * vmSatz;
+  }
 
   // Kapitalauszahlungssteuer (Phase 4.5): Bund 1/5-DBG progressiv,
   // ZH 1/20-Bruchteilstarif, andere Kantone weiter Pauschalsatz

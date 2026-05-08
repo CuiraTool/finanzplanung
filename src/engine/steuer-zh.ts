@@ -126,6 +126,68 @@ export function kantonsteuerZh(input: {
   return einfache * steuerfuss;
 }
 
+/** ZH Vermögenssteuer Grundtarif (§47 StG ZH) — Alleinstehende. Stand 2025. */
+const ZH_VERMOEGEN_GRUNDTARIF: TarifStufe[] = [
+  { von: 0, basisbetrag: 0, marginalsatz: 0 },
+  { von: 80_000, basisbetrag: 0, marginalsatz: 0.0005 },
+  { von: 318_000, basisbetrag: 119, marginalsatz: 0.001 },
+  { von: 717_000, basisbetrag: 518, marginalsatz: 0.0015 },
+  { von: 1_353_000, basisbetrag: 1_472, marginalsatz: 0.002 },
+  { von: 2_309_000, basisbetrag: 3_384, marginalsatz: 0.0025 },
+  { von: 3_262_000, basisbetrag: 5_766.5, marginalsatz: 0.003 },
+];
+
+/** ZH Vermögenssteuer Reduzierter Tarif (§47 StG ZH) — Verheiratete. Stand 2025. */
+const ZH_VERMOEGEN_REDUZIERT: TarifStufe[] = [
+  { von: 0, basisbetrag: 0, marginalsatz: 0 },
+  { von: 159_000, basisbetrag: 0, marginalsatz: 0.0005 },
+  { von: 398_000, basisbetrag: 119.5, marginalsatz: 0.001 },
+  { von: 795_000, basisbetrag: 516.5, marginalsatz: 0.0015 },
+  { von: 1_432_000, basisbetrag: 1_472, marginalsatz: 0.002 },
+  { von: 2_387_000, basisbetrag: 3_382, marginalsatz: 0.0025 },
+  { von: 3_342_000, basisbetrag: 5_769.5, marginalsatz: 0.003 },
+];
+
+/**
+ * Vermögenssteuer Kanton Zürich (§47 StG ZH).
+ *
+ * Progressive Stufen (Promille) auf das Reinvermögen, mit De-facto-Freibetrag
+ * (kein expliziter Freibetrag, aber erste Stufe = 0‰):
+ *  - Alleinstehende: bis 80'000 = 0‰
+ *  - Verheiratete:   bis 159'000 = 0‰
+ *
+ * Stand 2025. × Steuerfuss (Kanton + Stadt ZH + Kirche).
+ */
+export function vermoegenssteuerZh(input: {
+  vermoegen: number;
+  kategorie: ZhTarifKategorie;
+  religion: "reformiert" | "katholisch" | "keine";
+}): number {
+  if (input.vermoegen <= 0) return 0;
+
+  const tarif =
+    input.kategorie === "verheiratet"
+      ? ZH_VERMOEGEN_REDUZIERT
+      : ZH_VERMOEGEN_GRUNDTARIF;
+
+  let aktuelleStufe = tarif[0]!;
+  for (const stufe of tarif) {
+    if (input.vermoegen >= stufe.von) {
+      aktuelleStufe = stufe;
+    } else {
+      break;
+    }
+  }
+
+  const ueberschuss = input.vermoegen - aktuelleStufe.von;
+  const einfache = aktuelleStufe.basisbetrag + ueberschuss * aktuelleStufe.marginalsatz;
+
+  const kirchenSatz = ZH_KIRCHENSTEUER[input.religion];
+  const steuerfuss =
+    ZH_STEUERFUSS_KANTON + ZH_STEUERFUSS_STADT_ZH + kirchenSatz;
+  return einfache * steuerfuss;
+}
+
 /**
  * Kapitalauszahlungssteuer Kanton Zürich (§38 StG ZH).
  *

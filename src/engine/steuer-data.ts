@@ -120,6 +120,16 @@ export const DEFAULT_EINKOMMENSSATZ = 0.22; // Schweiz-Median ZH-Niveau
 export const DEFAULT_VERMOEGENSSATZ = 0.003;
 export const DEFAULT_KAPITALSTEUER = 0.085;
 
+/**
+ * Vermögensteuer-Freibeträge (Phase 4.6).
+ *
+ * Default-Annahme für Kantone ohne eigene Tarif-Implementation: 80k single,
+ * 160k paar. ZH/ZG haben eigene Freibeträge in den progressiven Tarifen
+ * implementiert (siehe steuer-zh.ts).
+ */
+export const DEFAULT_VERMOEGEN_FREIBETRAG_SINGLE = 80_000;
+export const DEFAULT_VERMOEGEN_FREIBETRAG_PAAR = 160_000;
+
 export type Religion = "katholisch" | "reformiert" | "keine";
 
 /**
