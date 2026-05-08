@@ -1,13 +1,7 @@
 "use client";
 
 import { usePlanStore } from "@/lib/store";
-import {
-  ahvCouplePension,
-  ahvJahresrenteEinzel,
-  ORDENTLICHES_AHV_ALTER,
-  MAX_VORBEZUG_JAHRE,
-  MAX_AUFSCHUB_JAHRE,
-} from "@/engine/ahv";
+import { ahvCouplePension, ahvJahresrenteEinzel } from "@/engine/ahv";
 import { bvgBezug } from "@/engine/bvg";
 import { pensionsjahr } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
@@ -37,7 +31,7 @@ export function Dashboard() {
       };
 
     const fehljahreP1 = ahvInput.hatFehljahreP1 ? ahvInput.fehljahreAnzahlP1 : 0;
-    const bezugsalterP1 = clampAhvAlter(ziele.bezugsalterP1);
+    const bezugsalterP1 = ahvInput.ahvBezugsalterP1;
     const bezugsjahrP1 =
       pensionsjahr(person1.geburtsdatum, bezugsalterP1) ?? new Date().getFullYear();
 
@@ -56,8 +50,6 @@ export function Dashboard() {
           vorbezug: r.vorbezugJahre,
           aufschub: r.aufschubJahre,
           hat13te: r.hat13te,
-          bezugsalterDesired: ziele.bezugsalterP1,
-          ahvBezugsalter: bezugsalterP1,
         }),
       };
     }
@@ -71,7 +63,7 @@ export function Dashboard() {
       };
 
     const fehljahreP2 = ahvInput.hatFehljahreP2 ? ahvInput.fehljahreAnzahlP2 : 0;
-    const bezugsalterP2 = clampAhvAlter(ziele.bezugsalterP2);
+    const bezugsalterP2 = ahvInput.ahvBezugsalterP2;
     const bezugsjahrP2 = pensionsjahr(person2.geburtsdatum, bezugsalterP2);
 
     const bezugsjahrPlafond = Math.max(
@@ -234,7 +226,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartPlaceholder title="Cashflow 25 Jahre" />
+        <ChartPlaceholder title="Einnahmen/Ausgaben" />
         <ChartPlaceholder title="Vermögensentwicklung" />
         <ChartPlaceholder title="Steuerentwicklung" />
         <ChartPlaceholder title="Massnahmen-Liste" />
@@ -243,19 +235,11 @@ export function Dashboard() {
   );
 }
 
-function clampAhvAlter(wunschalter: number): number {
-  const min = ORDENTLICHES_AHV_ALTER - MAX_VORBEZUG_JAHRE;
-  const max = ORDENTLICHES_AHV_ALTER + MAX_AUFSCHUB_JAHRE;
-  return Math.max(min, Math.min(max, wunschalter));
-}
-
 function buildAhvHints(args: {
   fehljahre: number;
   vorbezug: number;
   aufschub: number;
   hat13te: boolean;
-  bezugsalterDesired: number;
-  ahvBezugsalter: number;
 }): string[] {
   const hints: string[] = ["Einzelperson"];
   if (args.vorbezug > 0)
@@ -263,10 +247,6 @@ function buildAhvHints(args: {
   if (args.aufschub > 0) hints.push(`Aufschub ${args.aufschub} J.`);
   if (args.hat13te) hints.push("inkl. 13. AHV");
   if (args.fehljahre > 0) hints.push(`${args.fehljahre} Fehljahre`);
-  if (args.bezugsalterDesired < args.ahvBezugsalter)
-    hints.push(
-      `AHV erst ab ${args.ahvBezugsalter} (max. Vorbezug)`
-    );
   return hints;
 }
 

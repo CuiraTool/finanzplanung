@@ -86,6 +86,12 @@ export interface AhvInput {
   hatFehljahreP2: boolean;
   fehljahreAnzahlP1: number;
   fehljahreAnzahlP2: number;
+  /**
+   * AHV-Bezugsalter — unabhängig vom Pensionierungsalter (Block 2 Ziele).
+   * Range 63–70: 63/64 = Vorbezug, 65 = ordentlich, 66–70 = Aufschub.
+   */
+  ahvBezugsalterP1: number;
+  ahvBezugsalterP2: number;
 }
 
 /** BVG / 2. Säule — Block 5. */
@@ -198,6 +204,8 @@ const initialAhv: AhvInput = {
   hatFehljahreP2: false,
   fehljahreAnzahlP1: 0,
   fehljahreAnzahlP2: 0,
+  ahvBezugsalterP1: 65,
+  ahvBezugsalterP2: 65,
 };
 
 const initialBvg: BvgInput = {
@@ -390,7 +398,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v9",
+      name: "cuira-plan-v10",
     }
   )
 );
