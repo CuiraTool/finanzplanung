@@ -8,6 +8,7 @@ import {
 } from "@/lib/store";
 import { indikativeSteuerHeute } from "@/engine/steuer";
 import { Field } from "@/components/ui/Field";
+import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
 import { inputClass, selectClass } from "@/components/ui/styles";
 import { formatChf } from "@/lib/format";
 
@@ -143,24 +144,19 @@ export function Block3Budget() {
                 />
               </Field>
 
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Von (Monat)">
-                  <input
-                    type="month"
-                    value={e.von}
-                    onChange={(ev) => updateEink(e.id, { von: ev.target.value })}
-                    className={`${inputClass} tabular-nums`}
-                  />
-                </Field>
-                <Field label="Bis (Monat)" hint="leer = bis Pensionierung / offen">
-                  <input
-                    type="month"
-                    value={e.bis}
-                    onChange={(ev) => updateEink(e.id, { bis: ev.target.value })}
-                    className={`${inputClass} tabular-nums`}
-                  />
-                </Field>
-              </div>
+              <Field label="Von (Monat)">
+                <MonthYearPicker
+                  value={e.von}
+                  onChange={(v) => updateEink(e.id, { von: v })}
+                />
+              </Field>
+              <Field label="Bis (Monat)" hint="leer = bis Pensionierung / offen">
+                <MonthYearPicker
+                  value={e.bis}
+                  onChange={(v) => updateEink(e.id, { bis: v })}
+                  allowEmpty
+                />
+              </Field>
             </li>
           ))}
         </ul>
