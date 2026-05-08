@@ -11,11 +11,11 @@
   publish = ".next"
 
 [build.environment]
-  # Node-Version pinnen — verhindert Drift, wenn Netlify ihre Defaults updated.
-  # Mindestens 22.13, weil pnpm 11 Node ≥ 22.13 voraussetzt.
   NODE_VERSION = "22"
-  # pnpm via corepack aktivieren (Netlify-Standard)
-  NPM_FLAGS = "--version"
+  # PNPM_VERSION explizit, damit Netlifys Corepack-Detection nicht leer
+  # ausläuft (sahen wir vorher: "Installing npm packages using pnpm version "
+  # ohne Versionsnummer → Install bricht).
+  PNPM_VERSION = "9.12.0"
   PNPM_FLAGS = "--frozen-lockfile"
 
 # Next.js Plugin sollte automatisch installiert werden — falls nicht, manuell
