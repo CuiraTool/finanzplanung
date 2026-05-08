@@ -8,6 +8,9 @@ import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
 import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
+import { SteuerChart } from "./SteuerChart";
+import { MassnahmenListe } from "./MassnahmenListe";
+import { massnahmenAusState } from "@/engine/massnahmen";
 
 const PROJEKTIONS_END_ALTER = 85;
 
@@ -75,6 +78,9 @@ export function Dashboard() {
     () => cashflowReihe(cashflowState, heutigesJahr, endJahr),
     [cashflowState, heutigesJahr, endJahr]
   );
+
+  const fullState = usePlanStore();
+  const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
 
   // Marker-Jahre für die Charts
   const ordPensionsjahr = useMemo(
@@ -158,13 +164,23 @@ export function Dashboard() {
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
             />
+            <SteuerChart
+              daten={cashflow}
+              pensionsjahr={ordPensionsjahr}
+              wunschPensionsjahr={wunschPensionsjahr}
+              fallart={fallart}
+            />
           </>
         ) : (
           <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
         )}
 
-        <ChartPlaceholder title="Steuerentwicklung" />
-        <ChartPlaceholder title="Massnahmen-Liste" />
+        <MassnahmenListe
+          massnahmen={massnahmen}
+          vornameP1={person1.vorname}
+          vornameP2={fallart === "paar" ? person2.vorname : undefined}
+          fallart={fallart}
+        />
       </div>
     </div>
   );

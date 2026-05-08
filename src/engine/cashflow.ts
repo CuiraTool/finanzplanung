@@ -72,6 +72,9 @@ export interface CashflowZeile {
   einnahmenTotal: number;
   ausgabenHaushalt: number;
   ausgabenSteuern: number;
+  ausgabenSteuernEinkommen: number;
+  ausgabenSteuernVermoegen: number;
+  ausgabenSteuernKapital: number;
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -181,6 +184,9 @@ export function cashflowReihe(
       ankerEinkommenHeute: state.budget.einkommenHeute,
     });
     const ausgabenSteuern = steuern.total;
+    const ausgabenSteuernEinkommen = steuern.einkommen;
+    const ausgabenSteuernVermoegen = steuern.vermoegen;
+    const ausgabenSteuernKapital = steuern.kapital;
 
     const ausgabenTotal = ausgabenHaushalt + ausgabenSteuern + ausgabenEinmalig;
 
@@ -217,6 +223,9 @@ export function cashflowReihe(
       einnahmenTotal: Math.round(einnahmenTotal),
       ausgabenHaushalt: Math.round(ausgabenHaushalt),
       ausgabenSteuern: Math.round(ausgabenSteuern),
+      ausgabenSteuernEinkommen: Math.round(ausgabenSteuernEinkommen),
+      ausgabenSteuernVermoegen: Math.round(ausgabenSteuernVermoegen),
+      ausgabenSteuernKapital: Math.round(ausgabenSteuernKapital),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
