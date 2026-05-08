@@ -9,7 +9,8 @@
 
 [build.environment]
   # Node-Version pinnen — verhindert Drift, wenn Netlify ihre Defaults updated.
-  NODE_VERSION = "20"
+  # Mindestens 22.13, weil pnpm 11 Node ≥ 22.13 voraussetzt.
+  NODE_VERSION = "22"
   # pnpm via corepack aktivieren (Netlify-Standard)
   NPM_FLAGS = "--version"
   PNPM_FLAGS = "--frozen-lockfile"
