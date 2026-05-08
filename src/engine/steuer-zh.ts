@@ -125,3 +125,39 @@ export function kantonsteuerZh(input: {
     ZH_STEUERFUSS_KANTON + ZH_STEUERFUSS_STADT_ZH + kirchenSatz;
   return einfache * steuerfuss;
 }
+
+/**
+ * Kapitalauszahlungssteuer Kanton Zürich (§38 StG ZH).
+ *
+ * Bruchteilstarif "1/20-Methode" (ZStB 22.1):
+ *  1. Berechne den Steuersatz so, als ob das Kapital eine **fiktive jährliche
+ *     Rente von 1/20 der Kapitalleistung** wäre.
+ *  2. Wende diesen Satz auf das gesamte Kapital an.
+ *  3. Mindestsatz: 2% einfache Staatssteuer auf das Kapital.
+ *  4. Multipliziere mit Steuerfuss (Kanton + Gemeinde + Kirche).
+ *
+ * Quelle: Weisung des kantonalen Steueramtes ZStB 22.1 (zh.ch).
+ */
+export function kantonsteuerZhKapital(input: {
+  kapital: number;
+  kategorie: ZhTarifKategorie;
+  religion: "reformiert" | "katholisch" | "keine";
+}): number {
+  if (input.kapital <= 0) return 0;
+
+  // 1/20-Methode: Steuersatz auf 1/20 der Kapitalleistung berechnen
+  const fiktiveRente = input.kapital / 20;
+  const steuerAufRente = einfacheStaatssteuerZh(fiktiveRente, input.kategorie);
+  const effektivsatzAufRente =
+    fiktiveRente > 0 ? steuerAufRente / fiktiveRente : 0;
+
+  // Mindestsatz 2% einfache Staatssteuer
+  const angewendeterSatz = Math.max(effektivsatzAufRente, 0.02);
+  const einfacheKapitalsteuer = input.kapital * angewendeterSatz;
+
+  // Steuerfuss anwenden
+  const kirchenSatz = ZH_KIRCHENSTEUER[input.religion];
+  const steuerfuss =
+    ZH_STEUERFUSS_KANTON + ZH_STEUERFUSS_STADT_ZH + kirchenSatz;
+  return einfacheKapitalsteuer * steuerfuss;
+}

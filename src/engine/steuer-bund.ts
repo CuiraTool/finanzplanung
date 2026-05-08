@@ -96,6 +96,23 @@ export function bundessteuer(
 }
 
 /**
+ * Bundessteuer auf Kapitalleistungen aus Vorsorge (Art. 38 DBG).
+ *
+ * Die Steuer wird zu **einem Fünftel** der ordentlichen Tarife nach Art. 36 DBG
+ * berechnet. Dies gilt für PK-Kapital, 3a-Auszahlungen, Freizügigkeit und
+ * Lebensversicherungs-Ablaufleistungen.
+ *
+ * Maximaler effektiver Satz: 11.5% / 5 = 2.3%.
+ */
+export function bundessteuerKapital(
+  kapital: number,
+  kategorie: DbgTarifKategorie
+): number {
+  if (kapital <= 0) return 0;
+  return Math.round(bundessteuer(kapital, kategorie) / 5);
+}
+
+/**
  * Approximation des steuerbaren Einkommens aus dem Bruttojahreseinkommen.
  *
  * In Wahrheit zieht man ab: AHV/IV/EO (5.3%), ALV (1.1%), BVG (~7%),

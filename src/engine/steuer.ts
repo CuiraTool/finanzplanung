@@ -28,8 +28,12 @@ import {
   religionMultiplikator,
   type Religion,
 } from "./steuer-data";
-import { bundessteuer, bruttoZuSteuerbarApprox } from "./steuer-bund";
-import { kantonsteuerZh } from "./steuer-zh";
+import {
+  bundessteuer,
+  bundessteuerKapital,
+  bruttoZuSteuerbarApprox,
+} from "./steuer-bund";
+import { kantonsteuerZh, kantonsteuerZhKapital } from "./steuer-zh";
 import { kantonsteuerZg } from "./steuer-zg";
 
 export interface SteuerInput {
@@ -50,7 +54,9 @@ export interface SteuerOutput {
   einkommenBund: number; // davon Bundessteuer (echter DBG-Tarif)
   einkommenKanton: number; // davon Kanton+Gemeinde+Religion (indikativ)
   vermoegen: number;
-  kapital: number;
+  kapital: number; // Total Kapitalauszahlungssteuer (Bund + Kanton)
+  kapitalBund: number; // davon Bund (1/5 DBG-Tarif)
+  kapitalKanton: number; // davon Kanton (Sondertarif oder Pauschal)
   total: number;
   /** True wenn der User-Anker verwendet wurde (statt Default-Sätze). */
   kalibriert: boolean;
@@ -119,7 +125,28 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
 
   const einkommensteuerTotal = bundSteuer + einkommensteuerKantonal;
   const vermoegensteuer = Math.max(0, input.vermoegenJahr) * vmSatz;
-  const kapitalsteuer = input.kapAuszahlungenJahr * kapSatz;
+
+  // Kapitalauszahlungssteuer (Phase 4.5): Bund 1/5-DBG progressiv,
+  // ZH 1/20-Bruchteilstarif, andere Kantone weiter Pauschalsatz
+  const kapital = Math.max(0, input.kapAuszahlungenJahr);
+  let kapitalBund = 0;
+  let kapitalKanton = 0;
+  if (kapital > 0) {
+    kapitalBund = bundessteuerKapital(kapital, dbgKategorie);
+    if (kanton === "ZH") {
+      kapitalKanton = kantonsteuerZhKapital({
+        kapital,
+        kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
+        religion: input.religion,
+      });
+    } else {
+      // Pauschalsatz pro Kanton (Bund-Anteil bereits separat → kein Doppel-Counting)
+      // Schätzung Bund-Anteil im Pauschalsatz: ~1.5% bei mittlerer Auszahlung
+      const bundAnteilPauschal = 0.015;
+      kapitalKanton = Math.max(0, kapital * (kapSatz - bundAnteilPauschal));
+    }
+  }
+  const kapitalsteuer = kapitalBund + kapitalKanton;
 
   return {
     einkommen: Math.round(einkommensteuerTotal),
@@ -127,6 +154,8 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     einkommenKanton: Math.round(einkommensteuerKantonal),
     vermoegen: Math.round(vermoegensteuer),
     kapital: Math.round(kapitalsteuer),
+    kapitalBund: Math.round(kapitalBund),
+    kapitalKanton: Math.round(kapitalKanton),
     total: Math.round(einkommensteuerTotal + vermoegensteuer + kapitalsteuer),
     kalibriert,
   };

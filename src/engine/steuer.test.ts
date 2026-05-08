@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { steuerProJahr, indikativeSteuerHeute } from "./steuer";
-import { bundessteuer } from "./steuer-bund";
+import { bundessteuer, bundessteuerKapital } from "./steuer-bund";
+import { kantonsteuerZhKapital } from "./steuer-zh";
 import {
   einfacheStaatssteuerZh,
   kantonsteuerZh,
@@ -220,7 +221,11 @@ describe("Steuer — Default-Sätze pro Kanton", () => {
     expect(out.total).toBe(out.einkommen + out.vermoegen);
   });
 
-  it("Kapitalauszahlungssteuer ZH 8.5%", () => {
+  it("Kapitalauszahlungssteuer ZH 500'000 (Bruchteilstarif): ~38'000", () => {
+    // Phase 4.5: ZH nutzt 1/20-Bruchteilstarif statt Pauschal 8.5%
+    //   Bund (1/5 DBG): 53'161 / 5 ≈ 10'632
+    //   ZH-Bruchteilstarif: 12'080 × 2.27 = 27'422
+    //   Total ≈ 38'054
     const out = steuerProJahr({
       einkommenJahr: 0,
       vermoegenJahr: 0,
@@ -228,7 +233,95 @@ describe("Steuer — Default-Sätze pro Kanton", () => {
       kanton: "ZH",
       religion: "reformiert",
     });
-    expect(out.kapital).toBe(42_500); // 500'000 × 8.5%
+    expect(out.kapital).toBeGreaterThan(36_000);
+    expect(out.kapital).toBeLessThan(40_000);
+    expect(out.kapitalBund).toBeGreaterThan(10_000);
+    expect(out.kapitalKanton).toBeGreaterThan(25_000);
+  });
+});
+
+describe("Kapitalauszahlungssteuer — Phase 4.5 (Bund + ZH progressiv)", () => {
+  it("Bundessteuer Kapital = 1/5 DBG-Tarif (Art. 38 DBG)", () => {
+    // 500k einzel: DBG ≈ 53'161 → /5 = 10'632
+    expect(bundessteuerKapital(500_000, "einzel")).toBeCloseTo(10_632, -1);
+  });
+
+  it("Bundessteuer Kapital bei 0 = 0", () => {
+    expect(bundessteuerKapital(0, "einzel")).toBe(0);
+  });
+
+  it("Bundessteuer Kapital plafoniert bei 2.3% (= 11.5%/5)", () => {
+    // bei sehr hoher Auszahlung
+    const s = bundessteuerKapital(2_000_000, "einzel");
+    expect(s).toBeLessThanOrEqual(2_000_000 * 0.023);
+  });
+
+  it("Verheiratet günstiger als einzel (auch beim Kapital)", () => {
+    const einzel = bundessteuerKapital(500_000, "einzel");
+    const verh = bundessteuerKapital(500_000, "verheiratet");
+    expect(verh).toBeLessThan(einzel);
+  });
+
+  it("ZH Kapital 500'000 single reformiert: ~27'400 (Bruchteilstarif × Steuerfuss)", () => {
+    // 1/20-Methode: fiktive Rente 25'000 → einfache 604 → Satz 2.416% → 12'080
+    // × Steuerfuss 2.27 = 27'422
+    const s = kantonsteuerZhKapital({
+      kapital: 500_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(s).toBeCloseTo(27_422, -1);
+  });
+
+  it("ZH Kapital Mindestsatz 2% einfache Steuer greift bei kleinem Kapital", () => {
+    // Bei 50k Kapital: fiktive Rente 2'500 < 6'700 → einfache 0
+    // → Mindestsatz 2% greift → einfache 1'000 × 2.27 = 2'270
+    const s = kantonsteuerZhKapital({
+      kapital: 50_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    expect(s).toBeCloseTo(2_270, -1);
+  });
+
+  it("ZH Kapital 0 = 0", () => {
+    expect(
+      kantonsteuerZhKapital({
+        kapital: 0,
+        kategorie: "grundtarif",
+        religion: "reformiert",
+      })
+    ).toBe(0);
+  });
+
+  it("ZH Kapital: Religion 'keine' günstiger", () => {
+    const reformiert = kantonsteuerZhKapital({
+      kapital: 500_000,
+      kategorie: "grundtarif",
+      religion: "reformiert",
+    });
+    const keine = kantonsteuerZhKapital({
+      kapital: 500_000,
+      kategorie: "grundtarif",
+      religion: "keine",
+    });
+    expect(keine).toBeLessThan(reformiert);
+  });
+
+  it("Andere Kantone (z.B. ZG) nutzen weiter Pauschalsatz", () => {
+    // ZG Pauschal 4% - 1.5% Bund-Anteil = 2.5% Kanton + Bund 1/5-DBG
+    // Bei 500k: ZG-Kanton 2.5% × 500k = 12'500. Bund ≈ 10'632. Total ≈ 23'132
+    const out = steuerProJahr({
+      einkommenJahr: 0,
+      vermoegenJahr: 0,
+      kapAuszahlungenJahr: 500_000,
+      kanton: "ZG",
+      religion: "reformiert",
+    });
+    expect(out.kapital).toBeGreaterThan(20_000);
+    expect(out.kapital).toBeLessThan(26_000);
+    expect(out.kapitalBund).toBeGreaterThan(0);
+    expect(out.kapitalKanton).toBeGreaterThan(0);
   });
 });
 
