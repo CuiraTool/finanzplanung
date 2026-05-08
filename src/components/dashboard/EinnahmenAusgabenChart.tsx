@@ -48,10 +48,10 @@ export function EinnahmenAusgabenChart({
         <Legende />
       </header>
 
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={460}>
         <ComposedChart
           data={daten}
-          margin={{ top: 8, right: 12, left: 12, bottom: 8 }}
+          margin={{ top: 36, right: 16, left: 12, bottom: 8 }}
         >
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
 

@@ -47,10 +47,10 @@ export function VermoegensChart({
         <Legende />
       </header>
 
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={460}>
         <ComposedChart
           data={daten}
-          margin={{ top: 8, right: 12, left: 12, bottom: 8 }}
+          margin={{ top: 36, right: 16, left: 12, bottom: 8 }}
         >
           <defs>
             <linearGradient id="aktivaGradient" x1="0" y1="0" x2="0" y2="1">
