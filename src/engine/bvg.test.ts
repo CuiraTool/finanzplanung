@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   bvgProjektion,
   bvgRenteAusSaldo,
+  bvgGesamtkapitalBeiBezug,
   bvgBezug,
+  einkaufeMitSperrfristWarnung,
   BVG_UMWANDLUNGSSATZ_MIND_65,
   BVG_MINDESTZINSSATZ_2025,
+  SPERRFRIST_EINKAUF_JAHRE,
 } from "./bvg";
 
 describe("BVG — Projektion mit Mindestzinssatz 1.25%", () => {
@@ -26,7 +29,7 @@ describe("BVG — Projektion mit Mindestzinssatz 1.25%", () => {
 
 describe("BVG — Rente aus Saldo (Umwandlungssatz 6.8%)", () => {
   it("Saldo × Umwandlungssatz", () => {
-    expect(bvgRenteAusSaldo(500_000)).toBe(34_000); // 500'000 × 6.8%
+    expect(bvgRenteAusSaldo(500_000)).toBe(34_000);
   });
 
   it("nimmt expliziten Umwandlungssatz", () => {
@@ -34,22 +37,80 @@ describe("BVG — Rente aus Saldo (Umwandlungssatz 6.8%)", () => {
   });
 });
 
+describe("BVG — Gesamtkapital aus Komponenten", () => {
+  it("nur Altersguthaben → unverändert", () => {
+    expect(
+      bvgGesamtkapitalBeiBezug({
+        altersguthabenBeiBezug: 500_000,
+        bezugsjahr: 2030,
+        jetztJahr: 2026,
+      })
+    ).toBe(500_000);
+  });
+
+  it("Freizügigkeit verzinst sich von jetzt bis Bezug", () => {
+    const out = bvgGesamtkapitalBeiBezug({
+      altersguthabenBeiBezug: 500_000,
+      bezugsjahr: 2030,
+      jetztJahr: 2026,
+      freizuegigkeit: [{ saldoHeute: 100_000 }],
+    });
+    const expected = 500_000 + Math.round(100_000 * Math.pow(1.0125, 4));
+    expect(out).toBe(expected);
+  });
+
+  it("Einkauf wird ab Einkaufsjahr verzinst", () => {
+    const out = bvgGesamtkapitalBeiBezug({
+      altersguthabenBeiBezug: 500_000,
+      bezugsjahr: 2030,
+      jetztJahr: 2026,
+      einkaeufe: [{ jahr: 2027, betrag: 50_000 }],
+    });
+    const expected = 500_000 + Math.round(50_000 * Math.pow(1.0125, 3));
+    expect(out).toBe(expected);
+  });
+
+  it("Einkauf in der Vergangenheit → Verzinsung 0 Jahre", () => {
+    const out = bvgGesamtkapitalBeiBezug({
+      altersguthabenBeiBezug: 500_000,
+      bezugsjahr: 2026,
+      jetztJahr: 2026,
+      einkaeufe: [{ jahr: 2030, betrag: 50_000 }], // jahr > bezugsjahr → 0 J.
+    });
+    expect(out).toBe(550_000);
+  });
+
+  it("kombiniert AG + FZ + mehrere Einkäufe", () => {
+    const out = bvgGesamtkapitalBeiBezug({
+      altersguthabenBeiBezug: 500_000,
+      bezugsjahr: 2030,
+      jetztJahr: 2026,
+      freizuegigkeit: [{ saldoHeute: 50_000 }, { saldoHeute: 30_000 }],
+      einkaeufe: [
+        { jahr: 2026, betrag: 20_000 },
+        { jahr: 2027, betrag: 20_000 },
+      ],
+    });
+    const fzExp =
+      50_000 * Math.pow(1.0125, 4) + 30_000 * Math.pow(1.0125, 4);
+    const ekExp = 20_000 * Math.pow(1.0125, 4) + 20_000 * Math.pow(1.0125, 3);
+    expect(out).toBe(500_000 + Math.round(fzExp + ekExp));
+  });
+});
+
 describe("BVG — Bezug Rente / Kapital / Mischung", () => {
   it("100% Rente: kein Kapital, voller Saldo verrentet", () => {
     const out = bvgBezug({
-      altersguthabenHeute: 500_000,
-      jahreBisBezug: 0,
+      saldoBeiBezug: 500_000,
       bezugspraeferenz: "rente",
     });
     expect(out.kapitalauszahlung).toBe(0);
     expect(out.jahresrente).toBe(34_000);
-    expect(out.saldoBeiBezug).toBe(500_000);
   });
 
-  it("100% Kapital: kein Rentenanteil", () => {
+  it("100% Kapital", () => {
     const out = bvgBezug({
-      altersguthabenHeute: 500_000,
-      jahreBisBezug: 0,
+      saldoBeiBezug: 500_000,
       bezugspraeferenz: "kapital",
     });
     expect(out.kapitalauszahlung).toBe(500_000);
@@ -58,35 +119,55 @@ describe("BVG — Bezug Rente / Kapital / Mischung", () => {
 
   it("Mischung 50/50", () => {
     const out = bvgBezug({
-      altersguthabenHeute: 500_000,
-      jahreBisBezug: 0,
+      saldoBeiBezug: 500_000,
       bezugspraeferenz: "mischung",
       kapitalanteilProzent: 50,
     });
     expect(out.kapitalauszahlung).toBe(250_000);
-    expect(out.jahresrente).toBe(17_000); // 250'000 × 6.8%
+    expect(out.jahresrente).toBe(17_000);
   });
 
-  it("Mischung 25/75: 25% Kapital, 75% Rente", () => {
+  it("nimmt PK-spezifischen Umwandlungssatz", () => {
     const out = bvgBezug({
-      altersguthabenHeute: 400_000,
-      jahreBisBezug: 0,
-      bezugspraeferenz: "mischung",
-      kapitalanteilProzent: 25,
-    });
-    expect(out.kapitalauszahlung).toBe(100_000);
-    expect(out.jahresrente).toBe(20_400); // 300'000 × 6.8%
-  });
-
-  it("Projektion und Bezug kombiniert: Saldo wächst, dann verrentet", () => {
-    const out = bvgBezug({
-      altersguthabenHeute: 500_000,
-      jahreBisBezug: 10,
+      saldoBeiBezug: 500_000,
       bezugspraeferenz: "rente",
+      umwandlungssatz: 0.055, // 5.5% — typisch für reale PK mit Überobligatorium
     });
-    const erwarteterSaldo = Math.round(500_000 * Math.pow(1.0125, 10));
-    expect(out.saldoBeiBezug).toBe(erwarteterSaldo);
-    expect(out.jahresrente).toBe(Math.round(erwarteterSaldo * 0.068));
+    expect(out.jahresrente).toBe(27_500);
+  });
+});
+
+describe("BVG — 3-Jahres-Sperrfrist bei Einkäufen", () => {
+  it("Einkauf weit vor Bezug → keine Warnung", () => {
+    const out = einkaufeMitSperrfristWarnung(
+      [{ jahr: 2024, betrag: 20_000 }],
+      2030
+    );
+    expect(out[0]?.verletzt).toBe(false);
+  });
+
+  it("Einkauf 3 Jahre vor Bezug → keine Warnung (genau am Limit)", () => {
+    const out = einkaufeMitSperrfristWarnung(
+      [{ jahr: 2027, betrag: 20_000 }],
+      2030
+    );
+    expect(out[0]?.verletzt).toBe(false);
+  });
+
+  it("Einkauf 2 Jahre vor Bezug → Warnung", () => {
+    const out = einkaufeMitSperrfristWarnung(
+      [{ jahr: 2028, betrag: 20_000 }],
+      2030
+    );
+    expect(out[0]?.verletzt).toBe(true);
+  });
+
+  it("Einkauf im Bezugsjahr → Warnung", () => {
+    const out = einkaufeMitSperrfristWarnung(
+      [{ jahr: 2030, betrag: 20_000 }],
+      2030
+    );
+    expect(out[0]?.verletzt).toBe(true);
   });
 });
 
@@ -97,5 +178,9 @@ describe("BVG — Konstanten", () => {
 
   it("Mindestzinssatz 2025 = 1.25%", () => {
     expect(BVG_MINDESTZINSSATZ_2025).toBe(0.0125);
+  });
+
+  it("Sperrfrist = 3 Jahre", () => {
+    expect(SPERRFRIST_EINKAUF_JAHRE).toBe(3);
   });
 });

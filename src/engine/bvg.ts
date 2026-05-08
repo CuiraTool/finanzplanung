@@ -2,31 +2,31 @@
  * BVG (2. Säule, Pensionskasse) — Berechnungen.
  *
  * Eckwerte 2025:
- *   - BVG-Mindestumwandlungssatz Alter 65:  6.8%
- *     (BVG21-Reform 6.0% wurde am 22.9.2024 abgelehnt → bleibt 6.8%)
- *   - BVG-Mindestzinssatz Stand 2024–2025:  1.25%
- *   - Eintrittsschwelle 2025:               CHF 22'680
- *   - Koordinationsabzug 2025:              CHF 26'460
- *   - Max. koordinierter Lohn 2025:         CHF 64'260
+ *   - BVG-Mindestumwandlungssatz Alter 65:  6.8% (BVG21 abgelehnt 22.9.2024)
+ *   - BVG-Mindestzinssatz 2024–2025:        1.25%
  *
- * Vereinfachungen Etappe 1:
- *   - Nur PK-Altersguthaben heute → Projektion mit Mindestzinssatz → Bezug.
- *   - Pauschaler Umwandlungssatz 6.8% bei Alter 65 (BVG-Mindest).
- *   - Reale PKs haben Reglements mit individuellen Sätzen, oft 5–6.5% wegen
- *     überobligatorischem Anteil — Pflicht-Override pro PK kommt in Etappe 2.
- *   - Frühbezug-/Aufschubs-Anpassung des Umwandlungssatzes ist Reglement-spezifisch
- *     und folgt mit der vollen PK-Modellierung (Freizügigkeit, WEF, Einkäufe).
+ * Reale PKs haben meist tiefere Umwandlungssätze wegen überobligatorischem
+ * Anteil — daher pro Person eingebbar (default 6.8% als gesetzliches Mindest).
+ *
+ * Modell-Annahme: Der User gibt das voraussichtliche Altersguthaben *bei Bezug*
+ * direkt vom PK-Ausweis ein (also den Wert, der mit dem gewünschten Bezugsalter
+ * korrespondiert). Wir projizieren das nicht selbst — der PK-Ausweis ist
+ * präziser als unsere Annahme. Freizügigkeitsguthaben und freiwillige Einkäufe
+ * werden separat addiert und mit Mindestzinssatz bis Bezugsjahr verzinst.
+ *
+ * 3-Jahres-Sperrfrist (Art. 79b Abs. 3 BVG): Einkäufe innerhalb 3 Jahren vor
+ * einem Kapitalbezug dürfen nicht als Kapital bezogen werden — die Engine
+ * markiert solche Einkäufe als "verletzt", die UI zeigt eine Warnung. Die
+ * Berechnung selbst zählt aktuell beide Beträge zusammen — die Sperrfrist-
+ * Logik mit Anteilsverteilung kommt mit der Steuer-Engine.
  */
 
 export const BVG_UMWANDLUNGSSATZ_MIND_65 = 0.068;
 export const BVG_MINDESTZINSSATZ_2025 = 0.0125;
+export const SPERRFRIST_EINKAUF_JAHRE = 3;
 
 /**
- * Projektion eines bestehenden Altersguthabens auf das Bezugsjahr —
- * verzinst mit dem angegebenen Zinssatz (default Mindestzinssatz 2025).
- *
- * Vereinfachung: keine zusätzlichen Beiträge (Sparkapital pro Jahr) modelliert.
- * Die kommen mit der vollen BVG-Engine in Etappe 2 dazu.
+ * Compound-Verzinsung eines Saldos über n Jahre.
  */
 export function bvgProjektion(
   saldoHeute: number,
@@ -49,12 +49,72 @@ export function bvgRenteAusSaldo(
 
 export type BezugsPraeferenz = "rente" | "kapital" | "mischung";
 
-export interface BvgBezugInput {
-  altersguthabenHeute: number;
-  jahreBisBezug: number;
+export interface FreizuegigkeitItem {
+  saldoHeute: number;
+}
+
+export interface EinkaufItem {
+  jahr: number;
+  betrag: number;
+}
+
+export interface GesamtkapitalInput {
+  /** Voraussichtliches PK-Altersguthaben beim gewünschten Bezugsalter, vom PK-Ausweis. */
+  altersguthabenBeiBezug: number;
+  /** Bezugsjahr — wird aus geburtsdatum + bezugsalter berechnet. */
+  bezugsjahr: number;
+  freizuegigkeit?: FreizuegigkeitItem[];
+  einkaeufe?: EinkaufItem[];
   zinssatz?: number;
-  umwandlungssatz?: number;
+  jetztJahr?: number;
+}
+
+/**
+ * Aggregiert alle Komponenten zum Gesamtkapital im Bezugsjahr.
+ *  - altersguthabenBeiBezug: 1:1 (kommt schon vom PK-Ausweis)
+ *  - Freizügigkeit: vom heutigen Saldo bis Bezugsjahr verzinst
+ *  - Einkäufe: vom Einkaufsjahr bis Bezugsjahr verzinst (Math.max(0, …))
+ */
+export function bvgGesamtkapitalBeiBezug(input: GesamtkapitalInput): number {
+  const zinssatz = input.zinssatz ?? BVG_MINDESTZINSSATZ_2025;
+  const jetzt = input.jetztJahr ?? new Date().getFullYear();
+
+  let total = input.altersguthabenBeiBezug;
+
+  for (const fz of input.freizuegigkeit ?? []) {
+    const jahre = Math.max(0, input.bezugsjahr - jetzt);
+    total += fz.saldoHeute * Math.pow(1 + zinssatz, jahre);
+  }
+
+  for (const ek of input.einkaeufe ?? []) {
+    const jahre = Math.max(0, input.bezugsjahr - ek.jahr);
+    total += ek.betrag * Math.pow(1 + zinssatz, jahre);
+  }
+
+  return Math.round(total);
+}
+
+/**
+ * Markiert Einkäufe, die innerhalb der 3-Jahres-Sperrfrist vor Kapitalbezug
+ * liegen. Solche Einkäufe dürfen — bei (Teil-)Kapitalbezug — nicht als Kapital
+ * bezogen werden.
+ */
+export function einkaufeMitSperrfristWarnung(
+  einkaeufe: EinkaufItem[],
+  bezugsjahr: number
+): { item: EinkaufItem; verletzt: boolean }[] {
+  return einkaeufe.map((e) => ({
+    item: e,
+    verletzt: bezugsjahr - e.jahr < SPERRFRIST_EINKAUF_JAHRE,
+  }));
+}
+
+export interface BvgBezugInput {
+  /** Bereits aggregiertes Gesamtkapital — siehe bvgGesamtkapitalBeiBezug. */
+  saldoBeiBezug: number;
   bezugspraeferenz: BezugsPraeferenz;
+  /** PK-spezifischer Umwandlungssatz (default Mindest-UWS Alter 65 = 6.8%). */
+  umwandlungssatz?: number;
   /** Bei "mischung": Prozent des Kapitalbezugs (0–100). Default 50. */
   kapitalanteilProzent?: number;
 }
@@ -66,26 +126,20 @@ export interface BvgBezugOutput {
   details: {
     bezugspraeferenz: BezugsPraeferenz;
     umwandlungssatz: number;
-    zinssatz: number;
     kapitalanteilProzent: number;
   };
 }
 
-/**
- * Liefert, was die Person beim Pensionsantritt bekommt — abhängig von
- * der Bezugspräferenz.
- */
 export function bvgBezug(input: BvgBezugInput): BvgBezugOutput {
-  const zinssatz = input.zinssatz ?? BVG_MINDESTZINSSATZ_2025;
   const umwandlungssatz = input.umwandlungssatz ?? BVG_UMWANDLUNGSSATZ_MIND_65;
-  const saldo = bvgProjektion(input.altersguthabenHeute, input.jahreBisBezug, zinssatz);
+  const saldo = input.saldoBeiBezug;
 
   if (input.bezugspraeferenz === "rente") {
     return {
       saldoBeiBezug: saldo,
       jahresrente: bvgRenteAusSaldo(saldo, umwandlungssatz),
       kapitalauszahlung: 0,
-      details: { bezugspraeferenz: "rente", umwandlungssatz, zinssatz, kapitalanteilProzent: 0 },
+      details: { bezugspraeferenz: "rente", umwandlungssatz, kapitalanteilProzent: 0 },
     };
   }
 
@@ -94,16 +148,10 @@ export function bvgBezug(input: BvgBezugInput): BvgBezugOutput {
       saldoBeiBezug: saldo,
       jahresrente: 0,
       kapitalauszahlung: saldo,
-      details: {
-        bezugspraeferenz: "kapital",
-        umwandlungssatz,
-        zinssatz,
-        kapitalanteilProzent: 100,
-      },
+      details: { bezugspraeferenz: "kapital", umwandlungssatz, kapitalanteilProzent: 100 },
     };
   }
 
-  // mischung
   const kapAnteil = clamp(input.kapitalanteilProzent ?? 50, 0, 100);
   const kapital = Math.round((saldo * kapAnteil) / 100);
   const renteSaldo = saldo - kapital;
@@ -115,7 +163,6 @@ export function bvgBezug(input: BvgBezugInput): BvgBezugOutput {
     details: {
       bezugspraeferenz: "mischung",
       umwandlungssatz,
-      zinssatz,
       kapitalanteilProzent: kapAnteil,
     },
   };

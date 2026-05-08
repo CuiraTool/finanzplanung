@@ -2,7 +2,8 @@
 
 import { usePlanStore } from "@/lib/store";
 import { ahvCouplePension, ahvJahresrenteEinzel } from "@/engine/ahv";
-import { bvgBezug } from "@/engine/bvg";
+import { bvgBezug, bvgGesamtkapitalBeiBezug } from "@/engine/bvg";
+import type { BvgPersonInput } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
 
@@ -103,38 +104,25 @@ export function Dashboard() {
     kapital: number | null;
     details: string[];
   } {
-    const items: {
-      altersguthaben: number;
-      jahre: number;
-      praef: typeof bvgInput.bezugspraeferenzP1;
-      kapAnt: number;
-    }[] = [];
-
-    if (bvgInput.aktiverAnschlussP1 && bvgInput.altersguthabenP1 != null) {
-      const j1 = jahreBisBezugP1();
-      items.push({
-        altersguthaben: bvgInput.altersguthabenP1,
-        jahre: j1,
-        praef: bvgInput.bezugspraeferenzP1,
-        kapAnt: bvgInput.kapitalanteilP1,
+    const persons: { p: BvgPersonInput; bezugsjahr: number | null }[] = [];
+    if (bvgInput.p1.aktiverAnschluss && bvgInput.p1.altersguthabenBeiBezug != null) {
+      persons.push({
+        p: bvgInput.p1,
+        bezugsjahr: pensionsjahr(person1.geburtsdatum, ziele.bezugsalterP1),
       });
     }
-
     if (
       fallart === "paar" &&
-      bvgInput.aktiverAnschlussP2 &&
-      bvgInput.altersguthabenP2 != null
+      bvgInput.p2.aktiverAnschluss &&
+      bvgInput.p2.altersguthabenBeiBezug != null
     ) {
-      const j2 = jahreBisBezugP2();
-      items.push({
-        altersguthaben: bvgInput.altersguthabenP2,
-        jahre: j2,
-        praef: bvgInput.bezugspraeferenzP2,
-        kapAnt: bvgInput.kapitalanteilP2,
+      persons.push({
+        p: bvgInput.p2,
+        bezugsjahr: pensionsjahr(person2.geburtsdatum, ziele.bezugsalterP2),
       });
     }
 
-    if (items.length === 0) {
+    if (persons.length === 0) {
       return {
         saldoBeiBezug: null,
         jahresrente: null,
@@ -147,17 +135,32 @@ export function Dashboard() {
     let rente = 0;
     let kapital = 0;
     const detSet = new Set<string>();
-    for (const it of items) {
+    for (const it of persons) {
+      const bj = it.bezugsjahr ?? new Date().getFullYear();
+      const fzGueltig = it.p.freizuegigkeit
+        .filter((f) => f.saldoHeute != null)
+        .map((f) => ({ saldoHeute: f.saldoHeute as number }));
+      const ekGueltig = it.p.einkaeufe
+        .filter((e) => e.betrag != null)
+        .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
+
+      const gesamt = bvgGesamtkapitalBeiBezug({
+        altersguthabenBeiBezug: it.p.altersguthabenBeiBezug as number,
+        bezugsjahr: bj,
+        freizuegigkeit: fzGueltig,
+        einkaeufe: ekGueltig,
+      });
+
       const out = bvgBezug({
-        altersguthabenHeute: it.altersguthaben,
-        jahreBisBezug: it.jahre,
-        bezugspraeferenz: it.praef,
-        kapitalanteilProzent: it.kapAnt,
+        saldoBeiBezug: gesamt,
+        bezugspraeferenz: it.p.bezugspraeferenz,
+        kapitalanteilProzent: it.p.kapitalanteil,
+        umwandlungssatz: it.p.umwandlungssatzProzent / 100,
       });
       saldo += out.saldoBeiBezug;
       rente += out.jahresrente;
       kapital += out.kapitalauszahlung;
-      detSet.add(praefLabel(it.praef, it.kapAnt));
+      detSet.add(praefLabel(it.p.bezugspraeferenz, it.p.kapitalanteil));
     }
 
     return {
@@ -166,21 +169,9 @@ export function Dashboard() {
       kapital,
       details: [
         ...Array.from(detSet),
-        `Mindestzinssatz 1.25%, UWS 6.8% bei 65`,
+        `inkl. Freizügigkeit + Einkäufe verzinst`,
       ],
     };
-  }
-
-  function jahreBisBezugP1(): number {
-    const j = pensionsjahr(person1.geburtsdatum, ziele.bezugsalterP1);
-    if (j == null) return 0;
-    return Math.max(0, j - new Date().getFullYear());
-  }
-
-  function jahreBisBezugP2(): number {
-    const j = pensionsjahr(person2.geburtsdatum, ziele.bezugsalterP2);
-    if (j == null) return 0;
-    return Math.max(0, j - new Date().getFullYear());
   }
 
   return (

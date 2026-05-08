@@ -97,15 +97,33 @@ export interface AhvInput {
 /** BVG / 2. Säule — Block 5. */
 export type BezugsPraeferenz = "rente" | "kapital" | "mischung";
 
+export interface FreizuegigkeitEntry {
+  id: string;
+  beschreibung: string;
+  saldoHeute: number | null;
+}
+
+export interface EinkaufEntry {
+  id: string;
+  jahr: number;
+  betrag: number | null;
+}
+
+export interface BvgPersonInput {
+  aktiverAnschluss: boolean;
+  /** Voraussichtliches Altersguthaben beim Bezugsalter (vom PK-Ausweis). */
+  altersguthabenBeiBezug: number | null;
+  /** PK-spezifischer Umwandlungssatz in Prozent (z.B. 6.8 für 6.8%). */
+  umwandlungssatzProzent: number;
+  bezugspraeferenz: BezugsPraeferenz;
+  kapitalanteil: number; // 0–100
+  freizuegigkeit: FreizuegigkeitEntry[];
+  einkaeufe: EinkaufEntry[];
+}
+
 export interface BvgInput {
-  aktiverAnschlussP1: boolean;
-  aktiverAnschlussP2: boolean;
-  altersguthabenP1: number | null;
-  altersguthabenP2: number | null;
-  bezugspraeferenzP1: BezugsPraeferenz;
-  bezugspraeferenzP2: BezugsPraeferenz;
-  kapitalanteilP1: number; // 0–100, nur bei "mischung" relevant
-  kapitalanteilP2: number;
+  p1: BvgPersonInput;
+  p2: BvgPersonInput;
 }
 
 export interface EinmaligAusgabe {
@@ -182,7 +200,22 @@ export interface PlanState {
   setAusgabenKategorie: (key: keyof AusgabenKategorien, v: number | null) => void;
   setWunschverbrauchPension: (v: number | null) => void;
   setAhv: (patch: Partial<AhvInput>) => void;
-  setBvg: (patch: Partial<BvgInput>) => void;
+  setBvgP1: (patch: Partial<BvgPersonInput>) => void;
+  setBvgP2: (patch: Partial<BvgPersonInput>) => void;
+  addFreizuegigkeit: (personIdx: 1 | 2) => void;
+  updateFreizuegigkeit: (
+    personIdx: 1 | 2,
+    id: string,
+    patch: Partial<FreizuegigkeitEntry>
+  ) => void;
+  removeFreizuegigkeit: (personIdx: 1 | 2, id: string) => void;
+  addEinkauf: (personIdx: 1 | 2) => void;
+  updateEinkauf: (
+    personIdx: 1 | 2,
+    id: string,
+    patch: Partial<EinkaufEntry>
+  ) => void;
+  removeEinkauf: (personIdx: 1 | 2, id: string) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -208,15 +241,19 @@ const initialAhv: AhvInput = {
   ahvBezugsalterP2: 65,
 };
 
+const initialBvgPerson: BvgPersonInput = {
+  aktiverAnschluss: true,
+  altersguthabenBeiBezug: null,
+  umwandlungssatzProzent: 6.8,
+  bezugspraeferenz: "rente",
+  kapitalanteil: 50,
+  freizuegigkeit: [],
+  einkaeufe: [],
+};
+
 const initialBvg: BvgInput = {
-  aktiverAnschlussP1: true,
-  aktiverAnschlussP2: true,
-  altersguthabenP1: null,
-  altersguthabenP2: null,
-  bezugspraeferenzP1: "rente",
-  bezugspraeferenzP2: "rente",
-  kapitalanteilP1: 50,
-  kapitalanteilP2: 50,
+  p1: { ...initialBvgPerson },
+  p2: { ...initialBvgPerson },
 };
 
 const initialAdresse: Adresse = {
@@ -275,7 +312,7 @@ export const usePlanStore = create<PlanState>()(
       einmaligeAusgaben: [],
       budget: { ...initialBudget },
       ahv: { ...initialAhv },
-      bvg: { ...initialBvg },
+      bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -379,7 +416,102 @@ export const usePlanStore = create<PlanState>()(
       setWunschverbrauchPension: (v) =>
         set((s) => ({ budget: { ...s.budget, wunschverbrauchPension: v } })),
       setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
-      setBvg: (patch) => set((s) => ({ bvg: { ...s.bvg, ...patch } })),
+      setBvgP1: (patch) =>
+        set((s) => ({ bvg: { ...s.bvg, p1: { ...s.bvg.p1, ...patch } } })),
+      setBvgP2: (patch) =>
+        set((s) => ({ bvg: { ...s.bvg, p2: { ...s.bvg.p2, ...patch } } })),
+      addFreizuegigkeit: (personIdx) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                freizuegigkeit: [
+                  ...s.bvg[key].freizuegigkeit,
+                  { id: newId(), beschreibung: "", saldoHeute: null },
+                ],
+              },
+            },
+          };
+        }),
+      updateFreizuegigkeit: (personIdx, id, patch) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                freizuegigkeit: s.bvg[key].freizuegigkeit.map((f) =>
+                  f.id === id ? { ...f, ...patch } : f
+                ),
+              },
+            },
+          };
+        }),
+      removeFreizuegigkeit: (personIdx, id) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                freizuegigkeit: s.bvg[key].freizuegigkeit.filter((f) => f.id !== id),
+              },
+            },
+          };
+        }),
+      addEinkauf: (personIdx) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                einkaeufe: [
+                  ...s.bvg[key].einkaeufe,
+                  {
+                    id: newId(),
+                    jahr: new Date().getFullYear() + 1,
+                    betrag: null,
+                  },
+                ],
+              },
+            },
+          };
+        }),
+      updateEinkauf: (personIdx, id, patch) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                einkaeufe: s.bvg[key].einkaeufe.map((e) =>
+                  e.id === id ? { ...e, ...patch } : e
+                ),
+              },
+            },
+          };
+        }),
+      removeEinkauf: (personIdx, id) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                einkaeufe: s.bvg[key].einkaeufe.filter((e) => e.id !== id),
+              },
+            },
+          };
+        }),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -393,12 +525,12 @@ export const usePlanStore = create<PlanState>()(
           einmaligeAusgaben: [],
           budget: { ...initialBudget },
           ahv: { ...initialAhv },
-          bvg: { ...initialBvg },
+          bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v10",
+      name: "cuira-plan-v11",
     }
   )
 );
