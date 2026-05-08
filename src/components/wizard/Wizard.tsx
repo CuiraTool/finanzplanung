@@ -9,6 +9,7 @@ import { Block5Bvg } from "./Block5Bvg";
 import { Block6Saeule3 } from "./Block6Saeule3";
 import { Block7Vermoegen } from "./Block7Vermoegen";
 import { Block8Immobilien } from "./Block8Immobilien";
+import { Block10Nachlass } from "./Block10Nachlass";
 
 /**
  * Wizard-Block-Reihenfolge.
@@ -35,7 +36,7 @@ const BLOCKS = [
   { id: 7, title: "Vermögen", implemented: true },
   { id: 8, title: "Immobilien", implemented: true },
   { id: 9, title: "Firma / Selbständigkeit", implemented: false },
-  { id: 10, title: "Nachlass", implemented: false },
+  { id: 10, title: "Nachlass", implemented: true },
 ] as const;
 
 export function Wizard() {
@@ -93,6 +94,7 @@ export function Wizard() {
       {aktiverBlock === 6 && <Block6Saeule3 />}
       {aktiverBlock === 7 && <Block7Vermoegen />}
       {aktiverBlock === 8 && <Block8Immobilien />}
+      {aktiverBlock === 10 && <Block10Nachlass />}
     </div>
   );
 }

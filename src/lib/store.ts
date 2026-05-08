@@ -195,6 +195,17 @@ export interface ImmobilienInput {
   items: Immobilie[];
 }
 
+/** Nachlass — Block 10. Status pro Vorsorge-/Nachlassdokument. */
+export type NachlassThemaKey =
+  | "vorsorgeauftrag"
+  | "patientenverfuegung"
+  | "generalvollmacht"
+  | "testament"
+  | "erbvertrag"
+  | "ehevertrag";
+
+export type NachlassInput = Record<NachlassThemaKey, boolean>;
+
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
@@ -250,6 +261,7 @@ export interface PlanState {
   saeuleDrei: SaeuleDreiInput;
   vermoegen: VermoegenInput;
   immobilien: ImmobilienInput;
+  nachlass: NachlassInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -312,6 +324,7 @@ export interface PlanState {
     patch: Partial<Omit<Hypothek, "id">>
   ) => void;
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
+  setNachlass: (key: NachlassThemaKey, value: boolean) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -428,6 +441,14 @@ export const usePlanStore = create<PlanState>()(
       saeuleDrei: { p1: [], p2: [] },
       vermoegen: makeInitialVermoegen(),
       immobilien: { items: [] },
+      nachlass: {
+        vorsorgeauftrag: false,
+        patientenverfuegung: false,
+        generalvollmacht: false,
+        testament: false,
+        erbvertrag: false,
+        ehevertrag: false,
+      },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -798,6 +819,8 @@ export const usePlanStore = create<PlanState>()(
             ),
           },
         })),
+      setNachlass: (key, value) =>
+        set((s) => ({ nachlass: { ...s.nachlass, [key]: value } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -815,11 +838,19 @@ export const usePlanStore = create<PlanState>()(
           saeuleDrei: { p1: [], p2: [] },
           vermoegen: makeInitialVermoegen(),
           immobilien: { items: [] },
+          nachlass: {
+            vorsorgeauftrag: false,
+            patientenverfuegung: false,
+            generalvollmacht: false,
+            testament: false,
+            erbvertrag: false,
+            ehevertrag: false,
+          },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v15",
+      name: "cuira-plan-v16",
     }
   )
 );
