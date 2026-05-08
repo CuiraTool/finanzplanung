@@ -169,6 +169,32 @@ export interface VermoegenInput {
   items: VermoegenItem[];
 }
 
+/** Immobilien — Block 8. */
+export type ImmobilienTyp = "selbstbewohnt" | "rendite";
+export type ImmobilienPlan = "behalten" | "verkaufen";
+
+export interface Hypothek {
+  id: string;
+  beschreibung: string;
+  hoehe: number | null;
+  zinssatzProzent: number;
+  ablaufjahr: number;
+}
+
+export interface Immobilie {
+  id: string;
+  beschreibung: string;
+  typ: ImmobilienTyp;
+  verkehrswert: number | null;
+  hypotheken: Hypothek[];
+  plan: ImmobilienPlan;
+  verkaufsjahr: number;
+}
+
+export interface ImmobilienInput {
+  items: Immobilie[];
+}
+
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
@@ -223,6 +249,7 @@ export interface PlanState {
   bvg: BvgInput;
   saeuleDrei: SaeuleDreiInput;
   vermoegen: VermoegenInput;
+  immobilien: ImmobilienInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -272,6 +299,19 @@ export interface PlanState {
   updateVermoegen: (id: string, patch: Partial<Omit<VermoegenItem, "id">>) => void;
   removeVermoegen: (id: string) => void;
   setHauptkonto: (id: string) => void;
+  addImmobilie: () => void;
+  updateImmobilie: (
+    id: string,
+    patch: Partial<Omit<Immobilie, "id" | "hypotheken">>
+  ) => void;
+  removeImmobilie: (id: string) => void;
+  addHypothek: (immobilieId: string) => void;
+  updateHypothek: (
+    immobilieId: string,
+    hypothekId: string,
+    patch: Partial<Omit<Hypothek, "id">>
+  ) => void;
+  removeHypothek: (immobilieId: string, hypothekId: string) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -387,6 +427,7 @@ export const usePlanStore = create<PlanState>()(
       bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
       saeuleDrei: { p1: [], p2: [] },
       vermoegen: makeInitialVermoegen(),
+      immobilien: { items: [] },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -682,6 +723,81 @@ export const usePlanStore = create<PlanState>()(
             })),
           },
         })),
+      addImmobilie: () =>
+        set((s) => {
+          const jahr = new Date().getFullYear();
+          const neu: Immobilie = {
+            id: newId(),
+            beschreibung: "",
+            typ: "selbstbewohnt",
+            verkehrswert: null,
+            hypotheken: [],
+            plan: "behalten",
+            verkaufsjahr: jahr + 10,
+          };
+          return { immobilien: { items: [...s.immobilien.items, neu] } };
+        }),
+      updateImmobilie: (id, patch) =>
+        set((s) => ({
+          immobilien: {
+            items: s.immobilien.items.map((im) =>
+              im.id === id ? { ...im, ...patch } : im
+            ),
+          },
+        })),
+      removeImmobilie: (id) =>
+        set((s) => ({
+          immobilien: {
+            items: s.immobilien.items.filter((im) => im.id !== id),
+          },
+        })),
+      addHypothek: (immobilieId) =>
+        set((s) => {
+          const neueHypothek: Hypothek = {
+            id: newId(),
+            beschreibung: "",
+            hoehe: null,
+            zinssatzProzent: 1.5,
+            ablaufjahr: new Date().getFullYear() + 5,
+          };
+          return {
+            immobilien: {
+              items: s.immobilien.items.map((im) =>
+                im.id === immobilieId
+                  ? { ...im, hypotheken: [...im.hypotheken, neueHypothek] }
+                  : im
+              ),
+            },
+          };
+        }),
+      updateHypothek: (immobilieId, hypothekId, patch) =>
+        set((s) => ({
+          immobilien: {
+            items: s.immobilien.items.map((im) =>
+              im.id === immobilieId
+                ? {
+                    ...im,
+                    hypotheken: im.hypotheken.map((h) =>
+                      h.id === hypothekId ? { ...h, ...patch } : h
+                    ),
+                  }
+                : im
+            ),
+          },
+        })),
+      removeHypothek: (immobilieId, hypothekId) =>
+        set((s) => ({
+          immobilien: {
+            items: s.immobilien.items.map((im) =>
+              im.id === immobilieId
+                ? {
+                    ...im,
+                    hypotheken: im.hypotheken.filter((h) => h.id !== hypothekId),
+                  }
+                : im
+            ),
+          },
+        })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -698,11 +814,12 @@ export const usePlanStore = create<PlanState>()(
           bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
           saeuleDrei: { p1: [], p2: [] },
           vermoegen: makeInitialVermoegen(),
+          immobilien: { items: [] },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v14",
+      name: "cuira-plan-v15",
     }
   )
 );

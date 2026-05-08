@@ -9,6 +9,7 @@ import {
 } from "@/engine/bvg";
 import { saeuleDreiTotal } from "@/engine/saeule3";
 import { vermoegenStandHeute } from "@/engine/vermoegen";
+import { immobilienAufteilung } from "@/engine/immobilien";
 import type { BvgPersonInput } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
@@ -19,6 +20,7 @@ export function Dashboard() {
   const bvgInput = usePlanStore((s) => s.bvg);
   const saeule3 = usePlanStore((s) => s.saeuleDrei);
   const vermoegen = usePlanStore((s) => s.vermoegen);
+  const immobilien = usePlanStore((s) => s.immobilien);
   const ziele = usePlanStore((s) => s.ziele);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
@@ -32,6 +34,14 @@ export function Dashboard() {
 
   const fzTotal = computeFzTotal();
   const vermoegenHeute = vermoegenStandHeute(vermoegen.items);
+  const immoAufteilung = immobilienAufteilung(
+    immobilien.items.map((im) => ({
+      verkehrswert: im.verkehrswert,
+      hypothekenSumme: im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0),
+      plan: im.plan,
+      verkaufsjahr: im.verkaufsjahr,
+    }))
+  );
 
   function computeFzTotal(): number {
     let total = 0;
@@ -270,6 +280,20 @@ export function Dashboard() {
           label="Vermögen heute"
           value={vermoegen.items.length === 0 ? "—" : formatChf(vermoegenHeute)}
           hints={[`${vermoegen.items.length} Position(en) in Block 7`]}
+        />
+        <KpiCard
+          label="Immobilien Netto"
+          value={
+            immobilien.items.length === 0 ? "—" : formatChf(immoAufteilung.netto)
+          }
+          hints={
+            immobilien.items.length === 0
+              ? ["Block 8 in Arbeit"]
+              : [
+                  `Wert ${formatChf(immoAufteilung.aktivaImmobilien)}`,
+                  `Hypotheken ${formatChf(immoAufteilung.hypothekenTotal)}`,
+                ]
+          }
         />
       </div>
 
