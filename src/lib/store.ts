@@ -52,7 +52,7 @@ export interface Adresse {
   strasse: string;
   plz: string;
   ort: string;
-  kanton: string; // Kanton-Code, z.B. "ZH"
+  kanton: string;
 }
 
 export type KindZuordnung = "gemeinsam" | "p1" | "p2";
@@ -68,12 +68,26 @@ export interface PersonInput {
   vorname: string;
   nachname: string;
   geburtsdatum: string;
+  telefon: string;
+  email: string;
   massgebendesEinkommen: number | null;
+}
+
+export interface EinmaligAusgabe {
+  id: string;
+  jahr: number;
+  betrag: number;
+  beschreibung: string;
 }
 
 export interface ZieleWuensche {
   bezugsalterP1: number;
   bezugsalterP2: number;
+}
+
+export interface Budget {
+  monatlichHeute: number | null;
+  monatlichPension: number | null;
 }
 
 export interface PlanState {
@@ -84,6 +98,8 @@ export interface PlanState {
   person2: PersonInput;
   kinder: Kind[];
   ziele: ZieleWuensche;
+  einmaligeAusgaben: EinmaligAusgabe[];
+  budget: Budget;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -95,6 +111,10 @@ export interface PlanState {
   updateKind: (id: string, patch: Partial<Kind>) => void;
   removeKind: (id: string) => void;
   setZiele: (patch: Partial<ZieleWuensche>) => void;
+  addEinmaligAusgabe: () => void;
+  updateEinmaligAusgabe: (id: string, patch: Partial<EinmaligAusgabe>) => void;
+  removeEinmaligAusgabe: (id: string) => void;
+  setBudget: (patch: Partial<Budget>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -103,6 +123,8 @@ const initialPerson: PersonInput = {
   vorname: "",
   nachname: "",
   geburtsdatum: "",
+  telefon: "",
+  email: "",
   massgebendesEinkommen: null,
 };
 
@@ -116,6 +138,11 @@ const initialAdresse: Adresse = {
 const initialZiele: ZieleWuensche = {
   bezugsalterP1: 65,
   bezugsalterP2: 65,
+};
+
+const initialBudget: Budget = {
+  monatlichHeute: null,
+  monatlichPension: null,
 };
 
 function newId(): string {
@@ -139,13 +166,14 @@ export const usePlanStore = create<PlanState>()(
       person2: { ...initialPerson },
       kinder: [],
       ziele: { ...initialZiele },
+      einmaligeAusgaben: [],
+      budget: { ...initialBudget },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
         set((s) => {
           const wantsEinzel = fallart === "einzel";
           const currentlyEinzel = isZivilstandEinzel(s.zivilstand);
-          // Auto-Korrektur, wenn Zivilstand für neue Fallart ungültig
           let zivilstand = s.zivilstand;
           if (wantsEinzel && !currentlyEinzel) zivilstand = "ledig";
           if (!wantsEinzel && currentlyEinzel) zivilstand = "verheiratet";
@@ -174,6 +202,29 @@ export const usePlanStore = create<PlanState>()(
       removeKind: (id) =>
         set((s) => ({ kinder: s.kinder.filter((k) => k.id !== id) })),
       setZiele: (patch) => set((s) => ({ ziele: { ...s.ziele, ...patch } })),
+      addEinmaligAusgabe: () =>
+        set((s) => ({
+          einmaligeAusgaben: [
+            ...s.einmaligeAusgaben,
+            {
+              id: newId(),
+              jahr: new Date().getFullYear() + 1,
+              betrag: 0,
+              beschreibung: "",
+            },
+          ],
+        })),
+      updateEinmaligAusgabe: (id, patch) =>
+        set((s) => ({
+          einmaligeAusgaben: s.einmaligeAusgaben.map((a) =>
+            a.id === id ? { ...a, ...patch } : a
+          ),
+        })),
+      removeEinmaligAusgabe: (id) =>
+        set((s) => ({
+          einmaligeAusgaben: s.einmaligeAusgaben.filter((a) => a.id !== id),
+        })),
+      setBudget: (patch) => set((s) => ({ budget: { ...s.budget, ...patch } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -184,11 +235,13 @@ export const usePlanStore = create<PlanState>()(
           person2: { ...initialPerson },
           kinder: [],
           ziele: { ...initialZiele },
+          einmaligeAusgaben: [],
+          budget: { ...initialBudget },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v2",
+      name: "cuira-plan-v3",
     }
   )
 );

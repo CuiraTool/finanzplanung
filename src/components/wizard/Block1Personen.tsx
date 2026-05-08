@@ -10,6 +10,7 @@ import {
   ZIVILSTAND_PAAR,
   KANTONE,
 } from "@/lib/store";
+import { personLabel } from "@/lib/pension";
 
 const FALLARTEN: { value: Fallart; label: string }[] = [
   { value: "einzel", label: "Einzelperson" },
@@ -121,12 +122,20 @@ export function Block1Personen() {
         </Field>
       </Section>
 
-      {/* Person 1 */}
-      <PersonForm title="Person 1" person={person1} onChange={setPerson1} />
+      {/* Person 1 (oder einzelne Person) */}
+      <PersonForm
+        title={personLabel(1, person1.vorname, fallart)}
+        person={person1}
+        onChange={setPerson1}
+      />
 
-      {/* Person 2 */}
+      {/* Person 2 nur bei Paar */}
       {fallart === "paar" && (
-        <PersonForm title="Person 2" person={person2} onChange={setPerson2} />
+        <PersonForm
+          title={personLabel(2, person2.vorname, fallart)}
+          person={person2}
+          onChange={setPerson2}
+        />
       )}
 
       {/* Kinder */}
@@ -235,6 +244,26 @@ function PersonForm({
           className={inputClass}
         />
       </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Telefon">
+          <input
+            type="tel"
+            value={person.telefon}
+            onChange={(e) => onChange({ telefon: e.target.value })}
+            placeholder="+41 79 123 45 67"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="E-Mail">
+          <input
+            type="email"
+            value={person.email}
+            onChange={(e) => onChange({ email: e.target.value })}
+            placeholder="name@example.ch"
+            className={inputClass}
+          />
+        </Field>
+      </div>
       <Field label="Massgebendes Jahreseinkommen (CHF)" hint="durchschnittlich über die Karriere">
         <input
           type="number"

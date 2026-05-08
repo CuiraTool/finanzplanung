@@ -3,31 +3,34 @@
 import { usePlanStore } from "@/lib/store";
 import { Block1Personen } from "./Block1Personen";
 import { Block2Wuensche } from "./Block2Wuensche";
+import { Block3Budget } from "./Block3Budget";
 
 /**
  * Wizard-Block-Reihenfolge.
  *
  * Mapping zu den Typeform-Blöcken (siehe docs/Pensionsplanung_Typeform_Optimierung):
- *  1 → A + B (Personen: Kopfdaten, Zivilstand, Familie, Adresse)
- *  2 → C + D (Ziele: Pensionierungsalter, Wunschverbrauch, Lebensziele)
- *  3 → E     (1. Säule AHV)
- *  4 → F     (2. Säule Pensionskasse)
- *  5 → G     (3. Säule 3a/3b)
- *  6 → H     (Vermögen, Liquidität, Verbindlichkeiten)
- *  7 → I+J+K (Immobilien: Eigenheim, Ferien, Rendite)
- *  8 → L     (Firma / Selbständigkeit)
- *  9 → N+Q   (Nachlass: Erbschaft/Schenkung + Vorsorge-/Nachlassdokumente)
+ *   1 → A + B (Personen: Kopfdaten, Zivilstand, Familie, Adresse, Kontakt)
+ *   2 → C + D (Ziele: Pensionierungsalter ordentlich/Wunsch, einmalige Ausgaben)
+ *   3 → H/aktuell (Budget: monatlicher Verbrauch heute + Wunsch in Pension) — NEU
+ *   4 → E     (1. Säule AHV)
+ *   5 → F     (2. Säule Pensionskasse)
+ *   6 → G     (3. Säule 3a/3b)
+ *   7 → H-Vermögensteil (Liquidität, Wertschriften, Verbindlichkeiten)
+ *   8 → I+J+K (Immobilien: Eigenheim, Ferien, Rendite)
+ *   9 → L     (Firma / Selbständigkeit)
+ *  10 → N+Q   (Nachlass: Erbschaft/Schenkung + Vorsorge-/Nachlassdokumente)
  */
 const BLOCKS = [
   { id: 1, title: "Personen", implemented: true },
   { id: 2, title: "Ziele & Wünsche", implemented: true },
-  { id: 3, title: "1. Säule (AHV)", implemented: false },
-  { id: 4, title: "2. Säule (Pensionskasse)", implemented: false },
-  { id: 5, title: "3. Säule (3a / 3b)", implemented: false },
-  { id: 6, title: "Vermögen", implemented: false },
-  { id: 7, title: "Immobilien", implemented: false },
-  { id: 8, title: "Firma / Selbständigkeit", implemented: false },
-  { id: 9, title: "Nachlass", implemented: false },
+  { id: 3, title: "Budget", implemented: true },
+  { id: 4, title: "1. Säule (AHV)", implemented: false },
+  { id: 5, title: "2. Säule (Pensionskasse)", implemented: false },
+  { id: 6, title: "3. Säule (3a / 3b)", implemented: false },
+  { id: 7, title: "Vermögen", implemented: false },
+  { id: 8, title: "Immobilien", implemented: false },
+  { id: 9, title: "Firma / Selbständigkeit", implemented: false },
+  { id: 10, title: "Nachlass", implemented: false },
 ] as const;
 
 export function Wizard() {
@@ -79,6 +82,7 @@ export function Wizard() {
 
       {aktiverBlock === 1 && <Block1Personen />}
       {aktiverBlock === 2 && <Block2Wuensche />}
+      {aktiverBlock === 3 && <Block3Budget />}
     </div>
   );
 }
