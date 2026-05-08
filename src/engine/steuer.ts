@@ -1,46 +1,46 @@
 /**
- * Steuer-Engine V1 (indikativ).
+ * Steuer-Engine V2 (basierend auf offiziellen ESTV-Tariftabellen).
  *
  * Strategie:
- *  - Wenn der User einen Anker fürs aktuelle Jahr eingegeben hat (Steuern_heute
- *    + Einkommen_heute), werden die laufenden Steuern proportional zum
- *    Einkommen hochgerechnet.
- *  - Sonst: Default-Sätze pro Kanton aus steuer-data.ts.
- *  - Vermögenssteuer additiv obendrauf.
- *  - Kapitalauszahlungssteuer im Auszahlungsjahr (PK-Kapital, 3a, FZ) als
- *    pauschaler Kantons-Satz.
+ *  - Lädt JSON-Snapshots aus `./steuer-data/{year}/` (aus
+ *    github.com/devbrains-com/swisstaxcalculator, MIT License) und nutzt
+ *    `./steuer-engine/` für die Berechnung.
+ *  - Bundessteuer: echter DBG-Tarif progressiv.
+ *  - Kantonssteuer: echte progressive Tarife für alle 26 Kantone +
+ *    Steuerfüsse Kanton/Gemeinde/Kirche pro Gemeinde (BfsID).
+ *  - Vermögenssteuer: progressiv pro Kanton mit Freibeträgen.
+ *  - Kapitalauszahlungssteuer: 1/5 DBG (Bund) + Kanton-Sondertarif (1/20 für ZH).
+ *  - User-Anker (Steuern_heute) überschreibt die Berechnung proportional.
  *
- * Vereinfachungen (für Etappe 2.5 zu ersetzen):
- *  - Echte Progression
- *  - Sozialabzüge (Kinder, Versicherungen)
- *  - Kantonale Sonderlogiken
- *  - Bund vs. Kanton vs. Gemeinde getrennt
- *  - Gemeinde-Multiplikator
+ * Vereinfachungen (offen für spätere Etappen):
+ *  - Kinderabzüge / Säule-3a-Abzüge nicht modelliert (bruttoZuSteuerbarApprox)
+ *  - Standardgemeinde = Hauptort des Kantons (User kann später spezifische
+ *    Gemeinde wählen via bfsId)
+ *  - Kapitalauszahlungssteuer pro Kanton: ZH echter 1/20-Tarif, andere
+ *    nähern sich via 1/5-DBG-Bund + Pauschalsatz
  */
 
 import {
-  EFFEKTIVER_EINKOMMENSSATZ_KANTON,
-  EFFEKTIVER_VERMOEGENSSATZ_KANTON,
-  KAPITALSTEUER_SATZ_KANTON,
-  DEFAULT_EINKOMMENSSATZ,
-  DEFAULT_VERMOEGENSSATZ,
-  DEFAULT_KAPITALSTEUER,
-  DEFAULT_VERMOEGEN_FREIBETRAG_SINGLE,
-  DEFAULT_VERMOEGEN_FREIBETRAG_PAAR,
-  religionMultiplikator,
+  einkommensteuerKanton,
+  vermoegensteuerKanton,
+  bundessteuerEinkommen,
+  bundessteuerKapitalNeu,
+  KANTON_INFO,
+  type Fallart,
+  type KantonCode,
   type Religion,
-} from "./steuer-data";
-import {
-  bundessteuer,
-  bundessteuerKapital,
-  bruttoZuSteuerbarApprox,
-} from "./steuer-bund";
-import {
-  kantonsteuerZh,
-  kantonsteuerZhKapital,
-  vermoegenssteuerZh,
-} from "./steuer-zh";
-import { kantonsteuerZg } from "./steuer-zg";
+  type SteuerJahr,
+} from "./steuer-engine";
+import { kantonsteuerZhKapital } from "./steuer-zh";
+
+// Re-export für Backwards-Kompatibilität (Religion-Type wird aus dem Wizard
+// importiert und sollte mit der Engine-Religion identisch sein)
+export type { Religion } from "./steuer-engine/types";
+
+/** Bruttojahreseinkommen → steuerbares Einkommen (Daumenregel 85%). */
+export function bruttoZuSteuerbarApprox(brutto: number): number {
+  return Math.round(brutto * 0.85);
+}
 
 export interface SteuerInput {
   einkommenJahr: number;
@@ -48,72 +48,73 @@ export interface SteuerInput {
   kapAuszahlungenJahr: number;
   kanton: string;
   religion: Religion;
-  /** Steuerkategorie für DBG-Bundessteuer. */
-  fallart?: "einzel" | "paar";
+  /** Steuerkategorie: einzel oder paar. */
+  fallart?: Fallart;
+  /** BfsID einer spezifischen Gemeinde (sonst Hauptort des Kantons). */
+  bfsId?: number;
+  /** Steuerjahr (Default 2025, max 2026 — neuere Jahre fallen auf 2026 zurück). */
+  jahr?: number;
   /** Anker fürs Kalibrierungs-Jahr (vom User eingegeben). */
   ankerSteuernHeute?: number | null;
   ankerEinkommenHeute?: number | null;
 }
 
 export interface SteuerOutput {
-  einkommen: number; // Total Einkommenssteuer (Bund + Kanton/Gemeinde)
-  einkommenBund: number; // davon Bundessteuer (echter DBG-Tarif)
-  einkommenKanton: number; // davon Kanton+Gemeinde+Religion (indikativ)
+  einkommen: number; // Total Einkommenssteuer (Bund + Kanton/Gemeinde/Kirche)
+  einkommenBund: number; // davon Bundessteuer (DBG)
+  einkommenKanton: number; // davon Kanton+Gemeinde+Kirche
   vermoegen: number;
-  kapital: number; // Total Kapitalauszahlungssteuer (Bund + Kanton)
-  kapitalBund: number; // davon Bund (1/5 DBG-Tarif)
+  kapital: number; // Total Kapitalauszahlungssteuer
+  kapitalBund: number; // davon Bund (1/5 DBG)
   kapitalKanton: number; // davon Kanton (Sondertarif oder Pauschal)
   total: number;
-  /** True wenn der User-Anker verwendet wurde (statt Default-Sätze). */
+  /** True wenn der User-Anker verwendet wurde. */
   kalibriert: boolean;
 }
 
+/** Clamp Jahr auf verfügbare Tarife (2025/2026). */
+function clampJahr(jahr: number | undefined): SteuerJahr {
+  const j = jahr ?? 2025;
+  if (j <= 2025) return 2025;
+  return 2026;
+}
+
+/** Validiert Kanton-String oder gibt null zurück (= unbekannter Kanton). */
+function asKantonCode(kanton: string): KantonCode | null {
+  return kanton in KANTON_INFO ? (kanton as KantonCode) : null;
+}
+
 export function steuerProJahr(input: SteuerInput): SteuerOutput {
-  const kanton = input.kanton || "";
-  const ekSatz =
-    EFFEKTIVER_EINKOMMENSSATZ_KANTON[kanton] ?? DEFAULT_EINKOMMENSSATZ;
-  const vmSatz =
-    EFFEKTIVER_VERMOEGENSSATZ_KANTON[kanton] ?? DEFAULT_VERMOEGENSSATZ;
-  const kapSatz =
-    KAPITALSTEUER_SATZ_KANTON[kanton] ?? DEFAULT_KAPITALSTEUER;
-  const relMult = religionMultiplikator(input.religion);
+  const fallart: Fallart = input.fallart === "paar" ? "paar" : "einzel";
+  const jahr = clampJahr(input.jahr);
+  const kantonCode = asKantonCode(input.kanton);
+  const religion = input.religion;
 
-  // Bundessteuer: echter DBG-Tarif progressiv (Phase 4.2)
-  const dbgKategorie = input.fallart === "paar" ? "verheiratet" : "einzel";
+  // Bundessteuer (Phase 4.2 → jetzt aus ESTV-Tabellen)
   const steuerbaresEinkommen = bruttoZuSteuerbarApprox(input.einkommenJahr);
-  const bundSteuer = bundessteuer(steuerbaresEinkommen, dbgKategorie);
+  const bundSteuer = kantonCode
+    ? bundessteuerEinkommen(steuerbaresEinkommen, fallart, jahr)
+    : bundessteuerEinkommen(steuerbaresEinkommen, fallart, jahr);
 
-  // Kanton + Gemeinde + Religion
-  let kantonsteuer_netto: number;
-  if (kanton === "ZH") {
-    // Phase 4.3: echter ZH-Tarif (progressiv) × Steuerfuss Stadt Zürich
-    kantonsteuer_netto = kantonsteuerZh({
-      steuerbaresEinkommen,
-      kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
-      religion: input.religion,
+  // Kantons-/Gemeinde-/Kirchensteuer (Phase 4.3-4.4 → jetzt für alle 26 Kantone)
+  let kantonsteuerNetto = 0;
+  if (kantonCode) {
+    const r = einkommensteuerKanton(steuerbaresEinkommen, {
+      kanton: kantonCode,
+      bfsId: input.bfsId,
+      fallart,
+      religion,
+      jahr,
     });
-  } else if (kanton === "ZG") {
-    // Phase 4.4: echter ZG-Tarif × Steuerfuss Stadt Zug
-    kantonsteuer_netto = kantonsteuerZg({
-      steuerbaresEinkommen,
-      kategorie: input.fallart === "paar" ? "mehrpersonen" : "grundtarif",
-      religion: input.religion,
-    });
+    kantonsteuerNetto = r.total;
   } else {
-    // Andere Kantone: weiter pauschaler Mischsatz minus Bund-Anteil
-    // (typischer Bund-Anteil 4-7%, daher abziehen damit kein Doppel-Counting)
-    const kantonsteuer_brutto = input.einkommenJahr * ekSatz * relMult;
-    // Annahme: vom pauschalen Mischsatz waren ca. 5% Bundessteuer drin →
-    // korrigieren wir das raus. Vereinfacht durch Anteil-Schätzung.
-    const bundAnteilImPauschalsatz = 0.05; // ca. 5% bei mittlerem Einkommen
-    kantonsteuer_netto = Math.max(
-      0,
-      kantonsteuer_brutto - input.einkommenJahr * bundAnteilImPauschalsatz
-    );
+    // Unbekannter Kanton: Schweiz-Median ~16% Bund+Kanton effektiv,
+    // davon Bund schon separat → Rest pauschal
+    kantonsteuerNetto = Math.max(0, steuerbaresEinkommen * 0.13);
   }
 
   // Anker-Modus: User-Eingabe überschreibt Default
-  let einkommensteuerKantonal: number = kantonsteuer_netto;
+  let einkommensteuerKantonal = kantonsteuerNetto;
   let kalibriert = false;
   if (
     input.ankerSteuernHeute != null &&
@@ -121,53 +122,59 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     input.ankerEinkommenHeute != null &&
     input.ankerEinkommenHeute > 0
   ) {
-    // Anker-Steuer ist Total (Bund+Kanton+Gemeinde) — proportional skalieren
     const totalAnkerProportional =
-      input.ankerSteuernHeute * (input.einkommenJahr / input.ankerEinkommenHeute);
-    // davon Bundes-Anteil abziehen → Rest = Kanton+Gemeinde
+      input.ankerSteuernHeute *
+      (input.einkommenJahr / input.ankerEinkommenHeute);
     einkommensteuerKantonal = Math.max(0, totalAnkerProportional - bundSteuer);
     kalibriert = true;
   }
 
   const einkommensteuerTotal = bundSteuer + einkommensteuerKantonal;
 
-  // Vermögenssteuer (Phase 4.6): ZH echter progressiver Tarif mit Freibetrag,
-  // andere Kantone Pauschalsatz mit Default-Freibetrag (80k single / 160k paar)
-  let vermoegensteuer: number;
+  // Vermögenssteuer (Phase 4.6 → jetzt für alle 26 Kantone)
+  let vermoegensteuer = 0;
   const vermoegen = Math.max(0, input.vermoegenJahr);
-  if (kanton === "ZH") {
-    vermoegensteuer = vermoegenssteuerZh({
-      vermoegen,
-      kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
-      religion: input.religion,
+  if (vermoegen > 0 && kantonCode) {
+    const r = vermoegensteuerKanton(vermoegen, {
+      kanton: kantonCode,
+      bfsId: input.bfsId,
+      fallart,
+      religion,
+      jahr,
     });
-  } else {
-    const freibetrag =
-      input.fallart === "paar"
-        ? DEFAULT_VERMOEGEN_FREIBETRAG_PAAR
-        : DEFAULT_VERMOEGEN_FREIBETRAG_SINGLE;
-    const steuerbaresVermoegen = Math.max(0, vermoegen - freibetrag);
-    vermoegensteuer = steuerbaresVermoegen * vmSatz;
+    vermoegensteuer = r.total;
+  } else if (vermoegen > 0) {
+    // Unbekannter Kanton: Default 3‰ mit Freibetrag 80k single / 160k paar
+    const freibetrag = fallart === "paar" ? 160_000 : 80_000;
+    vermoegensteuer = Math.max(0, vermoegen - freibetrag) * 0.003;
   }
 
-  // Kapitalauszahlungssteuer (Phase 4.5): Bund 1/5-DBG progressiv,
-  // ZH 1/20-Bruchteilstarif, andere Kantone weiter Pauschalsatz
+  // Kapitalauszahlungssteuer (Phase 4.5)
   const kapital = Math.max(0, input.kapAuszahlungenJahr);
   let kapitalBund = 0;
   let kapitalKanton = 0;
   if (kapital > 0) {
-    kapitalBund = bundessteuerKapital(kapital, dbgKategorie);
-    if (kanton === "ZH") {
+    kapitalBund = bundessteuerKapitalNeu(kapital, fallart, jahr);
+    if (kantonCode === "ZH") {
       kapitalKanton = kantonsteuerZhKapital({
         kapital,
-        kategorie: input.fallart === "paar" ? "verheiratet" : "grundtarif",
-        religion: input.religion,
+        kategorie: fallart === "paar" ? "verheiratet" : "grundtarif",
+        religion,
       });
+    } else if (kantonCode) {
+      // Andere Kantone: 1/5-Approximation des Einkommens-Tarifs als
+      // Kapital-Sondertarif (übliche Daumenregel)
+      const r = einkommensteuerKanton(kapital, {
+        kanton: kantonCode,
+        bfsId: input.bfsId,
+        fallart,
+        religion,
+        jahr,
+      });
+      kapitalKanton = r.total / 5;
     } else {
-      // Pauschalsatz pro Kanton (Bund-Anteil bereits separat → kein Doppel-Counting)
-      // Schätzung Bund-Anteil im Pauschalsatz: ~1.5% bei mittlerer Auszahlung
-      const bundAnteilPauschal = 0.015;
-      kapitalKanton = Math.max(0, kapital * (kapSatz - bundAnteilPauschal));
+      // Unbekannter Kanton: Pauschal 6%
+      kapitalKanton = kapital * 0.06;
     }
   }
   const kapitalsteuer = kapitalBund + kapitalKanton;
@@ -186,8 +193,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
 }
 
 /**
- * Für die Anzeige im Block 3: indikative Jahressteuer heute, falls der User
- * keinen Anker eingegeben hat. Hilft bei Plausibilitäts-Check.
+ * Indikative Jahressteuer heute, für die Anzeige im Block 3 (falls kein Anker).
  */
 export function indikativeSteuerHeute(
   einkommenHeute: number,
