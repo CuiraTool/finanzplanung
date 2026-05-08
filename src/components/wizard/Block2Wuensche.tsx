@@ -90,9 +90,11 @@ export function Block2Wuensche() {
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={a.betrag}
+                    value={a.betrag ?? ""}
                     onChange={(e) =>
-                      updateAusgabe(a.id, { betrag: Number(e.target.value) })
+                      updateAusgabe(a.id, {
+                        betrag: e.target.value === "" ? null : Number(e.target.value),
+                      })
                     }
                     placeholder="z.B. 50'000"
                     className={`${inputClass} tabular-nums`}

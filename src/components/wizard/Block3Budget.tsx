@@ -111,9 +111,12 @@ export function Block3Budget() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={e.betragMonatlich}
+                  value={e.betragMonatlich ?? ""}
                   onChange={(ev) =>
-                    updateEink(e.id, { betragMonatlich: Number(ev.target.value) })
+                    updateEink(e.id, {
+                      betragMonatlich:
+                        ev.target.value === "" ? null : Number(ev.target.value),
+                    })
                   }
                   placeholder="z.B. 8'000"
                   className={`${inputClass} tabular-nums`}

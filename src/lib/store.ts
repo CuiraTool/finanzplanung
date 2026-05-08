@@ -85,7 +85,7 @@ export interface AhvInput {
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
-  betrag: number;
+  betrag: number | null;
   beschreibung: string;
 }
 
@@ -98,7 +98,7 @@ export interface Einkommensperiode {
   id: string;
   beschreibung: string;
   personIdx: 1 | 2; // bei Einzelperson immer 1
-  betragMonatlich: number;
+  betragMonatlich: number | null;
   von: string; // ISO YYYY-MM, leer = offen
   bis: string; // ISO YYYY-MM, leer = offen / bis Pension
 }
@@ -269,7 +269,7 @@ export const usePlanStore = create<PlanState>()(
             {
               id: newId(),
               jahr: new Date().getFullYear() + 1,
-              betrag: 0,
+              betrag: null,
               beschreibung: "",
             },
           ],
@@ -294,7 +294,7 @@ export const usePlanStore = create<PlanState>()(
                 id: newId(),
                 beschreibung: "",
                 personIdx: 1,
-                betragMonatlich: 0,
+                betragMonatlich: null,
                 von: currentYearMonth(),
                 bis: "",
               },
@@ -348,7 +348,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v5",
+      name: "cuira-plan-v6",
     }
   )
 );
