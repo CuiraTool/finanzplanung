@@ -151,12 +151,8 @@ function PensionierungZeile({
         <div className="text-xs uppercase tracking-wide text-slate-500">Jahr</div>
 
         <div className="text-slate-700">Ordentlich</div>
-        <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center tabular-nums text-slate-500">
-          {ORDENTLICHES_AHV_ALTER}
-        </div>
-        <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center tabular-nums text-slate-500">
-          {ordentlichJahr ?? "—"}
-        </div>
+        <ReadCell value={ORDENTLICHES_AHV_ALTER} />
+        <ReadCell value={ordentlichJahr ?? "—"} />
 
         <div className="text-slate-700">Wunsch</div>
         <input
@@ -167,9 +163,7 @@ function PensionierungZeile({
           onChange={(e) => onChangeWunsch(Number(e.target.value))}
           className={`${inputClass} text-center tabular-nums`}
         />
-        <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-center tabular-nums text-slate-500">
-          {wunschJahr ?? "—"}
-        </div>
+        <ReadCell value={wunschJahr ?? "—"} />
       </div>
     </div>
   );
@@ -187,6 +181,22 @@ function Field({
       <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
       {children}
     </label>
+  );
+}
+
+/**
+ * Read-Only-Zelle mit identischem Layout wie ein Input — verhindert Baseline-
+ * Verschiebung, wenn read-only und editable Felder in derselben Zeile stehen.
+ */
+function ReadCell({ value }: { value: string | number }) {
+  return (
+    <input
+      type="text"
+      value={String(value)}
+      readOnly
+      tabIndex={-1}
+      className={`${inputClass} cursor-default bg-slate-50 text-center tabular-nums text-slate-500`}
+    />
   );
 }
 
