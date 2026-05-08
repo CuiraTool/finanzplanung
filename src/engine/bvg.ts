@@ -51,6 +51,8 @@ export type BezugsPraeferenz = "rente" | "kapital" | "mischung";
 
 export interface FreizuegigkeitItem {
   saldoHeute: number;
+  auszahlungsjahr: number;
+  renditeProzent: number;
 }
 
 export interface EinkaufItem {
@@ -63,28 +65,23 @@ export interface GesamtkapitalInput {
   altersguthabenBeiBezug: number;
   /** Bezugsjahr — wird aus geburtsdatum + bezugsalter berechnet. */
   bezugsjahr: number;
-  freizuegigkeit?: FreizuegigkeitItem[];
   einkaeufe?: EinkaufItem[];
   zinssatz?: number;
   jetztJahr?: number;
 }
 
 /**
- * Aggregiert alle Komponenten zum Gesamtkapital im Bezugsjahr.
+ * Aggregiert PK-Altersguthaben + verzinste Einkäufe zum Gesamtkapital im Bezugsjahr.
  *  - altersguthabenBeiBezug: 1:1 (kommt schon vom PK-Ausweis)
- *  - Freizügigkeit: vom heutigen Saldo bis Bezugsjahr verzinst
- *  - Einkäufe: vom Einkaufsjahr bis Bezugsjahr verzinst (Math.max(0, …))
+ *  - Einkäufe: vom Einkaufsjahr bis Bezugsjahr mit BVG-Mindestzinssatz verzinst
+ *
+ * Freizügigkeit gehört NICHT mehr hier rein — sie wird in ihrem eigenen
+ * Auszahlungsjahr mit eigener Rendite ausbezahlt (siehe freizuegigkeitAuszahlung).
  */
 export function bvgGesamtkapitalBeiBezug(input: GesamtkapitalInput): number {
   const zinssatz = input.zinssatz ?? BVG_MINDESTZINSSATZ_2025;
-  const jetzt = input.jetztJahr ?? new Date().getFullYear();
 
   let total = input.altersguthabenBeiBezug;
-
-  for (const fz of input.freizuegigkeit ?? []) {
-    const jahre = Math.max(0, input.bezugsjahr - jetzt);
-    total += fz.saldoHeute * Math.pow(1 + zinssatz, jahre);
-  }
 
   for (const ek of input.einkaeufe ?? []) {
     const jahre = Math.max(0, input.bezugsjahr - ek.jahr);
@@ -92,6 +89,19 @@ export function bvgGesamtkapitalBeiBezug(input: GesamtkapitalInput): number {
   }
 
   return Math.round(total);
+}
+
+/**
+ * Auszahlung einer Freizügigkeit im jeweiligen Auszahlungsjahr —
+ * Saldo verzinst mit Person-spezifischer Rendite.
+ */
+export function freizuegigkeitAuszahlung(
+  fz: FreizuegigkeitItem,
+  jetztJahr: number = new Date().getFullYear()
+): { jahr: number; betrag: number } {
+  const jahre = Math.max(0, fz.auszahlungsjahr - jetztJahr);
+  const projiziert = fz.saldoHeute * Math.pow(1 + fz.renditeProzent / 100, jahre);
+  return { jahr: fz.auszahlungsjahr, betrag: Math.round(projiziert) };
 }
 
 /**

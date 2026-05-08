@@ -5,6 +5,7 @@ import {
   bvgGesamtkapitalBeiBezug,
   bvgBezug,
   einkaufeMitSperrfristWarnung,
+  freizuegigkeitAuszahlung,
   BVG_UMWANDLUNGSSATZ_MIND_65,
   BVG_MINDESTZINSSATZ_2025,
   SPERRFRIST_EINKAUF_JAHRE,
@@ -37,7 +38,7 @@ describe("BVG — Rente aus Saldo (Umwandlungssatz 6.8%)", () => {
   });
 });
 
-describe("BVG — Gesamtkapital aus Komponenten", () => {
+describe("BVG — Gesamtkapital aus PK + Einkäufen", () => {
   it("nur Altersguthaben → unverändert", () => {
     expect(
       bvgGesamtkapitalBeiBezug({
@@ -46,17 +47,6 @@ describe("BVG — Gesamtkapital aus Komponenten", () => {
         jetztJahr: 2026,
       })
     ).toBe(500_000);
-  });
-
-  it("Freizügigkeit verzinst sich von jetzt bis Bezug", () => {
-    const out = bvgGesamtkapitalBeiBezug({
-      altersguthabenBeiBezug: 500_000,
-      bezugsjahr: 2030,
-      jetztJahr: 2026,
-      freizuegigkeit: [{ saldoHeute: 100_000 }],
-    });
-    const expected = 500_000 + Math.round(100_000 * Math.pow(1.0125, 4));
-    expect(out).toBe(expected);
   });
 
   it("Einkauf wird ab Einkaufsjahr verzinst", () => {
@@ -70,31 +60,44 @@ describe("BVG — Gesamtkapital aus Komponenten", () => {
     expect(out).toBe(expected);
   });
 
-  it("Einkauf in der Vergangenheit → Verzinsung 0 Jahre", () => {
-    const out = bvgGesamtkapitalBeiBezug({
-      altersguthabenBeiBezug: 500_000,
-      bezugsjahr: 2026,
-      jetztJahr: 2026,
-      einkaeufe: [{ jahr: 2030, betrag: 50_000 }], // jahr > bezugsjahr → 0 J.
-    });
-    expect(out).toBe(550_000);
-  });
-
-  it("kombiniert AG + FZ + mehrere Einkäufe", () => {
+  it("kombiniert AG + mehrere Einkäufe", () => {
     const out = bvgGesamtkapitalBeiBezug({
       altersguthabenBeiBezug: 500_000,
       bezugsjahr: 2030,
       jetztJahr: 2026,
-      freizuegigkeit: [{ saldoHeute: 50_000 }, { saldoHeute: 30_000 }],
       einkaeufe: [
         { jahr: 2026, betrag: 20_000 },
         { jahr: 2027, betrag: 20_000 },
       ],
     });
-    const fzExp =
-      50_000 * Math.pow(1.0125, 4) + 30_000 * Math.pow(1.0125, 4);
     const ekExp = 20_000 * Math.pow(1.0125, 4) + 20_000 * Math.pow(1.0125, 3);
-    expect(out).toBe(500_000 + Math.round(fzExp + ekExp));
+    expect(out).toBe(500_000 + Math.round(ekExp));
+  });
+});
+
+describe("BVG — Freizügigkeit eigene Auszahlung", () => {
+  it("Rendite 0% → Saldo unverändert", () => {
+    const out = freizuegigkeitAuszahlung(
+      { saldoHeute: 100_000, auszahlungsjahr: 2030, renditeProzent: 0 },
+      2026
+    );
+    expect(out).toEqual({ jahr: 2030, betrag: 100_000 });
+  });
+
+  it("Rendite 1.5% über 4 Jahre", () => {
+    const out = freizuegigkeitAuszahlung(
+      { saldoHeute: 100_000, auszahlungsjahr: 2030, renditeProzent: 1.5 },
+      2026
+    );
+    expect(out.betrag).toBe(Math.round(100_000 * Math.pow(1.015, 4)));
+  });
+
+  it("Auszahlungsjahr in der Vergangenheit → 0 Jahre Verzinsung", () => {
+    const out = freizuegigkeitAuszahlung(
+      { saldoHeute: 100_000, auszahlungsjahr: 2024, renditeProzent: 5 },
+      2026
+    );
+    expect(out.betrag).toBe(100_000);
   });
 });
 

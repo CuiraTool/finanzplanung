@@ -30,6 +30,7 @@ export interface SaeuleDreiItem {
   renditeProzent: number;
   // Versicherung-spezifisch:
   rueckkaufswert: number | null;
+  ablaufswert: number | null; // Erlebensfallleistung (höher als Rückkaufswert wegen Überschüssen)
   ablaufjahr: number;
 }
 
@@ -53,8 +54,10 @@ export function saeuleDreiAuszahlung(
       item.aktuellerWert * Math.pow(1 + item.renditeProzent / 100, jahre);
     return { jahr: item.auszahlungsjahr, betrag: Math.round(projiziert) };
   }
-  if (item.rueckkaufswert == null) return null;
-  return { jahr: item.ablaufjahr, betrag: item.rueckkaufswert };
+  // Versicherung: Ablaufwert hat Vorrang (Erlebensfallleistung), sonst Rückkaufswert
+  const betrag = item.ablaufswert ?? item.rueckkaufswert;
+  if (betrag == null) return null;
+  return { jahr: item.ablaufjahr, betrag };
 }
 
 /**

@@ -2,8 +2,13 @@
 
 import { usePlanStore } from "@/lib/store";
 import { ahvCouplePension, ahvJahresrenteEinzel } from "@/engine/ahv";
-import { bvgBezug, bvgGesamtkapitalBeiBezug } from "@/engine/bvg";
+import {
+  bvgBezug,
+  bvgGesamtkapitalBeiBezug,
+  freizuegigkeitAuszahlung,
+} from "@/engine/bvg";
 import { saeuleDreiTotal } from "@/engine/saeule3";
+import { vermoegenStandHeute } from "@/engine/vermoegen";
 import type { BvgPersonInput } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
@@ -13,6 +18,7 @@ export function Dashboard() {
   const ahvInput = usePlanStore((s) => s.ahv);
   const bvgInput = usePlanStore((s) => s.bvg);
   const saeule3 = usePlanStore((s) => s.saeuleDrei);
+  const vermoegen = usePlanStore((s) => s.vermoegen);
   const ziele = usePlanStore((s) => s.ziele);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
@@ -23,6 +29,36 @@ export function Dashboard() {
     saeuleDreiTotal(saeule3.p1) +
     (fallart === "paar" ? saeuleDreiTotal(saeule3.p2) : 0);
   const saeule3Anzahl = saeule3.p1.length + (fallart === "paar" ? saeule3.p2.length : 0);
+
+  const fzTotal = computeFzTotal();
+  const vermoegenHeute = vermoegenStandHeute(vermoegen.items);
+
+  function computeFzTotal(): number {
+    let total = 0;
+    for (const fz of bvgInput.p1.freizuegigkeit) {
+      if (fz.saldoHeute == null) continue;
+      total += freizuegigkeitAuszahlung(
+        {
+          saldoHeute: fz.saldoHeute,
+          auszahlungsjahr: fz.auszahlungsjahr,
+          renditeProzent: fz.renditeProzent,
+        }
+      ).betrag;
+    }
+    if (fallart === "paar") {
+      for (const fz of bvgInput.p2.freizuegigkeit) {
+        if (fz.saldoHeute == null) continue;
+        total += freizuegigkeitAuszahlung(
+          {
+            saldoHeute: fz.saldoHeute,
+            auszahlungsjahr: fz.auszahlungsjahr,
+            renditeProzent: fz.renditeProzent,
+          }
+        ).betrag;
+      }
+    }
+    return total;
+  }
 
   function computeAhv(): {
     haushaltJahres: number | null;
@@ -143,9 +179,6 @@ export function Dashboard() {
     const detSet = new Set<string>();
     for (const it of persons) {
       const bj = it.bezugsjahr ?? new Date().getFullYear();
-      const fzGueltig = it.p.freizuegigkeit
-        .filter((f) => f.saldoHeute != null)
-        .map((f) => ({ saldoHeute: f.saldoHeute as number }));
       const ekGueltig = it.p.einkaeufe
         .filter((e) => e.betrag != null)
         .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
@@ -153,7 +186,6 @@ export function Dashboard() {
       const gesamt = bvgGesamtkapitalBeiBezug({
         altersguthabenBeiBezug: it.p.altersguthabenBeiBezug as number,
         bezugsjahr: bj,
-        freizuegigkeit: fzGueltig,
         einkaeufe: ekGueltig,
       });
 
@@ -175,7 +207,7 @@ export function Dashboard() {
       kapital,
       details: [
         ...Array.from(detSet),
-        `inkl. Freizügigkeit + Einkäufe verzinst`,
+        `inkl. Einkäufe verzinst`,
       ],
     };
   }
@@ -228,6 +260,16 @@ export function Dashboard() {
               ? ["Block 6 in Arbeit"]
               : [`${saeule3Anzahl} Eintrag/Einträge`, "Konten + Versicherungen"]
           }
+        />
+        <KpiCard
+          label="Freizügigkeit Total"
+          value={fzTotal === 0 ? "—" : formatChf(fzTotal)}
+          hints={fzTotal === 0 ? [] : ["Auszahlung im jeweiligen Jahr"]}
+        />
+        <KpiCard
+          label="Vermögen heute"
+          value={vermoegen.items.length === 0 ? "—" : formatChf(vermoegenHeute)}
+          hints={[`${vermoegen.items.length} Position(en) in Block 7`]}
         />
       </div>
 

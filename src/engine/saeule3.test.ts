@@ -15,6 +15,7 @@ function konto(overrides: Partial<SaeuleDreiItem> = {}): SaeuleDreiItem {
     auszahlungsjahr: 2030,
     renditeProzent: 1.5,
     rueckkaufswert: null,
+    ablaufswert: null,
     ablaufjahr: 2030,
     ...overrides,
   };
@@ -29,6 +30,7 @@ function versicherung(overrides: Partial<SaeuleDreiItem> = {}): SaeuleDreiItem {
     auszahlungsjahr: 2030,
     renditeProzent: 0,
     rueckkaufswert: 30_000,
+    ablaufswert: null,
     ablaufjahr: 2032,
     ...overrides,
   };
@@ -66,17 +68,28 @@ describe("3. Säule — Konto: Projektion mit Rendite", () => {
   });
 });
 
-describe("3. Säule — Versicherung: Rückkaufswert wird übernommen", () => {
-  it("liefert Rückkaufswert im Ablaufjahr", () => {
+describe("3. Säule — Versicherung: Ablaufwert hat Vorrang vor Rückkaufswert", () => {
+  it("Ablaufwert gesetzt → wird verwendet", () => {
     const out = saeuleDreiAuszahlung(
-      versicherung({ rueckkaufswert: 30_000, ablaufjahr: 2032 }),
+      versicherung({ rueckkaufswert: 30_000, ablaufswert: 38_000, ablaufjahr: 2032 }),
+      2026
+    );
+    expect(out).toEqual({ jahr: 2032, betrag: 38_000 });
+  });
+
+  it("nur Rückkaufswert (kein Ablaufwert) → Rückkaufswert", () => {
+    const out = saeuleDreiAuszahlung(
+      versicherung({ rueckkaufswert: 30_000, ablaufswert: null, ablaufjahr: 2032 }),
       2026
     );
     expect(out).toEqual({ jahr: 2032, betrag: 30_000 });
   });
 
-  it("rueckkaufswert null → null", () => {
-    const out = saeuleDreiAuszahlung(versicherung({ rueckkaufswert: null }), 2026);
+  it("beide null → null", () => {
+    const out = saeuleDreiAuszahlung(
+      versicherung({ rueckkaufswert: null, ablaufswert: null }),
+      2026
+    );
     expect(out).toBeNull();
   });
 });

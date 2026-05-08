@@ -7,6 +7,7 @@ import { Block3Budget } from "./Block3Budget";
 import { Block4Ahv } from "./Block4Ahv";
 import { Block5Bvg } from "./Block5Bvg";
 import { Block6Saeule3 } from "./Block6Saeule3";
+import { Block7Vermoegen } from "./Block7Vermoegen";
 
 /**
  * Wizard-Block-Reihenfolge.
@@ -30,7 +31,7 @@ const BLOCKS = [
   { id: 4, title: "1. Säule (AHV)", implemented: true },
   { id: 5, title: "2. Säule (Pensionskasse)", implemented: true },
   { id: 6, title: "3. Säule (3a / 3b)", implemented: true },
-  { id: 7, title: "Vermögen", implemented: false },
+  { id: 7, title: "Vermögen", implemented: true },
   { id: 8, title: "Immobilien", implemented: false },
   { id: 9, title: "Firma / Selbständigkeit", implemented: false },
   { id: 10, title: "Nachlass", implemented: false },
@@ -89,6 +90,7 @@ export function Wizard() {
       {aktiverBlock === 4 && <Block4Ahv />}
       {aktiverBlock === 5 && <Block5Bvg />}
       {aktiverBlock === 6 && <Block6Saeule3 />}
+      {aktiverBlock === 7 && <Block7Vermoegen />}
     </div>
   );
 }

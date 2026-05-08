@@ -101,6 +101,8 @@ export interface FreizuegigkeitEntry {
   id: string;
   beschreibung: string;
   saldoHeute: number | null;
+  auszahlungsjahr: number;
+  renditeProzent: number; // default 0
 }
 
 export interface EinkaufEntry {
@@ -141,12 +143,30 @@ export interface SaeuleDreiEntry {
   renditeProzent: number;
   // Versicherung:
   rueckkaufswert: number | null;
+  ablaufswert: number | null; // Erlebensfallleistung — wird im Ablaufjahr ausbezahlt
   ablaufjahr: number;
 }
 
 export interface SaeuleDreiInput {
   p1: SaeuleDreiEntry[];
   p2: SaeuleDreiEntry[];
+}
+
+/** Vermögen — Block 7. Konten, Depots, Darlehen. */
+export type VermoegenTyp = "konto" | "depot" | "darlehen";
+
+export interface VermoegenItem {
+  id: string;
+  typ: VermoegenTyp;
+  beschreibung: string;
+  saldoHeute: number | null;
+  renditeProzent: number;
+  /** Genau ein Item ist das Hauptkonto, wo der Cashflow-Saldo landet. */
+  istHauptkonto: boolean;
+}
+
+export interface VermoegenInput {
+  items: VermoegenItem[];
 }
 
 export interface EinmaligAusgabe {
@@ -202,6 +222,7 @@ export interface PlanState {
   ahv: AhvInput;
   bvg: BvgInput;
   saeuleDrei: SaeuleDreiInput;
+  vermoegen: VermoegenInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -247,6 +268,10 @@ export interface PlanState {
     patch: Partial<Omit<SaeuleDreiEntry, "id">>
   ) => void;
   removeSaeuleDrei: (personIdx: 1 | 2, id: string) => void;
+  addVermoegen: (typ: VermoegenTyp) => void;
+  updateVermoegen: (id: string, patch: Partial<Omit<VermoegenItem, "id">>) => void;
+  removeVermoegen: (id: string) => void;
+  setHauptkonto: (id: string) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -327,6 +352,21 @@ function newId(): string {
   return Math.random().toString(36).slice(2);
 }
 
+function makeInitialVermoegen(): VermoegenInput {
+  return {
+    items: [
+      {
+        id: newId(),
+        typ: "konto",
+        beschreibung: "Privatkonto",
+        saldoHeute: null,
+        renditeProzent: 0,
+        istHauptkonto: true,
+      },
+    ],
+  };
+}
+
 function isZivilstandEinzel(z: Zivilstand): z is ZivilstandEinzel {
   return ZIVILSTAND_EINZEL.some((e) => e.value === z);
 }
@@ -346,6 +386,7 @@ export const usePlanStore = create<PlanState>()(
       ahv: { ...initialAhv },
       bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
       saeuleDrei: { p1: [], p2: [] },
+      vermoegen: makeInitialVermoegen(),
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -463,7 +504,13 @@ export const usePlanStore = create<PlanState>()(
                 ...s.bvg[key],
                 freizuegigkeit: [
                   ...s.bvg[key].freizuegigkeit,
-                  { id: newId(), beschreibung: "", saldoHeute: null },
+                  {
+                    id: newId(),
+                    beschreibung: "",
+                    saldoHeute: null,
+                    auszahlungsjahr: new Date().getFullYear() + 5,
+                    renditeProzent: 0,
+                  },
                 ],
               },
             },
@@ -557,6 +604,7 @@ export const usePlanStore = create<PlanState>()(
             auszahlungsjahr: naechstesJahr,
             renditeProzent: 1.5,
             rueckkaufswert: null,
+            ablaufswert: null,
             ablaufjahr: naechstesJahr,
           };
           return {
@@ -588,6 +636,52 @@ export const usePlanStore = create<PlanState>()(
             },
           };
         }),
+      addVermoegen: (typ) =>
+        set((s) => ({
+          vermoegen: {
+            items: [
+              ...s.vermoegen.items,
+              {
+                id: newId(),
+                typ,
+                beschreibung: "",
+                saldoHeute: null,
+                renditeProzent: 0,
+                istHauptkonto: false,
+              },
+            ],
+          },
+        })),
+      updateVermoegen: (id, patch) =>
+        set((s) => ({
+          vermoegen: {
+            items: s.vermoegen.items.map((it) =>
+              it.id === id ? { ...it, ...patch } : it
+            ),
+          },
+        })),
+      removeVermoegen: (id) =>
+        set((s) => {
+          const target = s.vermoegen.items.find((it) => it.id === id);
+          // Wenn das einzige Item entfernt wird, lass es stehen — sonst hätte
+          // der Cashflow keinen Anker. UI verhindert das auch.
+          if (s.vermoegen.items.length === 1) return {};
+          const rest = s.vermoegen.items.filter((it) => it.id !== id);
+          // Wenn das Hauptkonto entfernt wurde, mach das erste verbleibende dazu.
+          if (target?.istHauptkonto && rest.length > 0) {
+            rest[0]!.istHauptkonto = true;
+          }
+          return { vermoegen: { items: rest } };
+        }),
+      setHauptkonto: (id) =>
+        set((s) => ({
+          vermoegen: {
+            items: s.vermoegen.items.map((it) => ({
+              ...it,
+              istHauptkonto: it.id === id,
+            })),
+          },
+        })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -603,11 +697,12 @@ export const usePlanStore = create<PlanState>()(
           ahv: { ...initialAhv },
           bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
           saeuleDrei: { p1: [], p2: [] },
+          vermoegen: makeInitialVermoegen(),
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v13",
+      name: "cuira-plan-v14",
     }
   )
 );

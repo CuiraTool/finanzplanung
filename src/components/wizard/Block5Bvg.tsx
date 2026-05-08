@@ -246,12 +246,10 @@ function Freizuegigkeit({
 }) {
   return (
     <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/50 p-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xs font-medium text-slate-700">Freizügigkeit</div>
-          <div className="text-xs text-slate-400">
-            Konten/Policen aus früheren Anstellungen — wird mit 1.25% verzinst
-          </div>
+      <div>
+        <div className="text-xs font-medium text-slate-700">Freizügigkeit</div>
+        <div className="text-xs text-slate-400">
+          Konten/Policen aus früheren Anstellungen — eigenes Auszahlungsjahr und Rendite
         </div>
       </div>
 
@@ -301,6 +299,34 @@ function Freizuegigkeit({
                 className={`${inputClass} tabular-nums`}
               />
             </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Auszahlungsjahr">
+                <input
+                  type="number"
+                  min={2024}
+                  max={2080}
+                  value={it.auszahlungsjahr}
+                  onChange={(e) =>
+                    onUpdate(it.id, { auszahlungsjahr: Number(e.target.value) })
+                  }
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Rendite p.a. (%)" hint="default 0">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step={0.1}
+                  min={0}
+                  max={20}
+                  value={it.renditeProzent}
+                  onChange={(e) =>
+                    onUpdate(it.id, { renditeProzent: Number(e.target.value) })
+                  }
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+            </div>
           </li>
         ))}
       </ul>

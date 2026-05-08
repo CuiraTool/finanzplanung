@@ -227,8 +227,8 @@ function VersicherungsFelder({
   return (
     <>
       <Field
-        label="Rückkaufswert (CHF)"
-        hint="vereinfacht — reale Erlebensfallleistung mit Überschüssen folgt"
+        label="Rückkaufswert heute (CHF)"
+        hint="bei vorzeitiger Auflösung — informativ"
       >
         <input
           type="number"
@@ -240,6 +240,23 @@ function VersicherungsFelder({
             })
           }
           placeholder="z.B. 30'000"
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
+      <Field
+        label="Ablaufwert (CHF)"
+        hint="Erlebensfallleistung bei Ablauf — wird im Ablaufjahr ausbezahlt"
+      >
+        <input
+          type="number"
+          inputMode="numeric"
+          value={item.ablaufswert ?? ""}
+          onChange={(e) =>
+            onUpdate({
+              ablaufswert: e.target.value === "" ? null : Number(e.target.value),
+            })
+          }
+          placeholder="z.B. 38'000"
           className={`${inputClass} tabular-nums`}
         />
       </Field>
