@@ -88,6 +88,20 @@ export interface AhvInput {
   fehljahreAnzahlP2: number;
 }
 
+/** BVG / 2. Säule — Block 5. */
+export type BezugsPraeferenz = "rente" | "kapital" | "mischung";
+
+export interface BvgInput {
+  aktiverAnschlussP1: boolean;
+  aktiverAnschlussP2: boolean;
+  altersguthabenP1: number | null;
+  altersguthabenP2: number | null;
+  bezugspraeferenzP1: BezugsPraeferenz;
+  bezugspraeferenzP2: BezugsPraeferenz;
+  kapitalanteilP1: number; // 0–100, nur bei "mischung" relevant
+  kapitalanteilP2: number;
+}
+
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
@@ -139,6 +153,7 @@ export interface PlanState {
   einmaligeAusgaben: EinmaligAusgabe[];
   budget: Budget;
   ahv: AhvInput;
+  bvg: BvgInput;
   aktiverBlock: number;
 
   setFallart: (v: Fallart) => void;
@@ -161,6 +176,7 @@ export interface PlanState {
   setAusgabenKategorie: (key: keyof AusgabenKategorien, v: number | null) => void;
   setWunschverbrauchPension: (v: number | null) => void;
   setAhv: (patch: Partial<AhvInput>) => void;
+  setBvg: (patch: Partial<BvgInput>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
 }
@@ -182,6 +198,17 @@ const initialAhv: AhvInput = {
   hatFehljahreP2: false,
   fehljahreAnzahlP1: 0,
   fehljahreAnzahlP2: 0,
+};
+
+const initialBvg: BvgInput = {
+  aktiverAnschlussP1: true,
+  aktiverAnschlussP2: true,
+  altersguthabenP1: null,
+  altersguthabenP2: null,
+  bezugspraeferenzP1: "rente",
+  bezugspraeferenzP2: "rente",
+  kapitalanteilP1: 50,
+  kapitalanteilP2: 50,
 };
 
 const initialAdresse: Adresse = {
@@ -240,6 +267,7 @@ export const usePlanStore = create<PlanState>()(
       einmaligeAusgaben: [],
       budget: { ...initialBudget },
       ahv: { ...initialAhv },
+      bvg: { ...initialBvg },
       aktiverBlock: 1,
 
       setFallart: (fallart) =>
@@ -343,6 +371,7 @@ export const usePlanStore = create<PlanState>()(
       setWunschverbrauchPension: (v) =>
         set((s) => ({ budget: { ...s.budget, wunschverbrauchPension: v } })),
       setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
+      setBvg: (patch) => set((s) => ({ bvg: { ...s.bvg, ...patch } })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
       reset: () =>
         set({
@@ -356,11 +385,12 @@ export const usePlanStore = create<PlanState>()(
           einmaligeAusgaben: [],
           budget: { ...initialBudget },
           ahv: { ...initialAhv },
+          bvg: { ...initialBvg },
           aktiverBlock: 1,
         }),
     }),
     {
-      name: "cuira-plan-v8",
+      name: "cuira-plan-v9",
     }
   )
 );
