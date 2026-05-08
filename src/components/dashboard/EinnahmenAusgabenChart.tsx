@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
@@ -22,6 +21,17 @@ interface Props {
   fallart: "einzel" | "paar";
 }
 
+const FARBE = {
+  erwerb: "#10b981",
+  ahv: "#34d399",
+  bvg: "#6ee7b7",
+  mieten: "#a7f3d0",
+  haushalt: "#f43f5e",
+  steuern: "#fb7185",
+  einmalig: "#fda4af",
+  saldo: "#0a2540",
+};
+
 export function EinnahmenAusgabenChart({
   daten,
   pensionsjahr,
@@ -29,10 +39,22 @@ export function EinnahmenAusgabenChart({
   fallart,
 }: Props) {
   const formatChfKurz = (value: number) => {
-    if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(value) >= 1_000) return `${Math.round(value / 1000)}k`;
-    return `${value}`;
+    const abs = Math.abs(value);
+    const sign = value < 0 ? "−" : "";
+    if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${sign}${Math.round(abs / 1000)}k`;
+    return `${sign}${abs}`;
   };
+
+  // Diverging-Bars: Ausgaben werden für die Visualisierung negativ — Recharts
+  // stackt sie dann nach unten. Originaldaten bleiben positiv und tauchen im
+  // Tooltip absolut auf.
+  const datenViz = daten.map((d) => ({
+    ...d,
+    ausgabenHaushaltViz: -d.ausgabenHaushalt,
+    ausgabenSteuernViz: -d.ausgabenSteuern,
+    ausgabenEinmaligViz: -d.ausgabenEinmalig,
+  }));
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
@@ -42,7 +64,7 @@ export function EinnahmenAusgabenChart({
             Einnahmen / Ausgaben
           </div>
           <div className="text-xs text-slate-400">
-            Erwerb + Renten + Mieten gegen Haushalt + Steuern + einmalige
+            Einnahmen oberhalb der Null-Linie, Ausgaben unterhalb — Saldo als Linie
           </div>
         </div>
         <Legende />
@@ -50,8 +72,9 @@ export function EinnahmenAusgabenChart({
 
       <ResponsiveContainer width="100%" height={460}>
         <ComposedChart
-          data={daten}
+          data={datenViz}
           margin={{ top: 36, right: 16, left: 12, bottom: 8 }}
+          stackOffset="sign"
         >
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
 
@@ -68,46 +91,58 @@ export function EinnahmenAusgabenChart({
             tickFormatter={formatChfKurz}
             tick={{ fontSize: 10 }}
             stroke="#64748b"
-            width={50}
+            width={56}
           />
           <Tooltip
             content={<CustomTooltip />}
             cursor={{ fill: "rgba(10, 37, 64, 0.05)" }}
           />
-          <Legend wrapperStyle={{ display: "none" }} />
 
-          {/* Einnahmen (positiv, gestapelt) */}
-          <Bar dataKey="einnahmenErwerb" stackId="ein" fill="#10b981" name="Erwerb" />
-          <Bar dataKey="einnahmenAhv" stackId="ein" fill="#34d399" name="AHV" />
+          {/* Null-Linie als visueller Anker zwischen Einnahmen und Ausgaben */}
+          <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
+
+          {/* Einnahmen — gestapelt nach oben */}
+          <Bar dataKey="einnahmenErwerb" stackId="cf" fill={FARBE.erwerb} name="Erwerb" />
+          <Bar dataKey="einnahmenAhv" stackId="cf" fill={FARBE.ahv} name="AHV" />
           <Bar
             dataKey="einnahmenBvgRente"
-            stackId="ein"
-            fill="#6ee7b7"
+            stackId="cf"
+            fill={FARBE.bvg}
             name="BVG-Rente"
           />
-          <Bar dataKey="einnahmenMieten" stackId="ein" fill="#a7f3d0" name="Mieten" />
-
-          {/* Ausgaben (negativ als positive Werte invertiert via separate keys) */}
           <Bar
-            dataKey="ausgabenHaushalt"
-            stackId="aus"
-            fill="#f43f5e"
+            dataKey="einnahmenMieten"
+            stackId="cf"
+            fill={FARBE.mieten}
+            name="Mieten"
+          />
+
+          {/* Ausgaben — gestapelt nach unten (negative Werte) */}
+          <Bar
+            dataKey="ausgabenHaushaltViz"
+            stackId="cf"
+            fill={FARBE.haushalt}
             name="Haushalt"
           />
-          <Bar dataKey="ausgabenSteuern" stackId="aus" fill="#fb7185" name="Steuern" />
           <Bar
-            dataKey="ausgabenEinmalig"
-            stackId="aus"
-            fill="#fda4af"
+            dataKey="ausgabenSteuernViz"
+            stackId="cf"
+            fill={FARBE.steuern}
+            name="Steuern"
+          />
+          <Bar
+            dataKey="ausgabenEinmaligViz"
+            stackId="cf"
+            fill={FARBE.einmalig}
             name="Einmalige"
           />
 
-          {/* Saldo-Linie */}
+          {/* Saldo-Linie über den Bars */}
           <Line
             type="monotone"
             dataKey="saldo"
-            stroke="#0a2540"
-            strokeWidth={2}
+            stroke={FARBE.saldo}
+            strokeWidth={2.5}
             dot={false}
             name="Saldo"
           />
@@ -149,9 +184,9 @@ export function EinnahmenAusgabenChart({
 function Legende() {
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500">
-      <LegendItem color="#10b981" label="Einnahmen" />
-      <LegendItem color="#f43f5e" label="Ausgaben" />
-      <LegendItem color="#0a2540" label="Saldo" line />
+      <LegendItem color={FARBE.erwerb} label="Einnahmen" />
+      <LegendItem color={FARBE.haushalt} label="Ausgaben" />
+      <LegendItem color={FARBE.saldo} label="Saldo" line />
     </div>
   );
 }
@@ -186,30 +221,18 @@ function CustomTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number; color: string }[];
+  payload?: { name: string; value: number; payload: CashflowZeile }[];
   label?: number;
 }) {
   if (!active || !payload || payload.length === 0) return null;
-
-  // Aggregiere Einnahmen / Ausgaben / Saldo
-  let einnahmen = 0;
-  let ausgaben = 0;
-  let saldo = 0;
-  for (const p of payload) {
-    if (
-      p.name === "Erwerb" ||
-      p.name === "AHV" ||
-      p.name === "BVG-Rente" ||
-      p.name === "Mieten"
-    )
-      einnahmen += p.value;
-    else if (p.name === "Haushalt" || p.name === "Steuern" || p.name === "Einmalige")
-      ausgaben += p.value;
-    else if (p.name === "Saldo") saldo = p.value;
-  }
+  const z = payload[0]?.payload;
+  if (!z) return null;
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 }).format(n);
+    new Intl.NumberFormat("de-CH", {
+      maximumFractionDigits: 0,
+      signDisplay: "auto",
+    }).format(n);
 
   return (
     <div className="rounded-md border border-slate-200 bg-white p-3 shadow-md">
@@ -217,20 +240,20 @@ function CustomTooltip({
       <div className="space-y-0.5 text-xs tabular-nums">
         <div className="flex justify-between gap-4 text-emerald-700">
           <span>Einnahmen</span>
-          <span>{fmt(einnahmen)}</span>
+          <span>{fmt(z.einnahmenTotal)}</span>
         </div>
         <div className="flex justify-between gap-4 text-rose-700">
           <span>Ausgaben</span>
-          <span>{fmt(ausgaben)}</span>
+          <span>{fmt(-z.ausgabenTotal)}</span>
         </div>
         <div className="mt-1 border-t border-slate-100 pt-1" />
         <div
           className={`flex justify-between gap-4 font-semibold ${
-            saldo >= 0 ? "text-slate-700" : "text-rose-700"
+            z.saldo >= 0 ? "text-emerald-700" : "text-rose-700"
           }`}
         >
           <span>Saldo</span>
-          <span>{fmt(saldo)}</span>
+          <span>{fmt(z.saldo)}</span>
         </div>
       </div>
     </div>
