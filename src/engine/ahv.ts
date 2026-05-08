@@ -1,38 +1,64 @@
 /**
  * AHV (1. Säule) — Berechnung der Altersrente.
  *
- * Stand: vereinfachte Skala-44-Approximation für Etappe 1.
+ * Stand: BSV-Werte 2025 (gültig 2024–2026, jährliche Anpassung erfolgt zyklisch).
  *
- * BSV-Eckwerte 2024 (ab AHV21, Stand der Tabellen Skala 44):
- *   - Minimalrente einzeln:                 CHF 14'700/Jahr (CHF 1'225/Mt)
- *   - Maximalrente einzeln:                 CHF 29'400/Jahr (CHF 2'450/Mt)
- *   - Plafonierte Maximalrente Ehepaar:     CHF 44'100/Jahr (= 150% einzeln)
- *   - Untere Grenze massg. Einkommen:       CHF 14'700/Jahr
- *   - Obere Grenze massg. Einkommen:        CHF 88'200/Jahr (= 6× Minimum)
+ * BSV-Eckwerte 2025 (Skala 44, lückenlose Beitragsdauer):
+ *   - Minimalrente einzeln:                 CHF 15'120/Jahr (CHF 1'260/Mt × 12)
+ *   - Maximalrente einzeln:                 CHF 30'240/Jahr (CHF 2'520/Mt × 12)
+ *   - Plafonierte Maximalrente Ehepaar:     CHF 45'360/Jahr (= 150% einzeln)
+ *   - Untere Grenze massg. Einkommen:       CHF 15'120/Jahr
+ *   - Obere Grenze massg. Einkommen:        CHF 90'720/Jahr (= 6× Minimum)
+ *
+ * 13. AHV-Rente:
+ *   - Volksabstimmung 3.3.2024 angenommen
+ *   - Erste Auszahlung: Dezember 2026
+ *   - Effekt: Jahresrente ab Bezugsjahr 2026 wird mit Faktor 13/12 multipliziert
+ *
+ * Vorbezug (max. 2 Jahre vor ordentlichem Alter, Stand AHV21):
+ *   - 6.8% Kürzung pro Jahr Vorbezug = 0.567% pro Monat
+ *   - Standard-Kürzungssatz für mittlere Einkommen
+ *   - Etappe 1.5: einkommensabhängige Staffelung nach AHV21
+ *
+ * Aufschub (1–5 Jahre nach ordentlichem Alter):
+ *   - Zuschlag nach BSV-Tabelle, nicht-linear gestaffelt:
+ *     12 Mt: +5.2%, 24 Mt: +10.8%, 36 Mt: +17.1%, 48 Mt: +24.0%, 60 Mt: +31.5%
+ *   - Zwischen den Eckpunkten linear interpoliert
  *
  * Vereinfachungen Etappe 1:
  *   - Lineare Interpolation zwischen unterer und oberer Einkommensgrenze
  *     (echte BSV-Skala ist gestaffelt — Ersatz in Etappe 1.5).
- *   - Fehljahre wirken linear: Skala = (44 - fehljahre) / 44 × Vollrente.
- *
- * Quelle für Validierung: docs/Def.FinancialPlanning - Muster.pdf S.4
- *   Ehepaar Muster (Ralph 1967 + Stephanie 1972, beide Pensionierung Alter 65):
- *   AHV-Ehepaarrente CHF 33'072 p.a. (= 75% der plafonierten Maximalrente).
+ *   - Fehljahre wirken linear: (44 - fehljahre) / 44 × Vollrente.
+ *   - Symmetrisches Einkommens-Splitting beim Ehepaar.
+ *   - Frauen-Übergangsalter (AHV21, Jahrgänge 1961–1963) noch nicht abgebildet —
+ *     Annahme: ordentliches Alter = 65 für alle.
  */
 
-const MIN_RENTE = 14_700;
-const MAX_RENTE_EINZEL = 29_400;
-const MAX_RENTE_EHEPAAR = 44_100;
-const UNTERE_GRENZE_EINKOMMEN = 14_700;
-const OBERE_GRENZE_EINKOMMEN = 88_200;
+const MIN_RENTE = 15_120;
+const MAX_RENTE_EINZEL = 30_240;
+const MAX_RENTE_EHEPAAR = 45_360;
+const UNTERE_GRENZE_EINKOMMEN = 15_120;
+const OBERE_GRENZE_EINKOMMEN = 90_720;
 const VOLLE_BEITRAGSDAUER = 44;
+
+export const ORDENTLICHES_AHV_ALTER = 65;
+export const ERSTES_JAHR_13TE_AHV = 2026;
+export const MAX_VORBEZUG_JAHRE = 2;
+export const MAX_AUFSCHUB_JAHRE = 5;
+export const VORBEZUG_KUERZUNG_PRO_JAHR = 0.068; // 6.8% / Jahr
+
+const AUFSCHUB_ZUSCHLAG_TABELLE: { monate: number; zuschlag: number }[] = [
+  { monate: 0, zuschlag: 0 },
+  { monate: 12, zuschlag: 0.052 },
+  { monate: 24, zuschlag: 0.108 },
+  { monate: 36, zuschlag: 0.171 },
+  { monate: 48, zuschlag: 0.24 },
+  { monate: 60, zuschlag: 0.315 },
+];
 
 /**
  * Vollrente Skala 44 (lückenlose Beitragsdauer 44 Jahre).
- * Lineare Approximation — siehe Modul-Header.
- *
- * @param fehljahre  Anzahl fehlender Beitragsjahre. Bei 0 = volle Rente,
- *                   bei 44 oder mehr = 0 (keine Rente).
+ * Fehljahre kürzen die Rente proportional via (44 - fehljahre) / 44.
  */
 export function vollrenteEinzelSkala44(
   massgebendesEinkommen: number,
@@ -57,11 +83,117 @@ export function vollrenteEinzelSkala44(
   return Math.round(basisrente * (beitragsjahre / VOLLE_BEITRAGSDAUER));
 }
 
+/**
+ * 13. AHV-Faktor: ab Bezugsjahr 2026 wird die Jahresrente mit 13/12 multipliziert
+ * (zusätzliche Monatsrente einmal jährlich im Dezember).
+ */
+export function dreizehnteAhvFaktor(bezugsjahr: number): number {
+  return bezugsjahr >= ERSTES_JAHR_13TE_AHV ? 13 / 12 : 1;
+}
+
+/**
+ * Faktor für Vorbezug (kleiner 1) oder Aufschub (grösser 1) der AHV-Rente.
+ *
+ * @param bezugsalter   Alter beim Beginn des Bezugs
+ * @param ordentlich    Ordentliches AHV-Alter (default 65)
+ * @returns Multiplikationsfaktor auf die Vollrente
+ *
+ * Wirft, wenn Vorbezug > 2 Jahre oder Aufschub > 5 Jahre angefragt wird.
+ */
+export function bezugsfaktor(
+  bezugsalter: number,
+  ordentlich: number = ORDENTLICHES_AHV_ALTER
+): number {
+  if (bezugsalter === ordentlich) return 1;
+
+  const monateAbweichung = (bezugsalter - ordentlich) * 12;
+
+  if (monateAbweichung < 0) {
+    const monateVorbezug = -monateAbweichung;
+    if (monateVorbezug > MAX_VORBEZUG_JAHRE * 12) {
+      throw new Error(
+        `AHV-Vorbezug max ${MAX_VORBEZUG_JAHRE} Jahre (also ab Alter ${ordentlich - MAX_VORBEZUG_JAHRE})`
+      );
+    }
+    const kuerzungProMonat = VORBEZUG_KUERZUNG_PRO_JAHR / 12;
+    return 1 - monateVorbezug * kuerzungProMonat;
+  }
+
+  const monateAufschub = monateAbweichung;
+  if (monateAufschub > MAX_AUFSCHUB_JAHRE * 12) {
+    throw new Error(
+      `AHV-Aufschub max ${MAX_AUFSCHUB_JAHRE} Jahre (also bis Alter ${ordentlich + MAX_AUFSCHUB_JAHRE})`
+    );
+  }
+  return 1 + aufschubsZuschlagPct(monateAufschub);
+}
+
+function aufschubsZuschlagPct(monate: number): number {
+  if (monate <= 0) return 0;
+  for (let i = 0; i < AUFSCHUB_ZUSCHLAG_TABELLE.length - 1; i++) {
+    const a = AUFSCHUB_ZUSCHLAG_TABELLE[i]!;
+    const b = AUFSCHUB_ZUSCHLAG_TABELLE[i + 1]!;
+    if (monate >= a.monate && monate <= b.monate) {
+      const t = (monate - a.monate) / (b.monate - a.monate);
+      return a.zuschlag + t * (b.zuschlag - a.zuschlag);
+    }
+  }
+  return AUFSCHUB_ZUSCHLAG_TABELLE.at(-1)!.zuschlag;
+}
+
+export interface AhvJahresrenteInput {
+  massgebendesEinkommen: number;
+  fehljahre?: number;
+  bezugsalter?: number;
+  bezugsjahr?: number;
+}
+
+export interface AhvJahresrenteOutput {
+  basisrenteMitFehljahre: number; // 12-Monatsrente nach Skala-Kürzung
+  bezugsfaktor: number;
+  dreizehnteFaktor: number;
+  jahresrente: number; // alles drauf, was tatsächlich ausgezahlt wird
+  monatsrente: number; // ordentliche Monatszahlung (jahresrente / 12 bzw. 13)
+  hat13te: boolean;
+  vorbezugJahre: number;
+  aufschubJahre: number;
+}
+
+export function ahvJahresrenteEinzel(
+  input: AhvJahresrenteInput
+): AhvJahresrenteOutput {
+  const fehljahre = input.fehljahre ?? 0;
+  const bezugsalter = input.bezugsalter ?? ORDENTLICHES_AHV_ALTER;
+  const bezugsjahr = input.bezugsjahr ?? new Date().getFullYear();
+
+  const basisrente = vollrenteEinzelSkala44(input.massgebendesEinkommen, fehljahre);
+  const bf = bezugsfaktor(bezugsalter);
+  const df = dreizehnteAhvFaktor(bezugsjahr);
+  const hat13te = df > 1;
+
+  const jahresrente = Math.round(basisrente * bf * df);
+  const monatsrente = Math.round(jahresrente / (hat13te ? 13 : 12));
+
+  return {
+    basisrenteMitFehljahre: basisrente,
+    bezugsfaktor: bf,
+    dreizehnteFaktor: df,
+    jahresrente,
+    monatsrente,
+    hat13te,
+    vorbezugJahre: bezugsalter < ORDENTLICHES_AHV_ALTER ? ORDENTLICHES_AHV_ALTER - bezugsalter : 0,
+    aufschubJahre: bezugsalter > ORDENTLICHES_AHV_ALTER ? bezugsalter - ORDENTLICHES_AHV_ALTER : 0,
+  };
+}
+
 export interface AhvCoupleInput {
   einkommenP1: number;
   einkommenP2: number;
   fehljahreP1?: number;
   fehljahreP2?: number;
+  bezugsalterP1?: number;
+  bezugsalterP2?: number;
+  bezugsjahr?: number; // Annahme: beide beziehen im selben Bezugsjahr (zur Plafonierung)
 }
 
 export interface AhvCoupleOutput {
@@ -70,52 +202,60 @@ export interface AhvCoupleOutput {
   rentenSummeUngekuerzt: number;
   plafoniert: boolean;
   haushaltsRente: number;
+  hat13te: boolean;
 }
 
 /**
- * Ehepaar-Splitting (vereinfacht): beide Einkommen während der Ehe werden zusammengezählt
- * und je hälftig zugerechnet, dann wird je eine Vollrente berechnet (mit Fehljahren der
- * jeweiligen Person), dann plafoniert auf 150%.
+ * Ehepaar-Rente mit Splitting + Plafonierung + Bezugsfaktoren + 13. AHV.
  *
- * Vereinfachung Etappe 1: Einkommen wird symmetrisch gesplittet (ehe-lebenslang).
- * Reale Berechnung berücksichtigt nur Beitragsjahre während der Ehe — kommt später.
+ * Vereinfachung: symmetrisches Einkommens-Splitting (eheliche Berechtigung
+ * über die ganze Karriere). Real berücksichtigt nur Beitragsjahre während
+ * der Ehe — kommt in Etappe 1.5.
  */
 export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
   const splitEinkommen = (input.einkommenP1 + input.einkommenP2) / 2;
-  const renteP1 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP1 ?? 0);
-  const renteP2 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP2 ?? 0);
-  const summeUngekuerzt = renteP1 + renteP2;
-  const plafoniert = summeUngekuerzt > MAX_RENTE_EHEPAAR;
+  const bezugsjahr = input.bezugsjahr ?? new Date().getFullYear();
+  const df = dreizehnteAhvFaktor(bezugsjahr);
+  const hat13te = df > 1;
+
+  const basisP1 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP1 ?? 0);
+  const basisP2 = vollrenteEinzelSkala44(splitEinkommen, input.fehljahreP2 ?? 0);
+  const bfP1 = bezugsfaktor(input.bezugsalterP1 ?? ORDENTLICHES_AHV_ALTER);
+  const bfP2 = bezugsfaktor(input.bezugsalterP2 ?? ORDENTLICHES_AHV_ALTER);
+
+  const renteP1Vor13 = basisP1 * bfP1;
+  const renteP2Vor13 = basisP2 * bfP2;
+  const summeVor13 = renteP1Vor13 + renteP2Vor13;
+  const plafoniert = summeVor13 > MAX_RENTE_EHEPAAR;
 
   if (!plafoniert) {
+    const renteP1 = Math.round(renteP1Vor13 * df);
+    const renteP2 = Math.round(renteP2Vor13 * df);
     return {
       rentenP1: renteP1,
       rentenP2: renteP2,
-      rentenSummeUngekuerzt: summeUngekuerzt,
+      rentenSummeUngekuerzt: Math.round(summeVor13 * df),
       plafoniert: false,
-      haushaltsRente: summeUngekuerzt,
+      haushaltsRente: renteP1 + renteP2,
+      hat13te,
     };
   }
 
-  // Plafond hälftig: jede Person bekommt 50% des Plafonds
+  const haushalt = Math.round(MAX_RENTE_EHEPAAR * df);
   return {
-    rentenP1: MAX_RENTE_EHEPAAR / 2,
-    rentenP2: MAX_RENTE_EHEPAAR / 2,
-    rentenSummeUngekuerzt: summeUngekuerzt,
+    rentenP1: Math.round(haushalt / 2),
+    rentenP2: Math.round(haushalt / 2),
+    rentenSummeUngekuerzt: Math.round(summeVor13 * df),
     plafoniert: true,
-    haushaltsRente: MAX_RENTE_EHEPAAR,
+    haushaltsRente: haushalt,
+    hat13te,
   };
 }
 
 /**
- * Hilfsfunktion: maximal mögliche Ehepaarrente in einem gegebenen Jahr.
- * Aktuell nur 2024–2026 (BSV-Werte 2024 unverändert in der Periode).
+ * Hilfsfunktion: maximal mögliche Ehepaarrente in einem gegebenen Jahr,
+ * inkl. 13. AHV ab 2026.
  */
 export function ahvMaxCouplePension(year: number): number {
-  if (year < 2024 || year > 2026) {
-    throw new Error(
-      `AHV-Maximalrente Ehepaar für Jahr ${year} noch nicht hinterlegt`
-    );
-  }
-  return MAX_RENTE_EHEPAAR;
+  return Math.round(MAX_RENTE_EHEPAAR * dreizehnteAhvFaktor(year));
 }
