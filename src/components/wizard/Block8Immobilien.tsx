@@ -12,6 +12,7 @@ import { formatChf } from "@/lib/format";
 import { Field } from "@/components/ui/Field";
 import { KpiPill } from "@/components/ui/KpiPill";
 import { inputClass } from "@/components/ui/styles";
+import { TragbarkeitPanel } from "./TragbarkeitPanel";
 
 const TYPEN: { value: ImmobilienTyp; label: string; sub: string }[] = [
   { value: "selbstbewohnt", label: "Selbstbewohnt", sub: "Eigenheim, Ferienhaus" },
@@ -89,6 +90,8 @@ export function Block8Immobilien() {
           + Immobilie hinzufügen
         </button>
       </fieldset>
+
+      <TragbarkeitPanel />
 
       <p className="text-xs text-slate-400">
         Eigenmietwert + Schuldzinsabzug + Grundstückgewinnsteuer (kantonal) folgen
