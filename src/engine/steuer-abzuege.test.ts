@@ -319,6 +319,58 @@ describe("Steuer-Abzüge — Kanton ZH abweichende Pauschalen", () => {
   });
 });
 
+describe("Steuer-Abzüge — Pro-Kanton-Pauschalen", () => {
+  const baseInput: AbzugInput = {
+    bruttoErwerbP1: 100_000,
+    bruttoErwerbP2: 0,
+    alterP1: 40,
+    alterP2: 0,
+    fallart: "einzel",
+    anzahlKinder: 0,
+    saeule3aEinzahlungJahr: 0,
+    hatPkAnschlussP1: true,
+    hatPkAnschlussP2: false,
+  };
+
+  it("Bern: höhere Versicherungspauschale (4'800) als ZH (2'600)", () => {
+    const be = abzuegeKanton(baseInput, "BE");
+    const zh = abzuegeKanton(baseInput, "ZH");
+    expect(be.versicherungspraemien).toBe(4_800);
+    expect(zh.versicherungspraemien).toBe(2_600);
+  });
+
+  it("Zug: Kinderabzug 12'500 (vs. ZH 9'300)", () => {
+    const inp = { ...baseInput, anzahlKinder: 2, fallart: "paar" as const, bruttoErwerbP2: 60_000 };
+    const zg = abzuegeKanton(inp, "ZG");
+    const zh = abzuegeKanton(inp, "ZH");
+    expect(zg.kinderabzug).toBe(2 * 12_500);
+    expect(zh.kinderabzug).toBe(2 * 9_300);
+  });
+
+  it("St. Gallen: höchster Kinderabzug 13'000", () => {
+    const inp = { ...baseInput, anzahlKinder: 3 };
+    const sg = abzuegeKanton(inp, "SG");
+    expect(sg.kinderabzug).toBe(3 * 13_000);
+  });
+
+  it("Aargau: niedriger Doppelverdienerabzug (max 600)", () => {
+    const inp = {
+      ...baseInput,
+      fallart: "paar" as const,
+      bruttoErwerbP2: 80_000,
+    };
+    const ag = abzuegeKanton(inp, "AG");
+    expect(ag.doppelverdienerabzug).toBe(600); // capped
+  });
+
+  it("Unbekannter Kanton fällt auf ZH-Default zurück", () => {
+    const xx = abzuegeKanton(baseInput, "XX");
+    const zh = abzuegeKanton(baseInput, "ZH");
+    expect(xx.versicherungspraemien).toBe(zh.versicherungspraemien);
+    expect(xx.kinderabzug).toBe(zh.kinderabzug);
+  });
+});
+
 describe("Steuer-Abzüge — Real-Szenarien", () => {
   it("Single 30k → kaum BVG, geringe Abzüge", () => {
     const r = abzuegeDbg({

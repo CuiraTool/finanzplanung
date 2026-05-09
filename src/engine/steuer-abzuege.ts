@@ -63,17 +63,123 @@ const DBG_SAEULE_3A_MAX_MIT_BVG = 7_258;
 const DBG_SAEULE_3A_MAX_OHNE_BVG_PROZENT = 0.2; // 20 % Erwerbseinkommen
 const DBG_SAEULE_3A_MAX_OHNE_BVG = 36_288;
 
-// ─── Kanton-Pauschalen (ZH-Default für alle Kantone, Etappe später ausdiff.) ─
+// ─── Kanton-Pauschalen pro Kanton (Stand 2024/2025) ──────────────────────
+// Quellen: kantonale Steuergesetze, Steuerverwaltungs-Wegleitungen.
+// Werte sind Stand-Beste-Schätzung — bei Differenz Kanton-Behörde gilt.
+// Fehlende Kantone fallen auf ZH-Default zurück.
 const KT_BERUFSAUSLAGEN_SATZ = 0.03;
 const KT_BERUFSAUSLAGEN_MIN = 2_000;
 const KT_BERUFSAUSLAGEN_MAX = 4_000;
-const KT_VERSICHERUNG_SINGLE = 2_600; // ZH 2025
-const KT_VERSICHERUNG_PAAR = 5_200;
-const KT_VERSICHERUNG_KIND = 1_300;
-const KT_DOPPELVERDIENER_PROZENT = 0.5;
-const KT_DOPPELVERDIENER_MIN = 6_200; // ZH
-const KT_DOPPELVERDIENER_MAX = 13_700; // ZH
-const KT_KINDERABZUG = 9_300; // ZH
+
+interface KantonPauschalen {
+  versicherungSingle: number;
+  versicherungPaar: number;
+  versicherungKind: number;
+  doppelverdienerProzent: number;
+  doppelverdienerMin: number;
+  doppelverdienerMax: number;
+  kinderabzug: number;
+}
+
+const KANTON_DEFAULTS: KantonPauschalen = {
+  versicherungSingle: 2_600,
+  versicherungPaar: 5_200,
+  versicherungKind: 1_300,
+  doppelverdienerProzent: 0.5,
+  doppelverdienerMin: 6_200,
+  doppelverdienerMax: 13_700,
+  kinderabzug: 9_300,
+};
+
+const KANTON_PAUSCHALEN: Record<string, Partial<KantonPauschalen>> = {
+  // Zürich (Default-Werte)
+  ZH: {
+    versicherungSingle: 2_600,
+    versicherungPaar: 5_200,
+    versicherungKind: 1_300,
+    doppelverdienerMin: 6_200,
+    doppelverdienerMax: 13_700,
+    kinderabzug: 9_300,
+  },
+  // Bern: höhere Versicherung, kleinerer Doppelverdiener, kleinerer Kind
+  BE: {
+    versicherungSingle: 4_800,
+    versicherungPaar: 9_600,
+    versicherungKind: 1_400,
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 9_700,
+    kinderabzug: 8_000,
+  },
+  // Zug: günstig generell, hohe Pauschalen
+  ZG: {
+    versicherungSingle: 4_700,
+    versicherungPaar: 9_400,
+    versicherungKind: 1_700,
+    doppelverdienerMin: 1_500,
+    doppelverdienerMax: 7_400,
+    kinderabzug: 12_500,
+  },
+  // Luzern
+  LU: {
+    versicherungSingle: 2_700,
+    versicherungPaar: 5_400,
+    versicherungKind: 1_700,
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 4_700,
+    kinderabzug: 7_500,
+  },
+  // Aargau
+  AG: {
+    versicherungSingle: 4_000,
+    versicherungPaar: 8_000,
+    versicherungKind: 2_000,
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 600,
+    kinderabzug: 7_000,
+  },
+  // St. Gallen: hoher Kinderabzug
+  SG: {
+    versicherungSingle: 6_500,
+    versicherungPaar: 13_000,
+    versicherungKind: 1_600,
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 700,
+    kinderabzug: 13_000,
+  },
+  // Basel-Stadt
+  BS: {
+    versicherungSingle: 4_000,
+    versicherungPaar: 8_000,
+    versicherungKind: 2_000,
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 1_400,
+    kinderabzug: 7_800,
+  },
+  // Waadt
+  VD: {
+    versicherungSingle: 3_200,
+    versicherungPaar: 6_400,
+    versicherungKind: 1_500,
+    doppelverdienerMin: 1_500,
+    doppelverdienerMax: 1_500, // VD: fixer Pauschalbetrag
+    doppelverdienerProzent: 0, // = nicht prozentual
+    kinderabzug: 6_200,
+  },
+  // Genf
+  GE: {
+    versicherungSingle: 4_120,
+    versicherungPaar: 8_240,
+    versicherungKind: 0, // GE hat eigenes System mit Steuerermäßigung statt Abzug
+    doppelverdienerMin: 0,
+    doppelverdienerMax: 1_000,
+    kinderabzug: 13_000,
+  },
+};
+
+function getKantonPauschalen(kantonCode: string): KantonPauschalen {
+  const overrides = KANTON_PAUSCHALEN[kantonCode] ?? {};
+  return { ...KANTON_DEFAULTS, ...overrides };
+}
 
 export interface AbzugInput {
   /** Brutto-Erwerbseinkommen Person 1 (CHF/Jahr). 0 = nicht erwerbstätig. */
@@ -308,14 +414,15 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
 }
 
 /**
- * Hauptfunktion Kanton: andere Pauschalen für Versicherung, Doppelverdiener,
- * Kinder. Default = ZH-Werte.
+ * Hauptfunktion Kanton: kantons-spezifische Pauschalen für Versicherung,
+ * Doppelverdiener und Kinderabzug.
  *
- * @param kantonCode 2-Buchstaben-Code (ZH/BE/...). Heute alle gleich (ZH-Defaults),
- *                   später pro Kanton ausdifferenziert.
+ * @param kantonCode 2-Buchstaben-Code (ZH/BE/ZG/LU/AG/SG/BS/VD/GE).
+ *                   Andere Kantone: Fallback auf ZH-Default-Pauschalen.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function abzuegeKanton(input: AbzugInput, _kantonCode: string): AbzugDetail {
+export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetail {
+  const kp = getKantonPauschalen(kantonCode);
+
   const p1 = nettolohn({
     brutto: input.bruttoErwerbP1,
     alter: input.alterP1,
@@ -344,8 +451,8 @@ export function abzuegeKanton(input: AbzugInput, _kantonCode: string): AbzugDeta
       : 0;
 
   const versicherungspraemien =
-    (input.fallart === "paar" ? KT_VERSICHERUNG_PAAR : KT_VERSICHERUNG_SINGLE) +
-    input.anzahlKinder * KT_VERSICHERUNG_KIND;
+    (input.fallart === "paar" ? kp.versicherungPaar : kp.versicherungSingle) +
+    input.anzahlKinder * kp.versicherungKind;
 
   const max3a =
     saeule3aMaxProPerson(input.bruttoErwerbP1, input.hatPkAnschlussP1) +
@@ -358,12 +465,12 @@ export function abzuegeKanton(input: AbzugInput, _kantonCode: string): AbzugDeta
     input.bruttoErwerbP1,
     input.bruttoErwerbP2,
     input.fallart,
-    KT_DOPPELVERDIENER_PROZENT,
-    KT_DOPPELVERDIENER_MIN,
-    KT_DOPPELVERDIENER_MAX
+    kp.doppelverdienerProzent,
+    kp.doppelverdienerMin,
+    kp.doppelverdienerMax
   );
 
-  const kinderabzug = input.anzahlKinder * KT_KINDERABZUG;
+  const kinderabzug = input.anzahlKinder * kp.kinderabzug;
 
   const sozialP1 = p1.sozial;
   const sozialP2 = p2.sozial;
