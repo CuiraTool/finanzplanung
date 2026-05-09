@@ -256,6 +256,117 @@ export type NachlassThemaKey =
 
 export type NachlassInput = Record<NachlassThemaKey, boolean>;
 
+// ───────────────────────────────────────────────────────────────────
+// Erweiterte Felder (Blöcke M, N, O, P, R aus Typeform-Spec)
+// ───────────────────────────────────────────────────────────────────
+
+export type Anlageerfahrung = "keine" | "wenig" | "moderat" | "ausgepraegt";
+export type Risikobereitschaft =
+  | "konservativ"
+  | "ausgewogen"
+  | "wachstum"
+  | "aggressiv";
+export type Anlagehorizont = "lt3j" | "3_7j" | "7_15j" | "gt15j";
+export type Anlageform =
+  | "etf"
+  | "fonds"
+  | "aktien"
+  | "obligationen"
+  | "immobilienfonds"
+  | "krypto"
+  | "strukturiert"
+  | "keine";
+
+/** Block M — Anlagen vertieft. */
+export interface AnlagenInput {
+  erfahrung: Anlageerfahrung | null;
+  risikobereitschaft: Risikobereitschaft | null;
+  horizont: Anlagehorizont | null;
+  formen: Anlageform[];
+  vermoegenAusland: boolean;
+}
+
+export type ErbschaftStatus = "ja_absehbar" | "moeglich" | "nein" | "keine_angabe";
+export type ErbschaftGroesse = "lt200k" | "200k_1m" | "1m_5m" | "gt5m";
+export type Gueterstand =
+  | "errungenschaft"
+  | "guetertrennung"
+  | "guetergemeinschaft"
+  | "weiss_nicht";
+
+/** Block N — Erbschaft, Schenkung, Güterrecht. */
+export interface ErbschaftInput {
+  erwartet: ErbschaftStatus | null;
+  groessenordnung: ErbschaftGroesse | null;
+  schenkungenGetaetigt: boolean;
+  schenkungenDetails: string;
+  gueterstand: Gueterstand | null;
+}
+
+export type UmzugStatus = "ja" | "moeglich" | "nein";
+
+/** Block O — Steuern & Wohnort (zusätzlich zu Adresse). */
+export interface WohnortPlanInput {
+  umzugStatus: UmzugStatus | null;
+  umzugZiel: string;
+}
+
+/** Block P — Versicherungen. */
+export interface VersicherungenInput {
+  vvgVorhanden: boolean;
+  lebensversicherungVorhanden: boolean;
+  lebensversicherungDetails: string;
+  gesundheitsthemen: string;
+}
+
+export type PrioritaetKey =
+  | "sicheres_einkommen"
+  | "steuern_optimieren"
+  | "vermoegen_erhalten"
+  | "vererben"
+  | "frueher_pension"
+  | "lebenstraum"
+  | "liegenschaft_regeln"
+  | "firma_regeln"
+  | "andere";
+
+/** Block R — Prioritäten. */
+export interface PrioritaetenInput {
+  /** Max. 3 ausgewählte Prioritäten. */
+  ausgewaehlt: PrioritaetKey[];
+  andereBeschreibung: string;
+  zusaetzlicheAnliegen: string;
+}
+
+export type FirmaBezug =
+  | "nur_lohn"
+  | "lohn_dividenden"
+  | "nur_dividenden"
+  | "nein";
+
+/** Lückenfelder aus Word-Doc, die in keinen eigenen Block passen. */
+export interface ErweitertInput {
+  // Block B
+  zivilstandSeitJahr: number | null;
+  unterhaltspflichten: boolean;
+  unterhaltspflichtenDetails: string;
+
+  // Block D
+  pensionsvision: string; // D7 LT optional
+
+  // Block H
+  andereVermoegenswerte: string; // H6 Krypto/Gold/Sammlungen LT
+  verbindlichkeitenAnderes: boolean; // H7
+  verbindlichkeitenDetails: string; // H8
+
+  // Block L
+  firmaNachfolgeloesungEingeleitet: boolean; // L3
+  firmaBezug: FirmaBezug | null; // L4
+
+  // Block S
+  dsgEinwilligung: boolean; // S3
+}
+
 export interface EinmaligAusgabe {
   id: string;
   jahr: number;
@@ -320,6 +431,13 @@ export interface PlanState {
   immobilien: ImmobilienInput;
   firma: FirmaInput;
   nachlass: NachlassInput;
+  // Erweiterte Slices (Word-Doc Blöcke M, N, O, P, R + Lücken)
+  anlagen: AnlagenInput;
+  erbschaft: ErbschaftInput;
+  wohnortPlan: WohnortPlanInput;
+  versicherungen: VersicherungenInput;
+  prioritaeten: PrioritaetenInput;
+  erweitert: ErweitertInput;
   szenarioB: SzenarioB;
   aktiverBlock: number;
 
@@ -402,10 +520,18 @@ export interface PlanState {
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
   setNachlass: (key: NachlassThemaKey, value: boolean) => void;
   setFirma: (patch: Partial<FirmaInput>) => void;
+  setAnlagen: (patch: Partial<AnlagenInput>) => void;
+  setErbschaft: (patch: Partial<ErbschaftInput>) => void;
+  setWohnortPlan: (patch: Partial<WohnortPlanInput>) => void;
+  setVersicherungen: (patch: Partial<VersicherungenInput>) => void;
+  setPrioritaeten: (patch: Partial<PrioritaetenInput>) => void;
+  setErweitert: (patch: Partial<ErweitertInput>) => void;
   setSzenarioBAktiv: (aktiv: boolean) => void;
   setSzenarioBOverride: (patch: Partial<SzenarioBOverrides>) => void;
   setAktiverBlock: (id: number) => void;
   reset: () => void;
+  /** Vollen State aus einem Import-Object (V2-Submission) übernehmen. */
+  importState: (snapshot: Partial<PlanState>) => void;
 }
 
 const initialPerson: PersonInput = {
@@ -539,6 +665,47 @@ export const usePlanStore = create<PlanState>()(
         testament: false,
         erbvertrag: false,
         ehevertrag: false,
+      },
+      anlagen: {
+        erfahrung: null,
+        risikobereitschaft: null,
+        horizont: null,
+        formen: [],
+        vermoegenAusland: false,
+      },
+      erbschaft: {
+        erwartet: null,
+        groessenordnung: null,
+        schenkungenGetaetigt: false,
+        schenkungenDetails: "",
+        gueterstand: null,
+      },
+      wohnortPlan: {
+        umzugStatus: null,
+        umzugZiel: "",
+      },
+      versicherungen: {
+        vvgVorhanden: false,
+        lebensversicherungVorhanden: false,
+        lebensversicherungDetails: "",
+        gesundheitsthemen: "",
+      },
+      prioritaeten: {
+        ausgewaehlt: [],
+        andereBeschreibung: "",
+        zusaetzlicheAnliegen: "",
+      },
+      erweitert: {
+        zivilstandSeitJahr: null,
+        unterhaltspflichten: false,
+        unterhaltspflichtenDetails: "",
+        pensionsvision: "",
+        andereVermoegenswerte: "",
+        verbindlichkeitenAnderes: false,
+        verbindlichkeitenDetails: "",
+        firmaNachfolgeloesungEingeleitet: false,
+        firmaBezug: null,
+        dsgEinwilligung: false,
       },
       szenarioB: {
         aktiv: false,
@@ -944,6 +1111,19 @@ export const usePlanStore = create<PlanState>()(
       setNachlass: (key, value) =>
         set((s) => ({ nachlass: { ...s.nachlass, [key]: value } })),
       setFirma: (patch) => set((s) => ({ firma: { ...s.firma, ...patch } })),
+      setAnlagen: (patch) =>
+        set((s) => ({ anlagen: { ...s.anlagen, ...patch } })),
+      setErbschaft: (patch) =>
+        set((s) => ({ erbschaft: { ...s.erbschaft, ...patch } })),
+      setWohnortPlan: (patch) =>
+        set((s) => ({ wohnortPlan: { ...s.wohnortPlan, ...patch } })),
+      setVersicherungen: (patch) =>
+        set((s) => ({ versicherungen: { ...s.versicherungen, ...patch } })),
+      setPrioritaeten: (patch) =>
+        set((s) => ({ prioritaeten: { ...s.prioritaeten, ...patch } })),
+      setErweitert: (patch) =>
+        set((s) => ({ erweitert: { ...s.erweitert, ...patch } })),
+      importState: (snapshot) => set(() => snapshot),
       setSzenarioBAktiv: (aktiv) =>
         set((s) => ({ szenarioB: { ...s.szenarioB, aktiv } })),
       setSzenarioBOverride: (patch) =>
@@ -985,6 +1165,47 @@ export const usePlanStore = create<PlanState>()(
             erbvertrag: false,
             ehevertrag: false,
           },
+          anlagen: {
+            erfahrung: null,
+            risikobereitschaft: null,
+            horizont: null,
+            formen: [],
+            vermoegenAusland: false,
+          },
+          erbschaft: {
+            erwartet: null,
+            groessenordnung: null,
+            schenkungenGetaetigt: false,
+            schenkungenDetails: "",
+            gueterstand: null,
+          },
+          wohnortPlan: {
+            umzugStatus: null,
+            umzugZiel: "",
+          },
+          versicherungen: {
+            vvgVorhanden: false,
+            lebensversicherungVorhanden: false,
+            lebensversicherungDetails: "",
+            gesundheitsthemen: "",
+          },
+          prioritaeten: {
+            ausgewaehlt: [],
+            andereBeschreibung: "",
+            zusaetzlicheAnliegen: "",
+          },
+          erweitert: {
+            zivilstandSeitJahr: null,
+            unterhaltspflichten: false,
+            unterhaltspflichtenDetails: "",
+            pensionsvision: "",
+            andereVermoegenswerte: "",
+            verbindlichkeitenAnderes: false,
+            verbindlichkeitenDetails: "",
+            firmaNachfolgeloesungEingeleitet: false,
+            firmaBezug: null,
+            dsgEinwilligung: false,
+          },
           szenarioB: {
             aktiv: false,
             overrides: {},
@@ -993,7 +1214,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v22",
+      name: "cuira-plan-v23",
     }
   )
 );

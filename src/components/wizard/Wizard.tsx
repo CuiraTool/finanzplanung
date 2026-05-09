@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { block1MinimumErfuellt } from "@/lib/validation";
 import { Block1Personen } from "./Block1Personen";
 import { DocUploadCenter } from "./DocUploadCenter";
+import { ImportPanel } from "./ImportPanel";
+import { FlowRenderer } from "@/flow/FlowRenderer";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
 import { Block4Ahv } from "./Block4Ahv";
@@ -43,10 +45,13 @@ const BLOCKS = [
   { id: 10, title: "Nachlass", implemented: true },
 ] as const;
 
+type WizardMode = "klassisch" | "flow";
+
 export function Wizard() {
   const aktiverBlock = usePlanStore((s) => s.aktiverBlock);
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
   const fullState = usePlanStore();
+  const [mode, setMode] = useState<WizardMode>("klassisch");
 
   const validation = useMemo(() => block1MinimumErfuellt(fullState), [fullState]);
 
@@ -58,14 +63,54 @@ export function Wizard() {
     }
   }, [validation.komplett, aktiverBlock, setAktiverBlock]);
 
+  // Geführter-Flow-Modus: vollflächig, ohne Block-Liste
+  if (mode === "flow") {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
+          <span>Geführter Frage-Flow</span>
+          <button
+            type="button"
+            onClick={() => setMode("klassisch")}
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            ← Klassisch
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <FlowRenderer mode="pro" onComplete={() => setMode("klassisch")} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold">Pensionsplanung</h1>
-        <p className="text-sm text-slate-500">Eingabe</p>
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Pensionsplanung</h1>
+          <p className="text-sm text-slate-500">Eingabe</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMode("flow")}
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+          title="Geführter Frage-für-Frage-Flow nach Cuira-Spec"
+        >
+          Geführter Flow →
+        </button>
       </header>
 
       <DocUploadCenter />
+
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="text-xs text-slate-500">
+          💡 <strong className="text-slate-700">Geführter Flow</strong> für die
+          Beratung, <strong className="text-slate-700">klassisch</strong> für
+          die schnelle Eingabe nach dem Termin.
+        </div>
+        <ImportPanel />
+      </div>
 
       {!validation.komplett && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
