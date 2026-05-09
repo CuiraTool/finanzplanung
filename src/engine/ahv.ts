@@ -77,7 +77,7 @@ export function vollrenteEinzelSkala44(
   massgebendesEinkommen: number,
   fehljahre = 0
 ): number {
-  const basisrente = bsvSkala44Approx(massgebendesEinkommen);
+  const basisrente = bsvSkala44Exakt(massgebendesEinkommen);
 
   if (fehljahre <= 0) return Math.round(basisrente);
   if (fehljahre >= VOLLE_BEITRAGSDAUER) return 0;
@@ -87,29 +87,47 @@ export function vollrenteEinzelSkala44(
 }
 
 /**
- * Two-Segment-Approximation der BSV-Skala 44.
- * Knickpunkt liegt beim doppelten Mindest-Einkommen (2× UNTERE_GRENZE) bei
- * ~2/3 des Renten-Anstiegs.
+ * Echte BSV-Skala 44 Vollrenten (Stand 1.1.2025).
+ *
+ * Quelle: BSV Vollzug Dokument 6462 (sozialversicherungen.admin.ch).
+ * 51 Einkommens-Stufen von 15'120 bis 90'720 CHF (Schritt 1'512 = 1/10 Min).
+ * Zwischen den Stufen wird linear interpoliert (BSV-Praxis bei der
+ * tatsächlichen Rentenberechnung).
  */
-function bsvSkala44Approx(massgebendesEinkommen: number): number {
-  if (massgebendesEinkommen <= UNTERE_GRENZE_EINKOMMEN) return MIN_RENTE;
-  if (massgebendesEinkommen >= OBERE_GRENZE_EINKOMMEN) return MAX_RENTE_EINZEL;
+import skala44Daten from "./ahv-data/skala44-2025.json";
 
-  const KNICK_X = UNTERE_GRENZE_EINKOMMEN * 2; // 30'240 (Stand 2025)
-  const RANGE = MAX_RENTE_EINZEL - MIN_RENTE;
-  const KNICK_Y = MIN_RENTE + (RANGE * 2) / 3; // ~25'200
+interface Skala44Daten {
+  validFrom: string;
+  minEinkommen: number;
+  maxEinkommen: number;
+  minRenteJahr: number;
+  maxRenteJahr: number;
+  /** [massgebendesEinkommen, monatlicheRente] */
+  stufen: [number, number][];
+}
 
-  if (massgebendesEinkommen <= KNICK_X) {
-    // Erstes Segment: schneller Anstieg
-    const t =
-      (massgebendesEinkommen - UNTERE_GRENZE_EINKOMMEN) /
-      (KNICK_X - UNTERE_GRENZE_EINKOMMEN);
-    return MIN_RENTE + t * (KNICK_Y - MIN_RENTE);
+const SKALA44 = skala44Daten as Skala44Daten;
+
+function bsvSkala44Exakt(massgebendesEinkommen: number): number {
+  if (massgebendesEinkommen <= SKALA44.minEinkommen) {
+    return SKALA44.minRenteJahr;
   }
-  // Zweites Segment: sanfter Anstieg
-  const t =
-    (massgebendesEinkommen - KNICK_X) / (OBERE_GRENZE_EINKOMMEN - KNICK_X);
-  return KNICK_Y + t * (MAX_RENTE_EINZEL - KNICK_Y);
+  if (massgebendesEinkommen >= SKALA44.maxEinkommen) {
+    return SKALA44.maxRenteJahr;
+  }
+
+  // Lineare Interpolation zwischen zwei Stufen
+  const stufen = SKALA44.stufen;
+  for (let i = 0; i < stufen.length - 1; i++) {
+    const [eUnten, mUnten] = stufen[i]!;
+    const [eOben, mOben] = stufen[i + 1]!;
+    if (massgebendesEinkommen >= eUnten && massgebendesEinkommen <= eOben) {
+      const t = (massgebendesEinkommen - eUnten) / (eOben - eUnten);
+      const monatlich = mUnten + t * (mOben - mUnten);
+      return Math.round(monatlich * 12);
+    }
+  }
+  return SKALA44.maxRenteJahr;
 }
 
 /**

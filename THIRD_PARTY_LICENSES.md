@@ -24,6 +24,20 @@ Administration (ESTV) calculator at
 https://swisstaxcalculator.estv.admin.ch/ via the `--download` workflow
 in the upstream project.
 
+---
+
+## BSV Rentenskala 44 (Bundesamt für Sozialversicherungen)
+
+**Source:** https://sozialversicherungen.admin.ch/de/d/6462 ("Monatliche Vollrenten, Skala 44")
+**Lizenz:** Schweizer Behördendaten (öffentlich, keine Lizenzangabe; Bundesgesetz über das Urheberrecht und verwandte Schutzrechte schützt Behördenakte nicht — URG Art. 5)
+**Used in:** `src/engine/ahv-data/skala44-2025.json` — 51 Stufen Einkommen→Vollrente Stand 1.1.2025
+
+Die Werte stammen aus dem offiziellen BSV-Vollzug-Dokument 6462 (Version 13,
+geändert 29.08.2024). Bei jährlichen BSV-Anpassungen muss diese Tabelle
+manuell aktualisiert werden.
+
+---
+
 ### MIT License (devbrains/swisstaxcalculator)
 
 ```

@@ -21,30 +21,22 @@ describe("AHV — Einzelperson Vollrente Skala 44 (Stand 2025)", () => {
     expect(vollrenteEinzelSkala44(200_000)).toBe(30_240);
   });
 
-  it("Knickpunkt bei doppeltem Mindest-Einkommen (30'240) ergibt ~2/3-Anstieg", () => {
-    // Two-Segment-Approx: bei 30'240 (= 2× Min) erreicht die Rente
-    // ~2/3 des Range zwischen Min (15'120) und Max (30'240)
-    const knickpunkt = 30_240;
-    const expected = 15_120 + ((30_240 - 15_120) * 2) / 3; // = 25'200
-    expect(vollrenteEinzelSkala44(knickpunkt)).toBe(expected);
+  it("BSV-Tabelle: Einkommen 30'240 → Rente 19'056 (1'588 × 12)", () => {
+    // Echte BSV-Skala 44 Stand 2025: Stufe bei 30'240 → CHF 1'588/Monat
+    expect(vollrenteEinzelSkala44(30_240)).toBe(19_056);
   });
 
-  it("Erstes Segment ist steil (Min bis 2× Min Einkommen)", () => {
-    // Bei der Hälfte des ersten Segments sollten ~50% des steilen Anstiegs sein
-    const halbweg = 15_120 + (30_240 - 15_120) / 2; // = 22'680
-    const ergebnis = vollrenteEinzelSkala44(halbweg);
-    // Erwartung: zwischen 15'120 und 25'200 (Knickpunkt) — ca. 20'160
+  it("BSV-Tabelle: Einkommen 60'480 → Rente 25'404 (2'117 × 12)", () => {
+    // Real-world Mittelstands-Einkommen erreicht ca. 84% der Maxrente
+    expect(vollrenteEinzelSkala44(60_480)).toBe(25_404);
+  });
+
+  it("Lineare Interpolation zwischen Stufen", () => {
+    // Genau zwischen Stufe 30'240 (1'588) und 31'752 (1'620):
+    // bei 30'996 → mittlerer Wert 1'604/Monat = 19'248/Jahr
+    const ergebnis = vollrenteEinzelSkala44(30_996);
     expect(ergebnis).toBeGreaterThan(19_000);
-    expect(ergebnis).toBeLessThan(22_000);
-  });
-
-  it("Zweites Segment ist flach (2× Min bis 6× Min Einkommen)", () => {
-    // Bei der Hälfte des zweiten Segments sollten ~50% des flachen Anstiegs sein
-    const halbweg = 30_240 + (90_720 - 30_240) / 2; // = 60'480
-    const ergebnis = vollrenteEinzelSkala44(halbweg);
-    // Erwartung: zwischen Knickpunkt (25'200) und Max (30'240) — ca. 27'720
-    expect(ergebnis).toBeGreaterThan(27_000);
-    expect(ergebnis).toBeLessThan(28_500);
+    expect(ergebnis).toBeLessThan(19_500);
   });
 });
 
@@ -129,16 +121,15 @@ describe("AHV — Jahresrente Einzel mit allen Faktoren", () => {
     expect(r.hat13te).toBe(false);
   });
 
-  it("Realistisches Mittelstands-Einkommen 60'000 → Rente nahe Max (BSV-S-Kurve)", () => {
-    // Bei massg. Einkommen 60'000 (mittlerer Verdienst) ist die Rente bereits
-    // bei ~85% der Maxrente — die alte Linear-Approx hätte hier ~CHF 24'000
-    // gegeben, was deutlich zu tief war.
+  it("Realistisches Mittelstands-Einkommen 60'000 → BSV-Tabellenwert", () => {
+    // Echte BSV-Skala 44 Stand 2025: Einkommen 60'000 liegt zwischen Stufen
+    // 58'968 (2'097/Mt) und 60'480 (2'117/Mt) → ~25'250/Jahr (84% der Max)
     const r = ahvJahresrenteEinzel({
       massgebendesEinkommen: 60_000,
       bezugsjahr: 2025,
     });
-    expect(r.jahresrente).toBeGreaterThan(27_000);
-    expect(r.jahresrente).toBeLessThan(28_500);
+    expect(r.jahresrente).toBeGreaterThan(24_500);
+    expect(r.jahresrente).toBeLessThan(26_000);
   });
 
   it("Maxrente, ordentlich, Bezug 2026: CHF 32'760 (mit 13. AHV)", () => {
