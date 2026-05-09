@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { block1MinimumErfuellt } from "@/lib/validation";
+import { useViewMode } from "@/lib/view-mode";
 import { Block1Personen } from "./Block1Personen";
 import { DocUploadCenter } from "./DocUploadCenter";
 import { ImportPanel } from "./ImportPanel";
+import { SzenarioPanel } from "./SzenarioPanel";
 import { FlowRenderer } from "@/flow/FlowRenderer";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
@@ -43,6 +45,7 @@ const BLOCKS = [
   { id: 8, title: "Immobilien", implemented: true },
   { id: 9, title: "Firma / Selbständigkeit", implemented: true },
   { id: 10, title: "Nachlass", implemented: true },
+  { id: 11, title: "Variante B (Vergleich)", implemented: true },
 ] as const;
 
 type WizardMode = "klassisch" | "flow";
@@ -52,6 +55,11 @@ export function Wizard() {
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
   const fullState = usePlanStore();
   const [mode, setMode] = useState<WizardMode>("klassisch");
+  const [viewMode] = useViewMode();
+
+  // Im "wizard-only"-View-Modus haben wir die volle Breite und können die
+  // Block-Liste links / Eingabe rechts stellen. In Split bleibt's vertikal.
+  const useTwoColumns = viewMode === "wizard";
 
   const validation = useMemo(() => block1MinimumErfuellt(fullState), [fullState]);
 
@@ -121,56 +129,111 @@ export function Wizard() {
         </div>
       )}
 
-      <ol className="mb-6 space-y-1">
-        {BLOCKS.map((b) => {
-          const isActive = aktiverBlock === b.id;
-          const isLocked = b.id !== 1 && !validation.komplett;
-          const isClickable = b.implemented && !isLocked;
-          return (
-            <li key={b.id}>
-              <button
-                type="button"
-                onClick={() => isClickable && setAktiverBlock(b.id)}
-                disabled={!isClickable}
-                title={
-                  isLocked ? "Erst Block 1 ausfüllen (Pflichtfelder)" : undefined
-                }
-                className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition ${
+      {useTwoColumns ? (
+        <div className="grid grid-cols-[260px_1fr] gap-6">
+          <BlockNavigation
+            blocks={BLOCKS}
+            aktiverBlock={aktiverBlock}
+            setAktiverBlock={setAktiverBlock}
+            validation={validation}
+            sticky
+          />
+          <div className="space-y-6">
+            <ActiveBlock aktiverBlock={aktiverBlock} />
+            {aktiverBlock === 11 && <SzenarioPanel />}
+          </div>
+        </div>
+      ) : (
+        <>
+          <BlockNavigation
+            blocks={BLOCKS}
+            aktiverBlock={aktiverBlock}
+            setAktiverBlock={setAktiverBlock}
+            validation={validation}
+          />
+          <ActiveBlock aktiverBlock={aktiverBlock} />
+          {aktiverBlock === 11 && <SzenarioPanel />}
+        </>
+      )}
+    </div>
+  );
+}
+
+interface BlockNavProps {
+  blocks: typeof BLOCKS;
+  aktiverBlock: number;
+  setAktiverBlock: (id: number) => void;
+  validation: { komplett: boolean; fehlend: string[] };
+  sticky?: boolean;
+}
+
+function BlockNavigation({
+  blocks,
+  aktiverBlock,
+  setAktiverBlock,
+  validation,
+  sticky,
+}: BlockNavProps) {
+  return (
+    <ol
+      className={`mb-6 space-y-1 ${
+        sticky ? "sticky top-2 self-start" : ""
+      }`}
+    >
+      {blocks.map((b) => {
+        const isActive = aktiverBlock === b.id;
+        const isLocked = b.id !== 1 && !validation.komplett;
+        const isClickable = b.implemented && !isLocked;
+        return (
+          <li key={b.id}>
+            <button
+              type="button"
+              onClick={() => isClickable && setAktiverBlock(b.id)}
+              disabled={!isClickable}
+              title={
+                isLocked ? "Erst Block 1 ausfüllen (Pflichtfelder)" : undefined
+              }
+              className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition ${
+                isActive
+                  ? "border-blue-600 bg-blue-50"
+                  : isClickable
+                    ? "border-slate-200 bg-slate-50 hover:border-slate-300"
+                    : "border-slate-200 bg-slate-50 text-slate-400"
+              }`}
+            >
+              <span
+                className={`flex size-6 items-center justify-center rounded-full text-xs font-medium tabular-nums ${
                   isActive
-                    ? "border-blue-600 bg-blue-50"
-                    : isClickable
-                      ? "border-slate-200 bg-slate-50 hover:border-slate-300"
-                      : "border-slate-200 bg-slate-50 text-slate-400"
+                    ? "bg-blue-600 text-white"
+                    : isLocked
+                      ? "bg-slate-200 text-slate-400"
+                      : "bg-slate-200 text-slate-700"
                 }`}
               >
-                <span
-                  className={`flex size-6 items-center justify-center rounded-full text-xs font-medium tabular-nums ${
-                    isActive
-                      ? "bg-blue-600 text-white"
-                      : isLocked
-                        ? "bg-slate-200 text-slate-400"
-                        : "bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  {b.id}
+                {b.id}
+              </span>
+              <span className="flex-1">{b.title}</span>
+              {isLocked && (
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  🔒
                 </span>
-                <span className="flex-1">{b.title}</span>
-                {isLocked && (
-                  <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                    🔒
-                  </span>
-                )}
-                {!b.implemented && (
-                  <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                    bald
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+              )}
+              {!b.implemented && (
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  bald
+                </span>
+              )}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
+function ActiveBlock({ aktiverBlock }: { aktiverBlock: number }) {
+  return (
+    <>
       {aktiverBlock === 1 && <Block1Personen />}
       {aktiverBlock === 2 && <Block2Wuensche />}
       {aktiverBlock === 3 && <Block3Budget />}
@@ -181,6 +244,6 @@ export function Wizard() {
       {aktiverBlock === 8 && <Block8Immobilien />}
       {aktiverBlock === 9 && <Block9Firma />}
       {aktiverBlock === 10 && <Block10Nachlass />}
-    </div>
+    </>
   );
 }

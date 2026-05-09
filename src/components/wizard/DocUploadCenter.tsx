@@ -45,6 +45,20 @@ export function DocUploadCenter() {
         { fileName: file.name, status: "pending" },
       ]);
 
+      // Client-seitige Vor-Validierung — bessere Fehler bevor Server angerufen wird
+      if (file.size > 10 * 1024 * 1024) {
+        setResults((r) => {
+          const copy = [...r];
+          copy[idx] = {
+            fileName: file.name,
+            status: "error",
+            error: `Datei zu gross (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: 10 MB.`,
+          };
+          return copy;
+        });
+        continue;
+      }
+
       try {
         const fd = new FormData();
         fd.append("file", file);
@@ -53,7 +67,13 @@ export function DocUploadCenter() {
           method: "POST",
           body: fd,
         });
-        const data = await res.json();
+
+        let data: { error?: string; extracted?: ExtractedDocument } = {};
+        try {
+          data = await res.json();
+        } catch {
+          // ignore — fallback unten
+        }
 
         if (!res.ok) {
           setResults((r) => {
@@ -61,14 +81,29 @@ export function DocUploadCenter() {
             copy[idx] = {
               fileName: file.name,
               status: "error",
-              error: data.error ?? `HTTP ${res.status}`,
+              error:
+                data.error ??
+                `HTTP ${res.status} — ${res.statusText || "unbekannter Fehler"}`,
             };
             return copy;
           });
           continue;
         }
 
-        const extracted = data.extracted as ExtractedDocument;
+        if (!data.extracted) {
+          setResults((r) => {
+            const copy = [...r];
+            copy[idx] = {
+              fileName: file.name,
+              status: "error",
+              error: "Antwort vom Server enthielt keine Daten.",
+            };
+            return copy;
+          });
+          continue;
+        }
+
+        const extracted = data.extracted;
         const personHint = bestimmePersonIdx(extracted, fullState);
         const initialPerson: PersonIdx =
           personHint === "unsicher" ? 1 : personHint;
@@ -91,12 +126,17 @@ export function DocUploadCenter() {
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        // "Failed to fetch" / "Load failed" = Netzwerk-Problem (Client→Server)
+        const istNetzwerk =
+          /failed to fetch|load failed|network/i.test(msg);
         setResults((r) => {
           const copy = [...r];
           copy[idx] = {
             fileName: file.name,
             status: "error",
-            error: msg,
+            error: istNetzwerk
+              ? `Netzwerk-Fehler: ${msg}. Tipp: PDF könnte zu lange dauern (Claude braucht 20–60 sec). Probiere ein kleineres Dokument oder prüfe deine Verbindung.`
+              : msg,
           };
           return copy;
         });
@@ -304,20 +344,47 @@ function ResultCard({
   }
 
   if (r.status === "error") {
+    const err = r.error ?? "";
+    const istApiKey = /ANTHROPIC_API_KEY|api[\s_-]?key/i.test(err);
+    const istZuGross = /zu gross|maximum|too large/i.test(err);
+    const istTimeout = /timeout|abort/i.test(err);
+    const istNetzwerk =
+      /netzwerk|failed to fetch|load failed/i.test(err) && !istApiKey;
     return (
       <li className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="font-semibold text-rose-700">{r.fileName}</div>
-            <div className="text-rose-600">{r.error}</div>
-            <div className="mt-1 text-rose-500/80">
-              Tipp: ANTHROPIC_API_KEY in .env.local und in Netlify-Env setzen.
-            </div>
+            <div className="break-words text-rose-600">{err}</div>
+            {istApiKey && (
+              <div className="mt-1 text-rose-500/80">
+                Tipp: ANTHROPIC_API_KEY in Netlify Site → Site configuration
+                → Environment variables setzen.
+              </div>
+            )}
+            {istZuGross && (
+              <div className="mt-1 text-rose-500/80">
+                Tipp: Dokument auf max. 10 MB komprimieren (z.B. mit
+                Vorschau → Exportieren → Quartz-Filter „Reduce File Size“).
+              </div>
+            )}
+            {istTimeout && (
+              <div className="mt-1 text-rose-500/80">
+                Tipp: PDF mit weniger Seiten oder einzelne Seiten als
+                Bild hochladen.
+              </div>
+            )}
+            {istNetzwerk && (
+              <div className="mt-1 text-rose-500/80">
+                Tipp: kurz warten und nochmals versuchen — Claude braucht
+                bei vollständigen PDFs 20–60 Sekunden.
+              </div>
+            )}
           </div>
           <button
             type="button"
             onClick={onRemove}
-            className="text-rose-700 hover:underline"
+            className="shrink-0 text-rose-700 hover:underline"
           >
             Entfernen
           </button>

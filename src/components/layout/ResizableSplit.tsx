@@ -92,9 +92,12 @@ export function ResizableSplit({ left, right, viewMode }: ResizableSplitProps) {
 
   // Single-Panel-Modi: nur Wizard oder nur Dashboard, jeweils volle Breite.
   if (viewMode === "wizard") {
+    // Breiter Container damit Block-Navigation links + Eingabe rechts in
+    // zwei Spalten Platz haben. Die Wizard-Komponente entscheidet selbst
+    // ob sie die zwei Spalten rendert (basierend auf View-Mode).
     return (
       <div className="h-full overflow-y-auto bg-white">
-        <div className="mx-auto max-w-3xl">{left}</div>
+        <div className="mx-auto max-w-6xl">{left}</div>
       </div>
     );
   }

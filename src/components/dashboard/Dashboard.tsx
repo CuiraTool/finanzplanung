@@ -10,7 +10,6 @@ import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { MassnahmenListe } from "./MassnahmenListe";
-import { SzenarioPanel } from "./SzenarioPanel";
 import { massnahmenAusState } from "@/engine/massnahmen";
 
 const PROJEKTIONS_END_ALTER = 85;
@@ -133,8 +132,6 @@ export function Dashboard() {
             : "Etappe 2 — Cashflow-Iteration"}
         </span>
       </header>
-
-      <SzenarioPanel />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <KpiCard
