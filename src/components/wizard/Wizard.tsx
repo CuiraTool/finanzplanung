@@ -9,6 +9,7 @@ import { DocUploadCenter } from "./DocUploadCenter";
 import { ImportPanel } from "./ImportPanel";
 import { SzenarioPanel } from "./SzenarioPanel";
 import { ActionPill } from "./ActionPill";
+import { ResizableNav } from "./ResizableNav";
 import { FlowRenderer } from "@/flow/FlowRenderer";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
@@ -150,19 +151,22 @@ export function Wizard() {
       )}
 
       {useTwoColumns ? (
-        <div className="grid grid-cols-[260px_1fr] gap-6">
-          <BlockNavigation
-            blocks={BLOCKS}
-            aktiverBlock={aktiverBlock}
-            setAktiverBlock={setAktiverBlock}
-            validation={validation}
-            sticky
-          />
-          <div className="space-y-6">
-            <ActiveBlock aktiverBlock={aktiverBlock} />
-            {aktiverBlock === 11 && <SzenarioPanel />}
-          </div>
-        </div>
+        <ResizableNav
+          left={
+            <BlockNavigation
+              blocks={BLOCKS}
+              aktiverBlock={aktiverBlock}
+              setAktiverBlock={setAktiverBlock}
+              validation={validation}
+            />
+          }
+          right={
+            <div className="space-y-6">
+              <ActiveBlock aktiverBlock={aktiverBlock} />
+              {aktiverBlock === 11 && <SzenarioPanel />}
+            </div>
+          }
+        />
       ) : (
         <>
           <BlockNavigation

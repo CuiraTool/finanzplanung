@@ -14,7 +14,7 @@ import { personLabel } from "@/lib/pension";
 import { Field } from "@/components/ui/Field";
 import { Section } from "@/components/ui/Section";
 import { inputClass, selectClass } from "@/components/ui/styles";
-import { GemeindeSelect } from "./GemeindeSelect";
+import { OrtKantonPicker } from "./OrtKantonPicker";
 
 const FALLARTEN: { value: Fallart; label: string }[] = [
   { value: "einzel", label: "Einzelperson" },
@@ -100,49 +100,40 @@ export function Block1Personen() {
               className={inputClass}
             />
           </Field>
-          <Field label="Ort">
-            <input
-              type="text"
+          <Field
+            label="Ort / Gemeinde *"
+            hint={
+              adresse.gemeindeBfsId
+                ? `Kanton ${adresse.kanton} · Steuerfuss exakt`
+                : "tippen → Gemeinde wählen → Kanton wird automatisch gesetzt"
+            }
+          >
+            <OrtKantonPicker
               value={adresse.ort}
-              onChange={(e) => setAdresse({ ort: e.target.value })}
-              placeholder="Zürich"
-              className={inputClass}
+              bfsId={adresse.gemeindeBfsId ?? null}
+              onChange={(patch) => setAdresse(patch)}
             />
           </Field>
         </div>
-        <Field label="Kanton *" hint="Pflichtfeld">
-          <select
-            value={adresse.kanton}
-            onChange={(e) =>
-              setAdresse({
-                kanton: e.target.value,
-                // Beim Kantonswechsel Gemeinde zurücksetzen → Hauptort wird genutzt
-                gemeindeBfsId: null,
-                gemeindeName: "",
-              })
-            }
-            className={selectClass}
-          >
-            <option value="">— Kanton wählen —</option>
-            {KANTONE.map((k) => (
-              <option key={k.code} value={k.code}>
-                {k.code} — {k.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {adresse.kanton && (
+        {/* Fallback: Wenn User Freitext-Ort behält und keine Gemeinde matcht,
+            kann er hier den Kanton manuell setzen. */}
+        {!adresse.gemeindeBfsId && (
           <Field
-            label="Gemeinde"
-            hint="optional — sonst Hauptort des Kantons"
+            label="Kanton (manuell)"
+            hint="nur falls Gemeinde nicht in der Liste — sonst automatisch"
           >
-            <GemeindeSelect
-              kanton={adresse.kanton}
-              bfsId={adresse.gemeindeBfsId ?? null}
-              onChange={(bfsId, name) =>
-                setAdresse({ gemeindeBfsId: bfsId, gemeindeName: name })
-              }
-            />
+            <select
+              value={adresse.kanton}
+              onChange={(e) => setAdresse({ kanton: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">— Kanton wählen —</option>
+              {KANTONE.map((k) => (
+                <option key={k.code} value={k.code}>
+                  {k.code} — {k.name}
+                </option>
+              ))}
+            </select>
           </Field>
         )}
       </Section>
