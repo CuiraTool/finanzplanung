@@ -14,7 +14,13 @@ import type { FlowAntworten } from "@/flow/types";
  * keine Setter-Funktionen (die kommen aus dem Store-Init). Berater-Meta wird
  * angezeigt aber nicht in den Store geschrieben.
  */
-export function ImportPanel() {
+interface ImportPanelProps {
+  /** Wenn gesetzt: Komponente ist immer offen, kein eigener Trigger,
+   *  Schließen ruft onClose auf. */
+  controlled?: { onClose: () => void };
+}
+
+export function ImportPanel({ controlled }: ImportPanelProps = {}) {
   const importState = usePlanStore((s) => s.importState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -23,6 +29,8 @@ export function ImportPanel() {
     type: "info" | "ok" | "error";
     msg: string;
   } | null>(null);
+  const isControlled = !!controlled;
+  const isOpen = isControlled || open;
 
   const handleFile = async (file: File) => {
     try {
@@ -69,10 +77,11 @@ export function ImportPanel() {
       msg: `Importiert: ${kunde} (von ${beraterName}, ${parsed.erfasstAm.slice(0, 10)})`,
     });
     setPasteText("");
-    setOpen(false);
+    if (controlled) controlled.onClose();
+    else setOpen(false);
   };
 
-  if (!open) {
+  if (!isOpen) {
     return (
       <button
         type="button"
@@ -101,7 +110,10 @@ export function ImportPanel() {
         </div>
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            if (controlled) controlled.onClose();
+            else setOpen(false);
+          }}
           className="text-xs text-slate-500 hover:underline"
         >
           Schliessen

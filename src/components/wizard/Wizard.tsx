@@ -8,6 +8,7 @@ import { Block1Personen } from "./Block1Personen";
 import { DocUploadCenter } from "./DocUploadCenter";
 import { ImportPanel } from "./ImportPanel";
 import { SzenarioPanel } from "./SzenarioPanel";
+import { ActionPill } from "./ActionPill";
 import { FlowRenderer } from "@/flow/FlowRenderer";
 import { Block2Wuensche } from "./Block2Wuensche";
 import { Block3Budget } from "./Block3Budget";
@@ -56,6 +57,8 @@ export function Wizard() {
   const fullState = usePlanStore();
   const [mode, setMode] = useState<WizardMode>("klassisch");
   const [viewMode] = useViewMode();
+  const [docOpen, setDocOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Im "wizard-only"-View-Modus haben wir die volle Breite und können die
   // Block-Liste links / Eingabe rechts stellen. In Split bleibt's vertikal.
@@ -94,31 +97,48 @@ export function Wizard() {
 
   return (
     <div className="p-6">
-      <header className="mb-6 flex items-start justify-between gap-3">
+      <header className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div>
           <h1 className="text-xl font-semibold">Pensionsplanung</h1>
           <p className="text-sm text-slate-500">Eingabe</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setMode("flow")}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-slate-400 hover:bg-slate-50"
-          title="Geführter Frage-für-Frage-Flow nach Cuira-Spec"
-        >
-          Geführter Flow →
-        </button>
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+          <ActionPill
+            icon="📄"
+            label="Dokumente hochladen"
+            active={docOpen}
+            caret="down"
+            onClick={() => setDocOpen((o) => !o)}
+            title="PK-Ausweis, Steuererklärung, IK-Auszug — Felder werden automatisch ausgefüllt"
+          />
+          <ActionPill
+            icon="✨"
+            label="Geführter Flow"
+            caret="right"
+            onClick={() => setMode("flow")}
+            title="Frage-für-Frage-Modus für die Beratung mit dem Kunden"
+          />
+          <ActionPill
+            icon="⬇"
+            label="Daten importieren"
+            active={importOpen}
+            caret="down"
+            onClick={() => setImportOpen((o) => !o)}
+            title="JSON aus V2-Erfassung (Berater-Email) ins Tool laden"
+          />
+        </div>
       </header>
 
-      <DocUploadCenter />
-
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="text-xs text-slate-500">
-          💡 <strong className="text-slate-700">Geführter Flow</strong> für die
-          Beratung, <strong className="text-slate-700">klassisch</strong> für
-          die schnelle Eingabe nach dem Termin.
-        </div>
-        <ImportPanel />
-      </div>
+      {docOpen && (
+        <DocUploadCenter
+          controlled={{ onClose: () => setDocOpen(false) }}
+        />
+      )}
+      {importOpen && (
+        <ImportPanel
+          controlled={{ onClose: () => setImportOpen(false) }}
+        />
+      )}
 
       {!validation.komplett && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

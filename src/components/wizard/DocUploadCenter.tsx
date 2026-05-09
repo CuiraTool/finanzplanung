@@ -24,16 +24,27 @@ interface UploadResult {
   error?: string;
 }
 
-export function DocUploadCenter() {
+interface DocUploadCenterProps {
+  /**
+   * Wenn gesetzt: Komponente wird "controlled" — kein eigener Trigger-Pill
+   * gerendert, immer expanded, Schließen ruft onClose auf.
+   * Wenn nicht: bisheriges Verhalten (eigener kompakter Trigger + interner
+   * Toggle).
+   */
+  controlled?: { onClose: () => void };
+}
+
+export function DocUploadCenter({ controlled }: DocUploadCenterProps = {}) {
   const fullState = usePlanStore();
   const [results, setResults] = useState<UploadResult[]>([]);
   const [drag, setDrag] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Wenn Ergebnisse vorhanden sind, soll die Drop-Zone offen bleiben
-  // (sonst würde man die Vorschläge nicht sehen).
-  const showFull = expanded || results.length > 0 || drag;
+  // Controlled-Mode: immer "voll" anzeigen, kein interner Trigger
+  const isControlled = !!controlled;
+  const showFull =
+    isControlled || expanded || results.length > 0 || drag;
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -208,8 +219,8 @@ export function DocUploadCenter() {
     />
   );
 
-  // Kompakter Trigger — Default-Zustand. Eine Zeile.
-  if (!showFull) {
+  // Kompakter Trigger — nur in nicht-controlled-Mode rendern
+  if (!isControlled && !showFull) {
     return (
       <div className="mb-4">
         <button
@@ -280,7 +291,8 @@ export function DocUploadCenter() {
                 title="Einklappen"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setExpanded(false);
+                  if (controlled) controlled.onClose();
+                  else setExpanded(false);
                 }}
                 className="rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-500 hover:bg-slate-50"
               >
