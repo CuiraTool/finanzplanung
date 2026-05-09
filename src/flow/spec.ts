@@ -1,18 +1,29 @@
 /**
- * Frage-Spec für den geführten Frage-Flow.
+ * Frage-Spec für den geführten Frage-Flow (Cuira-Typeform).
  *
- * Mapping zur Word-Doc "Pensionsplanung_Typeform_Optimierung":
- * - Block A wird in V2-Route separat als Berater-Onboarding behandelt
- *   (hier nicht enthalten, weil nicht ins PlanState mappt).
- * - Block S (Abschluss/DSG) wird in V2-Route separat behandelt.
- * - Alle anderen Blöcke B–R sind hier abgebildet.
+ * Reihenfolge nach Word-Doc Pensionsplanung_Typeform_Optimierung:
+ *   A → B → C → C' → D → E → F → G → H → I → J → K → L → M → N → O → P → Q → R
  *
- * Die Spec deckt den essenziellen Frage-Katalog ab. Detail-Blöcke
- * (z.B. mehrere Liegenschaften, mehrere FZ-Konten) werden im klassischen
- * Wizard verfeinert — der Flow erfasst pro Block die Aggregat-/Schlüsselzahlen.
+ * Block-Mapping zum klassischen Wizard (1-10):
+ *   Wizard 1 = A + B (Personen, Adresse, Kinder)
+ *   Wizard 2 = C + D (Pensionierung, Wünsche)
+ *   Wizard 3 = H/H1 (Einkommen, Sparquote, Verbrauch)
+ *   Wizard 4 = E (AHV)
+ *   Wizard 5 = F (PK)
+ *   Wizard 6 = G (3a/3b)
+ *   Wizard 7 = H/Vermögen (Liquidität, Wertschriften, Schulden)
+ *   Wizard 8 = I+J+K (Immobilien)
+ *   Wizard 9 = L (Firma)
+ *   Wizard 10 = N+Q (Erbschaft + Nachlassdokumente)
+ *
+ * - Block A wird in V2 separat als Berater-Onboarding behandelt
+ * - Block S (Abschluss/DSG) wird in V2-Route separat behandelt
+ * - Detail-Eingaben (Hypothek-Tranchen, mehrere FZ-Konten, etc.) bleiben
+ *   im klassischen Wizard. Hier nur Y/N + Schlüsselzahlen.
  */
 
 import { KANTONE } from "@/lib/store";
+import type { Kind } from "@/lib/store";
 import type { QuestionSpec } from "./types";
 
 const PRIORITAET_OPTIONEN = [
@@ -38,8 +49,46 @@ const ANLAGEFORM_OPTIONEN = [
   { value: "keine", label: "Keine" },
 ];
 
+/** Helper: Lohnsumme aktualisieren — beide Personen → budget.einkommenHeute. */
+function updateHaushaltseinkommen(s: {
+  ahv: { einkommenP1: number | null; einkommenP2: number | null };
+  budget: { einkommenHeute: number | null };
+}): void {
+  const p1 = s.ahv.einkommenP1 ?? 0;
+  const p2 = s.ahv.einkommenP2 ?? 0;
+  const sum = p1 + p2;
+  s.budget.einkommenHeute = sum > 0 ? sum : null;
+}
+
+/** Helper: kinder-Array auf gewünschte Länge bringen (B5). */
+function setKinderAnzahl(
+  s: { kinder: Kind[]; fallart: "einzel" | "paar" },
+  anzahl: number
+): void {
+  const ziel = Math.max(0, Math.min(10, Math.floor(anzahl)));
+  if (ziel === 0) {
+    s.kinder = [];
+    return;
+  }
+  const aktuell = s.kinder.length;
+  if (ziel > aktuell) {
+    const neue: Kind[] = [];
+    for (let i = aktuell; i < ziel; i++) {
+      neue.push({
+        id: `flow-${Date.now()}-${i}`,
+        vorname: "",
+        geburtsdatum: "",
+        zuordnung: s.fallart === "paar" ? "gemeinsam" : "p1",
+      });
+    }
+    s.kinder = [...s.kinder, ...neue];
+  } else if (ziel < aktuell) {
+    s.kinder = s.kinder.slice(0, ziel);
+  }
+}
+
 export const QUESTIONS: QuestionSpec[] = [
-  // ─── Block A6 — Fallart (steuert alle Paar-Konditionen) ───
+  // ═══ Auftakt — A6 (Fallart steuert alles weitere) ═══
   {
     id: "A6",
     block: "A",
@@ -58,19 +107,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block B — Zivilstand & Familie ───
-  {
-    id: "B1",
-    block: "B",
-    blockTitle: "Familie",
-    frage: "Geburtsdatum Person 1",
-    type: "date",
-    pflicht: true,
-    get: (s) => s.person1.geburtsdatum,
-    set: (s, v) => {
-      s.person1.geburtsdatum = (v as string) ?? "";
-    },
-  },
+  // ═══ Block B — Zivilstand & Familie ═══
   {
     id: "B0_p1_name",
     block: "B",
@@ -84,6 +121,18 @@ export const QUESTIONS: QuestionSpec[] = [
       const parts = ((v as string) ?? "").trim().split(/\s+/);
       s.person1.vorname = parts[0] ?? "";
       s.person1.nachname = parts.slice(1).join(" ");
+    },
+  },
+  {
+    id: "B1",
+    block: "B",
+    blockTitle: "Familie",
+    frage: "Geburtsdatum Person 1",
+    type: "date",
+    pflicht: true,
+    get: (s) => s.person1.geburtsdatum,
+    set: (s, v) => {
+      s.person1.geburtsdatum = (v as string) ?? "";
     },
   },
   {
@@ -153,11 +202,15 @@ export const QUESTIONS: QuestionSpec[] = [
     id: "B5",
     block: "B",
     blockTitle: "Familie",
-    frage: "Haben Sie Kinder?",
-    type: "yesno",
-    get: (s) => s.kinder.length > 0,
-    set: () => {
-      // No-op: tatsächliche Erfassung passiert im Wizard, hier nur Indikation
+    frage: "Wie viele Kinder?",
+    hilfe:
+      "0 = keine Kinder. Detail-Erfassung (Name, Geburtsjahr) im klassischen Wizard nach dem Flow.",
+    type: "number",
+    min: 0,
+    max: 10,
+    get: (s) => s.kinder.length,
+    set: (s, v) => {
+      setKinderAnzahl(s, (v as number) ?? 0);
     },
   },
   {
@@ -186,7 +239,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block C — Pensionierung Person 1 ───
+  // ═══ Block C — Pensionierungsszenario Person 1 ═══
   {
     id: "C2_p1",
     block: "C",
@@ -203,7 +256,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block C' — Pensionierung Person 2 ───
+  // ═══ Block C' — Pensionierungsszenario Person 2 ═══
   {
     id: "C2_p2",
     block: "C'",
@@ -221,7 +274,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block D — Zielverbrauch & Wünsche ───
+  // ═══ Block D — Zielverbrauch & Wünsche ═══
   {
     id: "D1",
     block: "D",
@@ -249,32 +302,149 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block H — Einkommen, Liquidität, Vermögen ───
+  // ═══ Block E — 1. Säule (AHV) ═══
   {
-    id: "H1",
-    block: "H",
-    blockTitle: "Einkommen & Vermögen",
-    frage: "Aktuelles Brutto-Haushaltseinkommen pro Jahr",
-    hilfe: "Summe Lohn beider Personen + sonstige Einkommen",
-    type: "number",
-    pflicht: true,
-    suffix: "CHF / Jahr",
-    get: (s) => s.budget.einkommenHeute,
+    id: "E1_p1",
+    block: "E",
+    blockTitle: "1. Säule (AHV)",
+    frage: "Aktueller IK-Auszug für Person 1 vorhanden?",
+    type: "yesno",
+    get: (s) => s.ahv.hatIkAuszugP1,
     set: (s, v) => {
-      s.budget.einkommenHeute = v as number | null;
+      s.ahv.hatIkAuszugP1 = v as boolean;
+    },
+  },
+
+  // ═══ Block F — 2. Säule (Pensionskasse) ═══
+  {
+    id: "F1",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Hat Person 1 einen aktiven PK-Anschluss?",
+    type: "yesno",
+    get: (s) => s.bvg.p1.aktiverAnschluss,
+    set: (s, v) => {
+      s.bvg.p1.aktiverAnschluss = v as boolean;
     },
   },
   {
-    id: "O4",
-    block: "O",
-    blockTitle: "Steuern & Wohnort",
-    frage: "Aktuelle jährliche Steuerbelastung (laut letzter Veranlagung)",
-    hilfe: "Optional, aber hilft fürs Anker-Modell",
+    id: "F3",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Aktuelles PK-Altersguthaben Person 1 (laut Ausweis)",
     type: "number",
-    suffix: "CHF / Jahr",
-    get: (s) => s.budget.steuernHeute,
+    bedingung: (s) => s.bvg.p1.aktiverAnschluss,
+    suffix: "CHF",
+    get: (s) => s.bvg.p1.altersguthabenHeute,
     set: (s, v) => {
-      s.budget.steuernHeute = v as number | null;
+      s.bvg.p1.altersguthabenHeute = v as number | null;
+    },
+  },
+  {
+    id: "F14",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Bezugspräferenz Person 1: Rente, Kapital oder Mischlösung?",
+    type: "single",
+    bedingung: (s) => s.bvg.p1.aktiverAnschluss,
+    optionen: [
+      { value: "rente", label: "Rente" },
+      { value: "kapital", label: "Kapital" },
+      { value: "mischung", label: "Mischlösung" },
+    ],
+    get: (s) => s.bvg.p1.bezugspraeferenz,
+    set: (s, v) => {
+      s.bvg.p1.bezugspraeferenz = v as typeof s.bvg.p1.bezugspraeferenz;
+    },
+  },
+  {
+    id: "F2",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Hat Person 2 einen aktiven PK-Anschluss?",
+    type: "yesno",
+    bedingung: (s) => s.fallart === "paar",
+    get: (s) => s.bvg.p2.aktiverAnschluss,
+    set: (s, v) => {
+      s.bvg.p2.aktiverAnschluss = v as boolean;
+    },
+  },
+  {
+    id: "F4",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Aktuelles PK-Altersguthaben Person 2",
+    type: "number",
+    bedingung: (s) => s.fallart === "paar" && s.bvg.p2.aktiverAnschluss,
+    suffix: "CHF",
+    get: (s) => s.bvg.p2.altersguthabenHeute,
+    set: (s, v) => {
+      s.bvg.p2.altersguthabenHeute = v as number | null;
+    },
+  },
+  {
+    id: "F16",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Bezugspräferenz Person 2: Rente, Kapital oder Mischlösung?",
+    type: "single",
+    bedingung: (s) => s.fallart === "paar" && s.bvg.p2.aktiverAnschluss,
+    optionen: [
+      { value: "rente", label: "Rente" },
+      { value: "kapital", label: "Kapital" },
+      { value: "mischung", label: "Mischlösung" },
+    ],
+    get: (s) => s.bvg.p2.bezugspraeferenz,
+    set: (s, v) => {
+      s.bvg.p2.bezugspraeferenz = v as typeof s.bvg.p2.bezugspraeferenz;
+    },
+  },
+
+  // ═══ Block G — 3. Säule ═══
+  {
+    id: "G1_p1",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Hat Person 1 eine 3a-Säule (Bank, Versicherung)?",
+    hilfe:
+      "Detail-Erfassung (Anbieter, Saldo, Auszahlung) im klassischen Wizard nach dem Flow.",
+    type: "yesno",
+    get: (s) => s.saeuleDrei.p1.length > 0,
+    set: () => {
+      // No-op: tatsächliche Erfassung im Wizard, hier nur Indikation
+    },
+  },
+
+  // ═══ Block H — Einkommen & Vermögen ═══
+  {
+    id: "H1_p1",
+    block: "H",
+    blockTitle: "Einkommen & Vermögen",
+    frage: "Brutto-Jahreslohn Person 1",
+    hilfe: "Aktueller Lohn vor Sozialabzügen, ohne Bonus/Variable",
+    type: "number",
+    pflicht: true,
+    suffix: "CHF / Jahr",
+    get: (s) => s.ahv.einkommenP1,
+    set: (s, v) => {
+      s.ahv.einkommenP1 = v as number | null;
+      updateHaushaltseinkommen(s);
+    },
+  },
+  {
+    id: "H1_p2",
+    block: "H",
+    blockTitle: "Einkommen & Vermögen",
+    frage: "Brutto-Jahreslohn Person 2",
+    hilfe: "Aktueller Lohn vor Sozialabzügen, ohne Bonus/Variable",
+    type: "number",
+    pflicht: true,
+    bedingung: (s) => s.fallart === "paar",
+    suffix: "CHF / Jahr",
+    get: (s) => s.ahv.einkommenP2,
+    set: (s, v) => {
+      s.ahv.einkommenP2 = v as number | null;
+      updateHaushaltseinkommen(s);
     },
   },
   {
@@ -314,146 +484,48 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block O — Wohnort & Steuern ───
-  {
-    id: "O1",
-    block: "O",
-    blockTitle: "Steuern & Wohnort",
-    frage: "Aktueller Wohnkanton",
-    type: "kanton",
-    pflicht: true,
-    optionen: KANTONE.map((k) => ({ value: k.code, label: k.name })),
-    get: (s) => s.adresse.kanton,
-    set: (s, v) => {
-      s.adresse.kanton = (v as string) ?? "";
-    },
-  },
-  {
-    id: "O2",
-    block: "O",
-    blockTitle: "Steuern & Wohnort",
-    frage: "Umzug/Kantonswechsel vor oder in der Pension geplant?",
-    type: "single",
-    optionen: [
-      { value: "ja", label: "Ja, geplant" },
-      { value: "moeglich", label: "Möglich" },
-      { value: "nein", label: "Nein" },
-    ],
-    get: (s) => s.wohnortPlan.umzugStatus,
-    set: (s, v) => {
-      s.wohnortPlan.umzugStatus = v as typeof s.wohnortPlan.umzugStatus;
-    },
-  },
-  {
-    id: "O3",
-    block: "O",
-    blockTitle: "Steuern & Wohnort",
-    frage: "Ziel (Kanton, Gemeinde oder Land)",
-    type: "text",
-    bedingung: (s) =>
-      s.wohnortPlan.umzugStatus === "ja" ||
-      s.wohnortPlan.umzugStatus === "moeglich",
-    get: (s) => s.wohnortPlan.umzugZiel,
-    set: (s, v) => {
-      s.wohnortPlan.umzugZiel = (v as string) ?? "";
-    },
-  },
-
-  // ─── Block E — AHV ───
-  {
-    id: "E1_p1",
-    block: "E",
-    blockTitle: "1. Säule (AHV)",
-    frage: "Aktueller IK-Auszug für Person 1 vorhanden?",
-    type: "yesno",
-    get: (s) => s.ahv.hatIkAuszugP1,
-    set: (s, v) => {
-      s.ahv.hatIkAuszugP1 = v as boolean;
-    },
-  },
-
-  // ─── Block F — Pensionskasse ───
-  {
-    id: "F1",
-    block: "F",
-    blockTitle: "2. Säule (Pensionskasse)",
-    frage: "Hat Person 1 einen aktiven PK-Anschluss?",
-    type: "yesno",
-    get: (s) => s.bvg.p1.aktiverAnschluss,
-    set: (s, v) => {
-      s.bvg.p1.aktiverAnschluss = v as boolean;
-    },
-  },
-  {
-    id: "F3",
-    block: "F",
-    blockTitle: "2. Säule (Pensionskasse)",
-    frage: "Aktuelles PK-Altersguthaben Person 1 (laut Ausweis)",
-    type: "number",
-    bedingung: (s) => s.bvg.p1.aktiverAnschluss,
-    suffix: "CHF",
-    get: (s) => s.bvg.p1.altersguthabenHeute,
-    set: (s, v) => {
-      s.bvg.p1.altersguthabenHeute = v as number | null;
-    },
-  },
-  {
-    id: "F2",
-    block: "F",
-    blockTitle: "2. Säule (Pensionskasse)",
-    frage: "Hat Person 2 einen aktiven PK-Anschluss?",
-    type: "yesno",
-    bedingung: (s) => s.fallart === "paar",
-    get: (s) => s.bvg.p2.aktiverAnschluss,
-    set: (s, v) => {
-      s.bvg.p2.aktiverAnschluss = v as boolean;
-    },
-  },
-  {
-    id: "F4",
-    block: "F",
-    blockTitle: "2. Säule (Pensionskasse)",
-    frage: "Aktuelles PK-Altersguthaben Person 2",
-    type: "number",
-    bedingung: (s) => s.fallart === "paar" && s.bvg.p2.aktiverAnschluss,
-    suffix: "CHF",
-    get: (s) => s.bvg.p2.altersguthabenHeute,
-    set: (s, v) => {
-      s.bvg.p2.altersguthabenHeute = v as number | null;
-    },
-  },
-  {
-    id: "F14",
-    block: "F",
-    blockTitle: "2. Säule (Pensionskasse)",
-    frage: "Bezugspräferenz Person 1: Rente, Kapital oder Mischlösung?",
-    type: "single",
-    bedingung: (s) => s.bvg.p1.aktiverAnschluss,
-    optionen: [
-      { value: "rente", label: "Rente" },
-      { value: "kapital", label: "Kapital" },
-      { value: "mischung", label: "Mischlösung" },
-    ],
-    get: (s) => s.bvg.p1.bezugspraeferenz,
-    set: (s, v) => {
-      s.bvg.p1.bezugspraeferenz = v as typeof s.bvg.p1.bezugspraeferenz;
-    },
-  },
-
-  // ─── Block I — Eigenheim (selbstbewohnt) ───
+  // ═══ Block I — Eigenheim ═══
   {
     id: "I0",
     block: "I",
     blockTitle: "Eigenheim",
     frage: "Sind Sie Eigenheim­besitzer?",
+    hilfe: "Detail-Erfassung (Wert, Hypothek) im klassischen Wizard nach dem Flow.",
     type: "yesno",
     get: (s) => s.immobilien.items.some((i) => i.typ === "selbstbewohnt"),
     set: () => {
-      // No-op: Detail-Erfassung im klassischen Wizard
+      // No-op
     },
   },
 
-  // ─── Block L — Firma ───
+  // ═══ Block J — Ferienliegenschaft ═══
+  {
+    id: "J0",
+    block: "J",
+    blockTitle: "Ferienliegenschaft",
+    frage: "Ferienliegenschaft vorhanden?",
+    type: "yesno",
+    get: (s) =>
+      s.immobilien.items.filter((i) => i.typ === "selbstbewohnt").length > 1,
+    set: () => {
+      // No-op (Wizard-Detail)
+    },
+  },
+
+  // ═══ Block K — Renditeliegenschaft ═══
+  {
+    id: "K0",
+    block: "K",
+    blockTitle: "Renditeliegenschaft",
+    frage: "Renditeliegenschaft(en) vorhanden?",
+    type: "yesno",
+    get: (s) => s.immobilien.items.some((i) => i.typ === "rendite"),
+    set: () => {
+      // No-op (Wizard-Detail)
+    },
+  },
+
+  // ═══ Block L — Firma / Selbständigkeit ═══
   {
     id: "L0",
     block: "L",
@@ -497,7 +569,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block M — Anlagen ───
+  // ═══ Block M — Anlagen ═══
   {
     id: "M1",
     block: "M",
@@ -574,7 +646,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block N — Erbschaft & Güterrecht ───
+  // ═══ Block N — Erbschaft, Schenkung & Güterrecht ═══
   {
     id: "N1",
     block: "N",
@@ -656,7 +728,52 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block P — Versicherungen ───
+  // ═══ Block O — Steuern & Wohnort ═══
+  {
+    id: "O1",
+    block: "O",
+    blockTitle: "Steuern & Wohnort",
+    frage: "Aktueller Wohnkanton",
+    type: "kanton",
+    pflicht: true,
+    optionen: KANTONE.map((k) => ({ value: k.code, label: k.name })),
+    get: (s) => s.adresse.kanton,
+    set: (s, v) => {
+      s.adresse.kanton = (v as string) ?? "";
+    },
+  },
+  {
+    id: "O2",
+    block: "O",
+    blockTitle: "Steuern & Wohnort",
+    frage: "Umzug/Kantonswechsel vor oder in der Pension geplant?",
+    type: "single",
+    optionen: [
+      { value: "ja", label: "Ja, geplant" },
+      { value: "moeglich", label: "Möglich" },
+      { value: "nein", label: "Nein" },
+    ],
+    get: (s) => s.wohnortPlan.umzugStatus,
+    set: (s, v) => {
+      s.wohnortPlan.umzugStatus = v as typeof s.wohnortPlan.umzugStatus;
+    },
+  },
+  {
+    id: "O3",
+    block: "O",
+    blockTitle: "Steuern & Wohnort",
+    frage: "Ziel (Kanton, Gemeinde oder Land)",
+    type: "text",
+    bedingung: (s) =>
+      s.wohnortPlan.umzugStatus === "ja" ||
+      s.wohnortPlan.umzugStatus === "moeglich",
+    get: (s) => s.wohnortPlan.umzugZiel,
+    set: (s, v) => {
+      s.wohnortPlan.umzugZiel = (v as string) ?? "";
+    },
+  },
+
+  // ═══ Block P — Versicherungen ═══
   {
     id: "P1",
     block: "P",
@@ -704,7 +821,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block Q — Vorsorge-/Nachlassdokumente ───
+  // ═══ Block Q — Vorsorge-/Nachlassdokumente ═══
   {
     id: "Q1",
     block: "Q",
@@ -752,7 +869,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ─── Block R — Prioritäten ───
+  // ═══ Block R — Prioritäten & offene Anliegen ═══
   {
     id: "R1",
     block: "R",
