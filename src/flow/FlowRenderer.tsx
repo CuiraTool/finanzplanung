@@ -112,7 +112,7 @@ export function FlowRenderer({ onComplete, mode = "pro" }: Props) {
       {/* Question */}
       <div className="flex-1">
         <h2 className="mb-3 text-2xl font-semibold leading-tight text-slate-900 sm:text-[28px]">
-          {aktuelle.frage}
+          {personalisiereFrage(aktuelle, fullState)}
           {aktuelle.pflicht && (
             <span className="ml-1 align-top text-lg text-[var(--color-cuira-deep)]">
               *
@@ -121,7 +121,7 @@ export function FlowRenderer({ onComplete, mode = "pro" }: Props) {
         </h2>
         {aktuelle.hilfe && (
           <p className="mb-8 text-sm leading-relaxed text-slate-500">
-            {aktuelle.hilfe}
+            {personalisiereText(aktuelle.hilfe, fullState)}
           </p>
         )}
 
@@ -458,6 +458,32 @@ function MultiSelect({
       )}
     </div>
   );
+}
+
+/**
+ * Personalisiert eine Frage abhängig von fallart und erfassten Vornamen.
+ *  - einzel + frageEinzel definiert: nimmt frageEinzel (Sie-Form)
+ *  - sonst: nimmt frage und ersetzt "Person 1"/"Person 2" durch Vornamen
+ *    falls vorhanden.
+ */
+function personalisiereFrage(spec: QuestionSpec, state: PlanState): string {
+  if (state.fallart === "einzel" && spec.frageEinzel) {
+    return personalisiereText(spec.frageEinzel, state);
+  }
+  return personalisiereText(spec.frage, state);
+}
+
+/**
+ * Ersetzt "Person 1" und "Person 2" durch die erfassten Vornamen — falls
+ * vorhanden. Ist Vorname leer, bleibt "Person 1"/"Person 2" stehen.
+ */
+function personalisiereText(text: string, state: PlanState): string {
+  let r = text;
+  const v1 = state.person1.vorname.trim();
+  const v2 = state.person2.vorname.trim();
+  if (v1) r = r.replace(/\bPerson 1\b/g, v1);
+  if (state.fallart === "paar" && v2) r = r.replace(/\bPerson 2\b/g, v2);
+  return r;
 }
 
 // Hilfsexport für Tests / Imports

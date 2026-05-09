@@ -46,6 +46,12 @@ export interface QuestionSpec {
   blockTitle: string;
   /** Frage-Text (kann Markdown-light haben — bold via **text**). */
   frage: string;
+  /**
+   * Optional: alternative Frage für fallart="einzel" (Sie-Form statt
+   * "Person 1"). Wenn nicht gesetzt, wird `frage` verwendet (mit
+   * Vorname-Replacement durch den Renderer).
+   */
+  frageEinzel?: string;
   /** Sub-Hinweis unter der Frage. */
   hilfe?: string;
   type: FieldType;
