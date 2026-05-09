@@ -10,7 +10,9 @@ import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { MassnahmenListe } from "./MassnahmenListe";
+import { InflationToggle } from "./InflationToggle";
 import { massnahmenAusState } from "@/engine/massnahmen";
+import { useInflation, deflationiereReihe } from "@/lib/inflation";
 
 const PROJEKTIONS_END_ALTER = 85;
 
@@ -77,17 +79,43 @@ export function Dashboard() {
     return Math.max(j1 ?? 0, j2 ?? 0) || heutigesJahr + 30;
   }, [fallart, person1.geburtsdatum, person2.geburtsdatum, heutigesJahr]);
 
-  const cashflowA = useMemo(
+  const cashflowARaw = useMemo(
     () => cashflowReihe(cashflowState, heutigesJahr, endJahr),
     [cashflowState, heutigesJahr, endJahr]
   );
 
   // Variante B: zweite Cashflow-Reihe mit Overrides
-  const cashflowB = useMemo(() => {
+  const cashflowBRaw = useMemo(() => {
     if (!szenarioB.aktiv) return null;
     const stateB = applyOverrides(cashflowState, szenarioB.overrides);
     return cashflowReihe(stateB, heutigesJahr, endJahr);
   }, [cashflowState, szenarioB.aktiv, szenarioB.overrides, heutigesJahr, endJahr]);
+
+  // Inflation: kaufkraftbereinigte Werte für die Anzeige (Toggle im Header)
+  const { enabled: inflationEnabled, rateProzent: inflationRate } =
+    useInflation();
+  const cashflowA = useMemo(
+    () =>
+      deflationiereReihe(
+        cashflowARaw,
+        heutigesJahr,
+        inflationRate,
+        inflationEnabled
+      ),
+    [cashflowARaw, heutigesJahr, inflationRate, inflationEnabled]
+  );
+  const cashflowB = useMemo(
+    () =>
+      cashflowBRaw
+        ? deflationiereReihe(
+            cashflowBRaw,
+            heutigesJahr,
+            inflationRate,
+            inflationEnabled
+          )
+        : null,
+    [cashflowBRaw, heutigesJahr, inflationRate, inflationEnabled]
+  );
 
   const fullState = usePlanStore();
   const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
@@ -120,20 +148,29 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-[var(--color-cuira-deep)]">
             Live-Dashboard
           </h2>
           <p className="text-xs text-slate-400">
             Aktualisiert sich auf jede Eingabe in Echtzeit
+            {inflationEnabled && (
+              <span className="ml-2 text-[var(--color-cuira-deep)]">
+                · in heutiger Kaufkraft ({inflationRate.toFixed(1)} % Inflation
+                p.a.)
+              </span>
+            )}
           </p>
         </div>
-        <span className="text-xs text-slate-400">
-          {cashflowA.length > 0
-            ? `${heutigesJahr}–${endJahr} (${cashflowA.length} Jahre)`
-            : "Etappe 2 — Cashflow-Iteration"}
-        </span>
+        <div className="flex items-center gap-3">
+          <InflationToggle />
+          <span className="text-xs text-slate-400">
+            {cashflowA.length > 0
+              ? `${heutigesJahr}–${endJahr} (${cashflowA.length} Jahre)`
+              : "Etappe 2 — Cashflow-Iteration"}
+          </span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
