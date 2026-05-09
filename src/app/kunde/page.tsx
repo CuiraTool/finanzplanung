@@ -193,8 +193,15 @@ function ErgebnisScreen({ onBack }: { onBack: () => void }) {
             zum Fragebogen gehen und etwas ändern.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <InflationToggle />
+          <button
+            type="button"
+            onClick={() => window.open("/print", "_blank")}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            📄 PDF
+          </button>
           <button
             type="button"
             onClick={onBack}
