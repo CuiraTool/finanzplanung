@@ -282,8 +282,10 @@ export function cashflowReihe(
       vermoegenJahr: vermoegenJahresanfang,
       kapAuszahlungenJahr: kapAuszahlungen,
       kanton: state.adresse.kanton,
+      bfsId: state.adresse.gemeindeBfsId ?? undefined,
       religion: state.budget.religion,
       fallart: state.fallart,
+      jahr: jahr <= 2025 ? 2025 : 2026,
       ankerSteuernHeute: state.budget.steuernHeute,
       ankerEinkommenHeute: state.budget.einkommenHeute,
     });

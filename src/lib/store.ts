@@ -53,6 +53,10 @@ export interface Adresse {
   plz: string;
   ort: string;
   kanton: string;
+  /** BfsID der Gemeinde (für genauen Steuerfuss). Optional — Fallback Hauptort. */
+  gemeindeBfsId?: number | null;
+  /** Gemeindename für UI-Anzeige (cosmetic, BfsID ist die Wahrheit). */
+  gemeindeName?: string;
 }
 
 export type KindZuordnung = "gemeinsam" | "p1" | "p2";
@@ -446,6 +450,8 @@ const initialAdresse: Adresse = {
   plz: "",
   ort: "",
   kanton: "",
+  gemeindeBfsId: null,
+  gemeindeName: "",
 };
 
 const initialZiele: ZieleWuensche = {
@@ -987,7 +993,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v20",
+      name: "cuira-plan-v22",
     }
   )
 );

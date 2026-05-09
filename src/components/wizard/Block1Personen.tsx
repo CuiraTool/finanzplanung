@@ -14,6 +14,7 @@ import { personLabel } from "@/lib/pension";
 import { Field } from "@/components/ui/Field";
 import { Section } from "@/components/ui/Section";
 import { inputClass, selectClass } from "@/components/ui/styles";
+import { GemeindeSelect } from "./GemeindeSelect";
 
 const FALLARTEN: { value: Fallart; label: string }[] = [
   { value: "einzel", label: "Einzelperson" },
@@ -112,7 +113,14 @@ export function Block1Personen() {
         <Field label="Kanton *" hint="Pflichtfeld">
           <select
             value={adresse.kanton}
-            onChange={(e) => setAdresse({ kanton: e.target.value })}
+            onChange={(e) =>
+              setAdresse({
+                kanton: e.target.value,
+                // Beim Kantonswechsel Gemeinde zurücksetzen → Hauptort wird genutzt
+                gemeindeBfsId: null,
+                gemeindeName: "",
+              })
+            }
             className={selectClass}
           >
             <option value="">— Kanton wählen —</option>
@@ -123,6 +131,20 @@ export function Block1Personen() {
             ))}
           </select>
         </Field>
+        {adresse.kanton && (
+          <Field
+            label="Gemeinde"
+            hint="optional — sonst Hauptort des Kantons"
+          >
+            <GemeindeSelect
+              kanton={adresse.kanton}
+              bfsId={adresse.gemeindeBfsId ?? null}
+              onChange={(bfsId, name) =>
+                setAdresse({ gemeindeBfsId: bfsId, gemeindeName: name })
+              }
+            />
+          </Field>
+        )}
       </Section>
 
       {/* Person 1 (oder einzelne Person) */}
