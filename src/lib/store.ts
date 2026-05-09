@@ -298,11 +298,15 @@ export type Gueterstand =
   | "guetergemeinschaft"
   | "weiss_nicht";
 
+/** Status für Schenkungen / Erbvorbezüge an Kinder. */
+export type SchenkungenStatus = "getaetigt" | "geplant" | "nein";
+
 /** Block N — Erbschaft, Schenkung, Güterrecht. */
 export interface ErbschaftInput {
   erwartet: ErbschaftStatus | null;
   groessenordnung: ErbschaftGroesse | null;
-  schenkungenGetaetigt: boolean;
+  /** Schenkungen / Erbvorbezüge: bereits getätigt, geplant oder nein. */
+  schenkungenStatus: SchenkungenStatus | null;
   schenkungenDetails: string;
   gueterstand: Gueterstand | null;
 }
@@ -681,7 +685,7 @@ export const usePlanStore = create<PlanState>()(
       erbschaft: {
         erwartet: null,
         groessenordnung: null,
-        schenkungenGetaetigt: false,
+        schenkungenStatus: null,
         schenkungenDetails: "",
         gueterstand: null,
       },
@@ -1180,7 +1184,7 @@ export const usePlanStore = create<PlanState>()(
           erbschaft: {
             erwartet: null,
             groessenordnung: null,
-            schenkungenGetaetigt: false,
+            schenkungenStatus: null,
             schenkungenDetails: "",
             gueterstand: null,
           },
@@ -1219,7 +1223,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v24",
+      name: "cuira-plan-v25",
     }
   )
 );

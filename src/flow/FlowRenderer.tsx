@@ -95,7 +95,7 @@ export function FlowRenderer({ onComplete, mode = "pro" }: Props) {
               {aktuelle.block}
             </span>
             <span>·</span>
-            <span>{aktuelle.blockTitle}</span>
+            <span>{personalisiereText(aktuelle.blockTitle, fullState)}</span>
           </span>
           <span className="tabular-nums text-slate-500">
             Frage {safeIdx + 1} / {sichtbar.length}
@@ -474,16 +474,33 @@ function personalisiereFrage(spec: QuestionSpec, state: PlanState): string {
 }
 
 /**
- * Ersetzt "Person 1" und "Person 2" durch die erfassten Vornamen — falls
- * vorhanden. Ist Vorname leer, bleibt "Person 1"/"Person 2" stehen.
+ * Ersetzt "Person 1"/"Person 2" durch erfasste Vornamen oder lässt sie weg
+ * bei einzel ohne Vorname.
+ *
+ * - paar + Vorname: "Person 1" → Vorname (z.B. "Max")
+ * - paar ohne Vorname: "Person 1"/"Person 2" bleibt
+ * - einzel + Vorname: "Person 1" → Vorname
+ * - einzel ohne Vorname: "Person 1" wird komplett entfernt (mit umgebenden
+ *   Leerzeichen). Beispiel: "Pensionierung Person 1" → "Pensionierung".
  */
-function personalisiereText(text: string, state: PlanState): string {
+export function personalisiereText(text: string, state: PlanState): string {
   let r = text;
   const v1 = state.person1.vorname.trim();
   const v2 = state.person2.vorname.trim();
-  if (v1) r = r.replace(/\bPerson 1\b/g, v1);
-  if (state.fallart === "paar" && v2) r = r.replace(/\bPerson 2\b/g, v2);
-  return r;
+  if (state.fallart === "einzel") {
+    if (v1) {
+      r = r.replace(/\bPerson 1\b/g, v1);
+    } else {
+      // "Person 1" mit umgebenden Spaces entfernen
+      r = r.replace(/\s+\bPerson 1\b/g, "");
+      r = r.replace(/\bPerson 1\b\s+/g, "");
+      r = r.replace(/\bPerson 1\b/g, "");
+    }
+  } else {
+    if (v1) r = r.replace(/\bPerson 1\b/g, v1);
+    if (v2) r = r.replace(/\bPerson 2\b/g, v2);
+  }
+  return r.replace(/\s+/g, " ").trim();
 }
 
 // Hilfsexport für Tests / Imports

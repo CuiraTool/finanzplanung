@@ -23,7 +23,7 @@
  */
 
 import { KANTONE } from "@/lib/store";
-import type { Kind } from "@/lib/store";
+import type { Kind, SaeuleDreiEntry, Immobilie } from "@/lib/store";
 import type { QuestionSpec } from "./types";
 
 const PRIORITAET_OPTIONEN = [
@@ -58,6 +58,101 @@ function updateHaushaltseinkommen(s: {
   const p2 = s.ahv.einkommenP2 ?? 0;
   const sum = p1 + p2;
   s.budget.einkommenHeute = sum > 0 ? sum : null;
+}
+
+// ─── Marker-IDs für Flow-erstellte Einträge ─────────────────────────
+// Idempotent: bei "ja" wird ein Eintrag mit dieser ID erzeugt (oder beibehalten),
+// bei "nein" wieder entfernt. So kann der User Y/N toggeln ohne dass sich
+// Mehrfach-Einträge anhäufen.
+const MARKER_3A_P1 = "flow-3a-p1";
+const MARKER_3A_P2 = "flow-3a-p2";
+const MARKER_EIGENHEIM = "flow-eigenheim";
+const MARKER_FERIEN = "flow-ferien";
+const MARKER_RENDITE = "flow-rendite";
+const MARKER_HYPO_EIGENHEIM = "flow-hypo-eigenheim";
+const MARKER_HYPO_FERIEN = "flow-hypo-ferien";
+const MARKER_HYPO_RENDITE = "flow-hypo-rendite";
+
+/** 3a-Eintrag finden / anlegen. */
+function findOrCreate3a(
+  arr: SaeuleDreiEntry[],
+  markerId: string,
+  pensionsjahr: number
+): { entry: SaeuleDreiEntry; arr: SaeuleDreiEntry[] } {
+  let entry = arr.find((e) => e.id === markerId);
+  if (!entry) {
+    entry = {
+      id: markerId,
+      type: "konto",
+      beschreibung: "3a-Konto",
+      aktuellerWert: null,
+      auszahlungsjahr: pensionsjahr,
+      renditeProzent: 1.5,
+      rueckkaufswert: null,
+      ablaufswert: null,
+      ablaufjahr: pensionsjahr,
+      jaehrlicheEinzahlung: null,
+      einzahlungAb: new Date().getFullYear(),
+      einzahlungBis: pensionsjahr - 1,
+    };
+    return { entry, arr: [...arr, entry] };
+  }
+  return { entry, arr };
+}
+
+/** Immobilie mit Marker-ID finden / anlegen. */
+function findOrCreateImmo(
+  arr: Immobilie[],
+  markerId: string,
+  typ: "selbstbewohnt" | "rendite",
+  beschreibung: string
+): { entry: Immobilie; arr: Immobilie[] } {
+  let entry = arr.find((i) => i.id === markerId);
+  if (!entry) {
+    entry = {
+      id: markerId,
+      beschreibung,
+      typ,
+      verkehrswert: null,
+      hypotheken: [],
+      plan: "behalten",
+      verkaufsjahr: new Date().getFullYear() + 30,
+      jaehrlicheMieteinnahmen: null,
+    };
+    return { entry, arr: [...arr, entry] };
+  }
+  return { entry, arr };
+}
+
+/** Hypothek-Tranche an einer Immobilie finden / anlegen / updaten. */
+function setHypothekHoehe(
+  immo: Immobilie,
+  hypoMarker: string,
+  hoehe: number | null
+): Immobilie {
+  const existing = immo.hypotheken.find((h) => h.id === hypoMarker);
+  if (existing) {
+    return {
+      ...immo,
+      hypotheken: immo.hypotheken.map((h) =>
+        h.id === hypoMarker ? { ...h, hoehe } : h
+      ),
+    };
+  }
+  if (hoehe == null) return immo;
+  return {
+    ...immo,
+    hypotheken: [
+      ...immo.hypotheken,
+      {
+        id: hypoMarker,
+        beschreibung: "Hypothek",
+        hoehe,
+        zinssatzProzent: 1.5,
+        ablaufjahr: new Date().getFullYear() + 5,
+      },
+    ],
+  };
 }
 
 /** Helper: kinder-Array auf gewünschte Länge bringen (B5). */
@@ -546,14 +641,190 @@ export const QUESTIONS: QuestionSpec[] = [
     id: "G1_p1",
     block: "G",
     blockTitle: "3. Säule",
-    frage: "Hat Person 1 eine 3a-Säule (Bank, Versicherung)?",
+    frage: "Hat Person 1 eine 3a-Säule (Bank oder Versicherung)?",
     frageEinzel: "Haben Sie eine 3a-Säule (Bank oder Versicherung)?",
-    hilfe:
-      "Detail-Erfassung (Anbieter, Saldo, Auszahlung) im klassischen Wizard nach dem Flow.",
+    hilfe: "Bei mehreren Konten/Policen können weitere im Wizard ergänzt werden.",
     type: "yesno",
-    get: (s) => s.saeuleDrei.p1.length > 0,
-    set: () => {
-      // No-op: tatsächliche Erfassung im Wizard, hier nur Indikation
+    get: (s) =>
+      s.saeuleDrei.p1.some((e) => e.id === MARKER_3A_P1) ||
+      s.saeuleDrei.p1.length > 0,
+    set: (s, v) => {
+      if (v === true) {
+        if (!s.saeuleDrei.p1.some((e) => e.id === MARKER_3A_P1)) {
+          const pj =
+            (parseInt(s.person1.geburtsdatum.slice(0, 4), 10) || 1965) +
+            (s.ziele.bezugsalterP1 || 65);
+          const { arr } = findOrCreate3a(s.saeuleDrei.p1, MARKER_3A_P1, pj);
+          s.saeuleDrei.p1 = arr;
+        }
+      } else {
+        s.saeuleDrei.p1 = s.saeuleDrei.p1.filter((e) => e.id !== MARKER_3A_P1);
+      }
+    },
+  },
+  {
+    id: "G2_p1",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Bei Person 1: Konto oder Versicherung?",
+    frageEinzel: "Konto (Bank/Fintech) oder Versicherungs-Police?",
+    type: "single",
+    bedingung: (s) => s.saeuleDrei.p1.some((e) => e.id === MARKER_3A_P1),
+    optionen: [
+      { value: "konto", label: "Bank/Fintech-Konto" },
+      { value: "versicherung", label: "Versicherungs-Police" },
+    ],
+    get: (s) => {
+      const e = s.saeuleDrei.p1.find((x) => x.id === MARKER_3A_P1);
+      return e?.type ?? "konto";
+    },
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p1.findIndex((x) => x.id === MARKER_3A_P1);
+      if (idx >= 0 && s.saeuleDrei.p1[idx]) {
+        const e = { ...s.saeuleDrei.p1[idx], type: v as "konto" | "versicherung" };
+        e.beschreibung = v === "versicherung" ? "3a-Versicherung" : "3a-Konto";
+        s.saeuleDrei.p1 = s.saeuleDrei.p1.map((x, i) => (i === idx ? e : x));
+      }
+    },
+  },
+  {
+    id: "G3_p1",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Aktueller Wert (Person 1)",
+    frageEinzel: "Aktueller Wert Ihrer 3a",
+    hilfe: "Bei Konto: aktueller Saldo. Bei Versicherung: Rückkaufswert.",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.saeuleDrei.p1.some((e) => e.id === MARKER_3A_P1),
+    get: (s) => {
+      const e = s.saeuleDrei.p1.find((x) => x.id === MARKER_3A_P1);
+      if (!e) return null;
+      return e.type === "konto" ? e.aktuellerWert : e.rueckkaufswert;
+    },
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p1.findIndex((x) => x.id === MARKER_3A_P1);
+      if (idx >= 0 && s.saeuleDrei.p1[idx]) {
+        const e = { ...s.saeuleDrei.p1[idx] };
+        if (e.type === "konto") e.aktuellerWert = v as number | null;
+        else e.rueckkaufswert = v as number | null;
+        s.saeuleDrei.p1 = s.saeuleDrei.p1.map((x, i) => (i === idx ? e : x));
+      }
+    },
+  },
+  {
+    id: "G4_p1",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Ablaufwert (Erlebensfallleistung) bei Person 1 — optional",
+    frageEinzel: "Ablaufwert (Erlebensfallleistung) Ihrer Police — optional",
+    hilfe:
+      "Bei Versicherungs-Policen oft höher als der Rückkaufswert. Steht im Versicherungsvertrag.",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => {
+      const e = s.saeuleDrei.p1.find((x) => x.id === MARKER_3A_P1);
+      return e?.type === "versicherung";
+    },
+    get: (s) =>
+      s.saeuleDrei.p1.find((x) => x.id === MARKER_3A_P1)?.ablaufswert ?? null,
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p1.findIndex((x) => x.id === MARKER_3A_P1);
+      if (idx >= 0 && s.saeuleDrei.p1[idx]) {
+        const e = { ...s.saeuleDrei.p1[idx], ablaufswert: v as number | null };
+        s.saeuleDrei.p1 = s.saeuleDrei.p1.map((x, i) => (i === idx ? e : x));
+      }
+    },
+  },
+  // ─── 3a für Person 2 (paar) ───
+  {
+    id: "G1_p2",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Hat Person 2 eine 3a-Säule?",
+    bedingung: (s) => s.fallart === "paar",
+    type: "yesno",
+    get: (s) => s.saeuleDrei.p2.some((e) => e.id === MARKER_3A_P2),
+    set: (s, v) => {
+      if (v === true) {
+        if (!s.saeuleDrei.p2.some((e) => e.id === MARKER_3A_P2)) {
+          const pj =
+            (parseInt(s.person2.geburtsdatum.slice(0, 4), 10) || 1965) +
+            (s.ziele.bezugsalterP2 || 65);
+          const { arr } = findOrCreate3a(s.saeuleDrei.p2, MARKER_3A_P2, pj);
+          s.saeuleDrei.p2 = arr;
+        }
+      } else {
+        s.saeuleDrei.p2 = s.saeuleDrei.p2.filter((e) => e.id !== MARKER_3A_P2);
+      }
+    },
+  },
+  {
+    id: "G2_p2",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Bei Person 2: Konto oder Versicherung?",
+    type: "single",
+    bedingung: (s) =>
+      s.fallart === "paar" && s.saeuleDrei.p2.some((e) => e.id === MARKER_3A_P2),
+    optionen: [
+      { value: "konto", label: "Bank/Fintech-Konto" },
+      { value: "versicherung", label: "Versicherungs-Police" },
+    ],
+    get: (s) => s.saeuleDrei.p2.find((x) => x.id === MARKER_3A_P2)?.type ?? "konto",
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p2.findIndex((x) => x.id === MARKER_3A_P2);
+      if (idx >= 0 && s.saeuleDrei.p2[idx]) {
+        const e = { ...s.saeuleDrei.p2[idx], type: v as "konto" | "versicherung" };
+        e.beschreibung = v === "versicherung" ? "3a-Versicherung" : "3a-Konto";
+        s.saeuleDrei.p2 = s.saeuleDrei.p2.map((x, i) => (i === idx ? e : x));
+      }
+    },
+  },
+  {
+    id: "G3_p2",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Aktueller Wert (Person 2)",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) =>
+      s.fallart === "paar" && s.saeuleDrei.p2.some((e) => e.id === MARKER_3A_P2),
+    get: (s) => {
+      const e = s.saeuleDrei.p2.find((x) => x.id === MARKER_3A_P2);
+      if (!e) return null;
+      return e.type === "konto" ? e.aktuellerWert : e.rueckkaufswert;
+    },
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p2.findIndex((x) => x.id === MARKER_3A_P2);
+      if (idx >= 0 && s.saeuleDrei.p2[idx]) {
+        const e = { ...s.saeuleDrei.p2[idx] };
+        if (e.type === "konto") e.aktuellerWert = v as number | null;
+        else e.rueckkaufswert = v as number | null;
+        s.saeuleDrei.p2 = s.saeuleDrei.p2.map((x, i) => (i === idx ? e : x));
+      }
+    },
+  },
+  {
+    id: "G4_p2",
+    block: "G",
+    blockTitle: "3. Säule",
+    frage: "Ablaufwert bei Person 2 — optional",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => {
+      if (s.fallart !== "paar") return false;
+      const e = s.saeuleDrei.p2.find((x) => x.id === MARKER_3A_P2);
+      return e?.type === "versicherung";
+    },
+    get: (s) =>
+      s.saeuleDrei.p2.find((x) => x.id === MARKER_3A_P2)?.ablaufswert ?? null,
+    set: (s, v) => {
+      const idx = s.saeuleDrei.p2.findIndex((x) => x.id === MARKER_3A_P2);
+      if (idx >= 0 && s.saeuleDrei.p2[idx]) {
+        const e = { ...s.saeuleDrei.p2[idx], ablaufswert: v as number | null };
+        s.saeuleDrei.p2 = s.saeuleDrei.p2.map((x, i) => (i === idx ? e : x));
+      }
     },
   },
 
@@ -633,11 +904,66 @@ export const QUESTIONS: QuestionSpec[] = [
     block: "I",
     blockTitle: "Eigenheim",
     frage: "Sind Sie Eigenheim­besitzer?",
-    hilfe: "Detail-Erfassung (Wert, Hypothek) im klassischen Wizard nach dem Flow.",
+    hilfe: "Bei mehreren Liegenschaften können weitere im Wizard ergänzt werden.",
     type: "yesno",
-    get: (s) => s.immobilien.items.some((i) => i.typ === "selbstbewohnt"),
-    set: () => {
-      // No-op
+    get: (s) => s.immobilien.items.some((i) => i.id === MARKER_EIGENHEIM),
+    set: (s, v) => {
+      if (v === true) {
+        if (!s.immobilien.items.some((i) => i.id === MARKER_EIGENHEIM)) {
+          const { arr } = findOrCreateImmo(
+            s.immobilien.items,
+            MARKER_EIGENHEIM,
+            "selbstbewohnt",
+            "Eigenheim"
+          );
+          s.immobilien.items = arr;
+        }
+      } else {
+        s.immobilien.items = s.immobilien.items.filter(
+          (i) => i.id !== MARKER_EIGENHEIM
+        );
+      }
+    },
+  },
+  {
+    id: "I1",
+    block: "I",
+    blockTitle: "Eigenheim",
+    frage: "Verkehrswert Ihres Eigenheims",
+    hilfe: "aktueller Marktwert (Schätzung des Maklers oder amtlicher Wert)",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_EIGENHEIM),
+    get: (s) =>
+      s.immobilien.items.find((i) => i.id === MARKER_EIGENHEIM)?.verkehrswert ??
+      null,
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_EIGENHEIM ? { ...i, verkehrswert: v as number | null } : i
+      );
+    },
+  },
+  {
+    id: "I2",
+    block: "I",
+    blockTitle: "Eigenheim",
+    frage: "Hypothek Total auf dem Eigenheim",
+    hilfe: "Summe aller Tranchen. 0 falls keine Hypothek (selten).",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_EIGENHEIM),
+    get: (s) => {
+      const im = s.immobilien.items.find((i) => i.id === MARKER_EIGENHEIM);
+      if (!im) return null;
+      const total = im.hypotheken.reduce((sum, h) => sum + (h.hoehe ?? 0), 0);
+      return total > 0 ? total : null;
+    },
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_EIGENHEIM
+          ? setHypothekHoehe(i, MARKER_HYPO_EIGENHEIM, v as number | null)
+          : i
+      );
     },
   },
 
@@ -648,10 +974,62 @@ export const QUESTIONS: QuestionSpec[] = [
     blockTitle: "Ferienliegenschaft",
     frage: "Ferienliegenschaft vorhanden?",
     type: "yesno",
+    get: (s) => s.immobilien.items.some((i) => i.id === MARKER_FERIEN),
+    set: (s, v) => {
+      if (v === true) {
+        if (!s.immobilien.items.some((i) => i.id === MARKER_FERIEN)) {
+          const { arr } = findOrCreateImmo(
+            s.immobilien.items,
+            MARKER_FERIEN,
+            "selbstbewohnt",
+            "Ferienliegenschaft"
+          );
+          s.immobilien.items = arr;
+        }
+      } else {
+        s.immobilien.items = s.immobilien.items.filter(
+          (i) => i.id !== MARKER_FERIEN
+        );
+      }
+    },
+  },
+  {
+    id: "J1",
+    block: "J",
+    blockTitle: "Ferienliegenschaft",
+    frage: "Verkehrswert Ferienliegenschaft",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_FERIEN),
     get: (s) =>
-      s.immobilien.items.filter((i) => i.typ === "selbstbewohnt").length > 1,
-    set: () => {
-      // No-op (Wizard-Detail)
+      s.immobilien.items.find((i) => i.id === MARKER_FERIEN)?.verkehrswert ??
+      null,
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_FERIEN ? { ...i, verkehrswert: v as number | null } : i
+      );
+    },
+  },
+  {
+    id: "J2",
+    block: "J",
+    blockTitle: "Ferienliegenschaft",
+    frage: "Hypothek Total auf der Ferienliegenschaft",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_FERIEN),
+    get: (s) => {
+      const im = s.immobilien.items.find((i) => i.id === MARKER_FERIEN);
+      if (!im) return null;
+      const total = im.hypotheken.reduce((sum, h) => sum + (h.hoehe ?? 0), 0);
+      return total > 0 ? total : null;
+    },
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_FERIEN
+          ? setHypothekHoehe(i, MARKER_HYPO_FERIEN, v as number | null)
+          : i
+      );
     },
   },
 
@@ -661,10 +1039,84 @@ export const QUESTIONS: QuestionSpec[] = [
     block: "K",
     blockTitle: "Renditeliegenschaft",
     frage: "Renditeliegenschaft(en) vorhanden?",
+    hilfe: "Bei mehreren Objekten können weitere im Wizard ergänzt werden.",
     type: "yesno",
-    get: (s) => s.immobilien.items.some((i) => i.typ === "rendite"),
-    set: () => {
-      // No-op (Wizard-Detail)
+    get: (s) => s.immobilien.items.some((i) => i.id === MARKER_RENDITE),
+    set: (s, v) => {
+      if (v === true) {
+        if (!s.immobilien.items.some((i) => i.id === MARKER_RENDITE)) {
+          const { arr } = findOrCreateImmo(
+            s.immobilien.items,
+            MARKER_RENDITE,
+            "rendite",
+            "Renditeliegenschaft"
+          );
+          s.immobilien.items = arr;
+        }
+      } else {
+        s.immobilien.items = s.immobilien.items.filter(
+          (i) => i.id !== MARKER_RENDITE
+        );
+      }
+    },
+  },
+  {
+    id: "K1",
+    block: "K",
+    blockTitle: "Renditeliegenschaft",
+    frage: "Verkehrswert Renditeliegenschaft",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_RENDITE),
+    get: (s) =>
+      s.immobilien.items.find((i) => i.id === MARKER_RENDITE)?.verkehrswert ??
+      null,
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_RENDITE ? { ...i, verkehrswert: v as number | null } : i
+      );
+    },
+  },
+  {
+    id: "K2",
+    block: "K",
+    blockTitle: "Renditeliegenschaft",
+    frage: "Hypothek Total auf der Renditeliegenschaft",
+    type: "number",
+    suffix: "CHF",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_RENDITE),
+    get: (s) => {
+      const im = s.immobilien.items.find((i) => i.id === MARKER_RENDITE);
+      if (!im) return null;
+      const total = im.hypotheken.reduce((sum, h) => sum + (h.hoehe ?? 0), 0);
+      return total > 0 ? total : null;
+    },
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_RENDITE
+          ? setHypothekHoehe(i, MARKER_HYPO_RENDITE, v as number | null)
+          : i
+      );
+    },
+  },
+  {
+    id: "K3",
+    block: "K",
+    blockTitle: "Renditeliegenschaft",
+    frage: "Brutto-Mieteinnahmen pro Jahr",
+    hilfe: "Total aller Mieteinnahmen vor Nebenkosten und Hypothekarzinsen",
+    type: "number",
+    suffix: "CHF / Jahr",
+    bedingung: (s) => s.immobilien.items.some((i) => i.id === MARKER_RENDITE),
+    get: (s) =>
+      s.immobilien.items.find((i) => i.id === MARKER_RENDITE)
+        ?.jaehrlicheMieteinnahmen ?? null,
+    set: (s, v) => {
+      s.immobilien.items = s.immobilien.items.map((i) =>
+        i.id === MARKER_RENDITE
+          ? { ...i, jaehrlicheMieteinnahmen: v as number | null }
+          : i
+      );
     },
   },
 
@@ -832,20 +1284,31 @@ export const QUESTIONS: QuestionSpec[] = [
     id: "N3",
     block: "N",
     blockTitle: "Erbschaft & Güterrecht",
-    frage: "Bereits Schenkungen oder Erbvorbezüge an Kinder getätigt?",
-    type: "yesno",
-    get: (s) => s.erbschaft.schenkungenGetaetigt,
+    frage: "Schenkungen oder Erbvorbezüge an Kinder?",
+    hilfe: "Bereits getätigt, geplant in den nächsten Jahren oder nicht vorgesehen?",
+    type: "single",
+    optionen: [
+      { value: "getaetigt", label: "Ja, bereits getätigt" },
+      { value: "geplant", label: "Ja, geplant" },
+      { value: "nein", label: "Nein" },
+    ],
+    get: (s) => s.erbschaft.schenkungenStatus,
     set: (s, v) => {
-      s.erbschaft.schenkungenGetaetigt = v as boolean;
+      s.erbschaft.schenkungenStatus =
+        v as typeof s.erbschaft.schenkungenStatus;
     },
   },
   {
     id: "N4",
     block: "N",
     blockTitle: "Erbschaft & Güterrecht",
-    frage: "Höhe und Jahr",
+    frage: "Details",
+    hilfe:
+      "Wenn bereits getätigt: Höhe und Jahr. Wenn geplant: ungefähre Höhe und Zeitraum.",
     type: "longtext",
-    bedingung: (s) => s.erbschaft.schenkungenGetaetigt,
+    bedingung: (s) =>
+      s.erbschaft.schenkungenStatus === "getaetigt" ||
+      s.erbschaft.schenkungenStatus === "geplant",
     get: (s) => s.erbschaft.schenkungenDetails,
     set: (s, v) => {
       s.erbschaft.schenkungenDetails = (v as string) ?? "";
