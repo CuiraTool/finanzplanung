@@ -9,7 +9,12 @@ const KATEGORIE_BADGE: Record<MassnahmenKategorie, { label: string; color: strin
   anlage: { label: "Anlage", color: "bg-emerald-50 text-emerald-700" },
   wohnen: { label: "Wohnen", color: "bg-rose-50 text-rose-700" },
   verwaltung: { label: "Verwaltung", color: "bg-slate-100 text-slate-700" },
+  optimierung: { label: "✨ Optimierung", color: "bg-[var(--color-cuira-deep)]/10 text-[var(--color-cuira-deep)]" },
 };
+
+function formatChfKurz(n: number): string {
+  return new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 }).format(n);
+}
 
 const MONATE = [
   "Jan",
@@ -39,13 +44,21 @@ export function MassnahmenListe({
   vornameP2,
   fallart,
 }: Props) {
+  const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
+  const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
+  const totalErsparnis = optimierungen.reduce(
+    (s, m) => s + (m.geschaetzteErsparnis ?? 0),
+    0
+  );
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <header className="mb-3 flex items-baseline justify-between">
         <div>
           <div className="text-base font-semibold text-slate-700">Massnahmen</div>
           <div className="text-xs text-slate-400">
-            Automatisch aus den Eingaben abgeleitet — chronologisch
+            Automatisch aus den Eingaben abgeleitet — Optimierungen oben,
+            Termine unten
           </div>
         </div>
         <div className="text-xs text-slate-500 tabular-nums">
@@ -59,19 +72,120 @@ export function MassnahmenListe({
           Vorsorgekapital), erscheinen hier die Schritte.
         </div>
       ) : (
-        <ul className="max-h-[640px] divide-y divide-slate-100 overflow-y-auto">
-          {massnahmen.map((m) => (
-            <MassnahmeRow
-              key={m.id}
-              m={m}
-              vornameP1={vornameP1}
-              vornameP2={vornameP2}
-              fallart={fallart}
-            />
-          ))}
-        </ul>
+        <>
+          {/* Sticky Banner für Total-Ersparnis */}
+          {totalErsparnis > 0 && (
+            <div className="mb-3 rounded-md border border-[var(--color-cuira-deep)]/30 bg-[var(--color-cuira-deep)]/5 px-3 py-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-cuira-deep)]">
+                  💰 Optimierungs-Potenzial
+                </span>
+                <span className="text-base font-semibold tabular-nums text-[var(--color-cuira-deep)]">
+                  bis ~CHF {formatChfKurz(totalErsparnis)} / Jahr
+                </span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                Summe der Ersparnis-Schätzungen aus den Optimierungen unten —
+                kumulativ, nicht alle gleichzeitig anwendbar.
+              </div>
+            </div>
+          )}
+
+          {/* Optimierungs-Sektion (mit Highlight) */}
+          {optimierungen.length > 0 && (
+            <div className="mb-4">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                ✨ Optimierungen
+              </div>
+              <ul className="space-y-2">
+                {optimierungen.map((m) => (
+                  <OptimierungCard
+                    key={m.id}
+                    m={m}
+                    vornameP1={vornameP1}
+                    vornameP2={vornameP2}
+                    fallart={fallart}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Reminder-Sektion (chronologisch) */}
+          {reminder.length > 0 && (
+            <div>
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                📅 Termine & Reminder
+              </div>
+              <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
+                {reminder.map((m) => (
+                  <MassnahmeRow
+                    key={m.id}
+                    m={m}
+                    vornameP1={vornameP1}
+                    vornameP2={vornameP2}
+                    fallart={fallart}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function OptimierungCard({
+  m,
+  vornameP1,
+  vornameP2,
+  fallart,
+}: {
+  m: Massnahme;
+  vornameP1: string;
+  vornameP2?: string;
+  fallart: "einzel" | "paar";
+}) {
+  const werLabel = werLabelFor(m.wer, vornameP1, vornameP2, fallart);
+  const ersparnis = m.geschaetzteErsparnis ?? 0;
+  return (
+    <li className="rounded-md border border-[var(--color-cuira-deep)]/20 bg-gradient-to-br from-[var(--color-cuira-deep)]/5 to-transparent p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            {m.titel}
+          </div>
+          {m.detail && (
+            <div className="mt-1 text-xs text-slate-600">{m.detail}</div>
+          )}
+        </div>
+        {ersparnis > 0 && (
+          <div className="shrink-0 text-right">
+            <div className="text-base font-semibold tabular-nums text-[var(--color-cuira-deep)]">
+              +{formatChfKurz(ersparnis)}
+            </div>
+            <div className="text-[10px] text-slate-500">CHF/Jahr</div>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
+        <span>{werLabel}</span>
+        {m.prioritaet && (
+          <>
+            <span>·</span>
+            <span>
+              Priorität{" "}
+              {m.prioritaet === 1
+                ? "hoch"
+                : m.prioritaet === 2
+                  ? "mittel"
+                  : "tief"}
+            </span>
+          </>
+        )}
+      </div>
+    </li>
   );
 }
 

@@ -5,13 +5,21 @@
  * Schritte (analog Taxware-PDF S.13/14). Regel-basiert, ohne LLM —
  * deterministisch und nachvollziehbar.
  *
- * Etappe 2 V1: 10 grundlegende Regeln. Etappe 2.5 erweitert um Steuer-
- * Optimierungs-Vorschläge (Staffelbezug, Einkauf-Timing, Wohnort-Wechsel).
+ * Zwei Arten von Massnahmen:
+ *  - Termin-Reminder (z.B. "AHV-Rente anmelden 6 Mt vor Bezug")
+ *  - Optimierungs-Empfehlungen mit CHF-Effekt (z.B. "3a max ausschöpfen
+ *    spart X CHF/Jahr")
+ *
+ * Optimierungs-Massnahmen rechnen die Ersparnis via Doppel-Aufruf der
+ * Steuer-Engine (aktuell vs. hypothetisch) — präzise, kein Schätzwert.
  */
 
 import type { PlanState } from "@/lib/store";
 import { pensionsjahr } from "@/lib/pension";
 import { block1MinimumErfuellt } from "@/lib/validation";
+import { steuerProJahr } from "./steuer";
+import { tragbarkeitHaushalt } from "./tragbarkeit";
+import { pensionseinkommenJahr } from "./pensionseinkommen";
 
 export type MassnahmenWer = "p1" | "p2" | "beide";
 export type MassnahmenKategorie =
@@ -20,7 +28,8 @@ export type MassnahmenKategorie =
   | "nachlass"
   | "anlage"
   | "wohnen"
-  | "verwaltung";
+  | "verwaltung"
+  | "optimierung";
 
 export interface Massnahme {
   id: string;
@@ -30,6 +39,10 @@ export interface Massnahme {
   kategorie: MassnahmenKategorie;
   titel: string;
   detail?: string;
+  /** Optional: geschätzte jährliche CHF-Ersparnis (positiv = Vorteil). */
+  geschaetzteErsparnis?: number;
+  /** Priorität: 1 = sofort, 2 = mittelfristig, 3 = langfristig. */
+  prioritaet?: 1 | 2 | 3;
 }
 
 export function massnahmenAusState(state: PlanState): Massnahme[] {
@@ -244,8 +257,24 @@ export function massnahmenAusState(state: PlanState): Massnahme[] {
     });
   }
 
-  // Sortieren nach Jahr (sek. Monat, dann Titel)
+  // ════════════════════════════════════════════════════════════════════
+  //   OPTIMIERUNGS-EMPFEHLUNGEN mit CHF-Ersparnis (Phase 5.5)
+  // ════════════════════════════════════════════════════════════════════
+  out.push(...optimierungenBerechnen(state));
+
+  // Sortieren: zuerst Optimierungen (mit Ersparnis sortiert nach Höhe),
+  // dann Reminder nach Jahr/Monat
   out.sort((a, b) => {
+    // Optimierungen oben
+    const aOpt = a.kategorie === "optimierung";
+    const bOpt = b.kategorie === "optimierung";
+    if (aOpt && !bOpt) return -1;
+    if (!aOpt && bOpt) return 1;
+    if (aOpt && bOpt) {
+      // Ersparnis absteigend
+      return (b.geschaetzteErsparnis ?? 0) - (a.geschaetzteErsparnis ?? 0);
+    }
+    // Reminder nach Jahr/Monat
     if (a.jahr !== b.jahr) return a.jahr - b.jahr;
     const ma = a.monat ?? 1;
     const mb = b.monat ?? 1;
@@ -254,6 +283,227 @@ export function massnahmenAusState(state: PlanState): Massnahme[] {
   });
 
   return out;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//   OPTIMIERUNGS-FUNKTIONEN
+// ════════════════════════════════════════════════════════════════════
+
+function optimierungenBerechnen(state: PlanState): Massnahme[] {
+  const out: Massnahme[] = [];
+  const heute = new Date().getFullYear();
+
+  // Brutto-Lohn pro Person (für Steuer-Berechnungen)
+  const bruttoP1 = state.ahv.einkommenP1 ?? 0;
+  const bruttoP2 = state.fallart === "paar" ? state.ahv.einkommenP2 ?? 0 : 0;
+  const bruttoTotal = bruttoP1 + bruttoP2;
+  const alterP1 = parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
+    ? heute - parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
+    : 40;
+  const alterP2 = state.person2.geburtsdatum
+    ? heute - parseInt(state.person2.geburtsdatum.slice(0, 4), 10)
+    : 40;
+  const anzahlKinder = state.kinder.length;
+  const hatPkP1 = state.bvg.p1.aktiverAnschluss;
+  const hatPkP2 = state.fallart === "paar" && state.bvg.p2.aktiverAnschluss;
+
+  // Aktuelle Säule-3a-Einzahlungen (Summe Haushalt)
+  const aktuell3aP1 = sumEinzahlungen(state.saeuleDrei.p1, heute);
+  const aktuell3aP2 =
+    state.fallart === "paar" ? sumEinzahlungen(state.saeuleDrei.p2, heute) : 0;
+  const aktuell3a = aktuell3aP1 + aktuell3aP2;
+
+  // Maximaler 3a-Beitrag pro Person
+  const max3aP1 = bruttoP1 > 0 ? (hatPkP1 ? 7_258 : Math.min(bruttoP1 * 0.2, 36_288)) : 0;
+  const max3aP2 = bruttoP2 > 0 ? (hatPkP2 ? 7_258 : Math.min(bruttoP2 * 0.2, 36_288)) : 0;
+  const max3a = max3aP1 + max3aP2;
+
+  // Aktuelle Steuern (Brutto-Werte als Basis)
+  const baseInput = {
+    einkommenJahr: bruttoTotal,
+    vermoegenJahr: 0,
+    kapAuszahlungenJahr: 0,
+    kanton: state.adresse.kanton,
+    bfsId: state.adresse.gemeindeBfsId ?? undefined,
+    religion: state.budget.religion,
+    fallart: state.fallart,
+    bruttoErwerbP1: bruttoP1,
+    bruttoErwerbP2: bruttoP2,
+    alterP1,
+    alterP2,
+    anzahlKinder,
+    saeule3aEinzahlungJahr: aktuell3a,
+    hatPkAnschlussP1: hatPkP1,
+    hatPkAnschlussP2: hatPkP2,
+  };
+
+  // ─── Optimierung 1: 3a max ausschöpfen ──────────────────────────
+  if (max3a > aktuell3a + 100 && bruttoTotal > 0) {
+    const luecke = max3a - aktuell3a;
+    const aktuelleSteuer = steuerProJahr(baseInput).einkommen;
+    const mitMax3aSteuer = steuerProJahr({
+      ...baseInput,
+      saeule3aEinzahlungJahr: max3a,
+    }).einkommen;
+    const ersparnis = aktuelleSteuer - mitMax3aSteuer;
+    if (ersparnis > 100) {
+      out.push({
+        id: "opt-3a-max",
+        jahr: heute,
+        wer: "beide",
+        kategorie: "optimierung",
+        prioritaet: 1,
+        titel: `Säule 3a max ausschöpfen — spart ${formatChfKurz(ersparnis)} Steuern/Jahr`,
+        detail: `Aktuell ${formatChfKurz(aktuell3a)} eingezahlt, Maximum wäre ${formatChfKurz(max3a)}. Differenz ${formatChfKurz(luecke)} CHF/Jahr → Steuerersparnis ${formatChfKurz(ersparnis)} CHF.`,
+        geschaetzteErsparnis: ersparnis,
+      });
+    }
+  }
+
+  // ─── Optimierung 2: PK-Einkauf-Potenzial ────────────────────────
+  // Heuristik: Wenn aktiverAnschluss + > 5 J vor Pension + keine Einkäufe geplant
+  // + altersguthabenBeiBezug > altersguthabenHeute (wachstum erkennbar)
+  const personen: { idx: "p1" | "p2"; name: string }[] =
+    state.fallart === "paar"
+      ? [
+          { idx: "p1", name: state.person1.vorname || "Person 1" },
+          { idx: "p2", name: state.person2.vorname || "Person 2" },
+        ]
+      : [{ idx: "p1", name: state.person1.vorname || "Person 1" }];
+
+  for (const p of personen) {
+    const bvg = p.idx === "p1" ? state.bvg.p1 : state.bvg.p2;
+    if (!bvg.aktiverAnschluss) continue;
+    const pj =
+      p.idx === "p1"
+        ? pensionsjahr(state.person1.geburtsdatum, state.ziele.bezugsalterP1)
+        : pensionsjahr(state.person2.geburtsdatum, state.ziele.bezugsalterP2);
+    if (pj == null) continue;
+    const jahreBis = pj - heute;
+    if (jahreBis < 4) continue;
+    if (bvg.einkaeufe.length > 0) continue; // schon geplant
+
+    // Beispiel-Einkauf: 30k pro Jahr (typisch)
+    const beispielEinkauf = 30_000;
+    const aktuelleSteuer = steuerProJahr(baseInput).einkommen;
+    const mitEinkaufSteuer = steuerProJahr({
+      ...baseInput,
+      saeule3aEinzahlungJahr: aktuell3a + beispielEinkauf,
+    }).einkommen;
+    const ersparnis = aktuelleSteuer - mitEinkaufSteuer;
+    if (ersparnis > 1_000) {
+      out.push({
+        id: `opt-pk-einkauf-${p.idx}`,
+        jahr: heute,
+        wer: p.idx,
+        kategorie: "optimierung",
+        prioritaet: 2,
+        titel: `PK-Einkauf prüfen (${p.name}) — pro 30k spart ~${formatChfKurz(ersparnis)} Steuern`,
+        detail: `${jahreBis} Jahre bis Pension, 3-J-Sperrfrist beachten. Einkauf wirkt steuerlich wie 3a-Einzahlung. PK-Anbieter rechnet maximalen Einkauf-Betrag aus.`,
+        geschaetzteErsparnis: ersparnis,
+      });
+    }
+  }
+
+  // ─── Optimierung 3: Kantonswechsel-Potenzial (vs. ZG) ────────────
+  if (state.adresse.kanton && state.adresse.kanton !== "ZG" && bruttoTotal > 80_000) {
+    const aktuelleSteuer = steuerProJahr(baseInput).einkommen;
+    const inZg = steuerProJahr({ ...baseInput, kanton: "ZG", bfsId: undefined }).einkommen;
+    const ersparnis = aktuelleSteuer - inZg;
+    if (ersparnis > 2_000) {
+      out.push({
+        id: "opt-kantonswechsel-zg",
+        jahr: heute,
+        wer: "beide",
+        kategorie: "optimierung",
+        prioritaet: 3,
+        titel: `Kantonswechsel ${state.adresse.kanton} → ZG: spart ~${formatChfKurz(ersparnis)} Steuern/Jahr`,
+        detail: `In Zug zahlen Sie bei gleichem Einkommen rund ${formatChfKurz(ersparnis)} CHF weniger Steuern. Realistisch nur bei echtem Umzug — nicht "auf dem Papier".`,
+        geschaetzteErsparnis: ersparnis,
+      });
+    }
+  }
+
+  // ─── Optimierung 4: Tragbarkeit bei Pension prüfen ──────────────
+  const eigenheime = state.immobilien.items.filter(
+    (i) => i.typ === "selbstbewohnt"
+  );
+  if (eigenheime.length > 0) {
+    const pensEink = pensionseinkommenJahr(state);
+    const tragPension = tragbarkeitHaushalt(state.immobilien.items, pensEink.total);
+    if (tragPension.status === "nicht_tragbar" && pensEink.total > 0) {
+      // Berechne wie viel Hypothek auf 65 % Belehnung amortisiert werden müsste
+      const verkehrswertTotal = eigenheime.reduce(
+        (s, i) => s + (i.verkehrswert ?? 0),
+        0
+      );
+      const hypoTotal = eigenheime.reduce(
+        (s, i) => s + i.hypotheken.reduce((hs, h) => hs + (h.hoehe ?? 0), 0),
+        0
+      );
+      const ziel65 = verkehrswertTotal * 0.65;
+      const amortisationBedarf = Math.max(0, hypoTotal - ziel65);
+      out.push({
+        id: "opt-tragbarkeit-pension",
+        jahr: heute,
+        wer: "beide",
+        kategorie: "optimierung",
+        prioritaet: 1,
+        titel: `Tragbarkeit nach Pension: nicht gegeben (${(tragPension.verhaeltnis * 100).toFixed(0)}% > 33%)`,
+        detail: `Mit den voraussichtlichen ${formatChfKurz(pensEink.total)} CHF Pensionseinkommen liegen die Wohnkosten bei ${(tragPension.verhaeltnis * 100).toFixed(0)}% des Einkommens. Empfehlung: Hypothek bis Pension auf 65% (CHF ${formatChfKurz(ziel65)}) amortisieren — Bedarf ${formatChfKurz(amortisationBedarf)} CHF.`,
+      });
+    }
+  }
+
+  // ─── Optimierung 5: Bezugspräferenz Rente vs. Kapital ────────────
+  for (const p of personen) {
+    const bvg = p.idx === "p1" ? state.bvg.p1 : state.bvg.p2;
+    if (!bvg.aktiverAnschluss) continue;
+    if (bvg.bezugspraeferenz !== "rente") continue;
+    const saldo = bvg.altersguthabenBeiBezug ?? 0;
+    if (saldo < 200_000) continue; // bei kleinem Saldo unrelevant
+
+    out.push({
+      id: `opt-bezug-mischung-${p.idx}`,
+      jahr: heute,
+      wer: p.idx,
+      kategorie: "optimierung",
+      prioritaet: 2,
+      titel: `Bezug Pensionskasse (${p.name}): Mischung statt 100% Rente prüfen`,
+      detail: `Bei ${formatChfKurz(saldo)} CHF PK-Saldo: 50% Kapital (${formatChfKurz(saldo / 2)}) wird einmalig zum Sondertarif besteuert (~5-8%), Rest als Rente. Vorteile: Flexibilität, Vermögen vererbbar. Nachteil: Langlebigkeitsrisiko. Cuira rechnet beide Varianten.`,
+    });
+  }
+
+  // ─── Optimierung 6: Doppelverdienerabzug-Hinweis (informativ) ────
+  if (state.fallart === "paar" && bruttoP1 > 0 && bruttoP2 > 0) {
+    const min = Math.min(bruttoP1, bruttoP2);
+    const ddvDbg = Math.max(8_400, Math.min(14_600, min * 0.5));
+    out.push({
+      id: "opt-doppelverdiener",
+      jahr: heute,
+      wer: "beide",
+      kategorie: "optimierung",
+      prioritaet: 3,
+      titel: `Doppelverdienerabzug wirkt automatisch (~${formatChfKurz(ddvDbg)} CHF DBG)`,
+      detail: `Wird in der Steuerveranlagung automatisch berücksichtigt — keine Aktion nötig. Reduziert Bundessteuer, Kanton-Pauschale separat (ZH: bis 13'700 CHF).`,
+    });
+  }
+
+  return out;
+}
+
+function sumEinzahlungen(
+  items: PlanState["saeuleDrei"]["p1"],
+  jahr: number
+): number {
+  let total = 0;
+  for (const e of items) {
+    if (e.jaehrlicheEinzahlung == null) continue;
+    if (jahr < e.einzahlungAb) continue;
+    if (e.einzahlungBis > 0 && jahr > e.einzahlungBis) continue;
+    total += e.jaehrlicheEinzahlung;
+  }
+  return total;
 }
 
 function formatChfKurz(n: number): string {
