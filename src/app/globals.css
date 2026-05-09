@@ -1,33 +1,141 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════
+   Cuira Design System (Phase 5.x — Handoff May 2026)
+   Source of truth: design_handoff_cuira_app/styles.css
+   ════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Cuira-Branding */
-  --color-cuira-deep: #0a2540;       /* Hauptmarken-Dunkelblau */
-  --color-cuira-deep-soft: #1e3a5f;  /* gedämpfte Variante */
-  --color-cuira-ink: #0f172a;
-  --color-cuira-bg: #fafaf7;
-  --color-cuira-bg-soft: #f4f6fa;
-  --color-cuira-accent: #1d4ed8;
-  --color-cuira-gold: #f59e0b;        /* Pensionsalter-Marker */
-  --color-cuira-violet: #7c3aed;      /* Wunschalter-Marker */
+  /* ─── Cuira Brand ───────────────────────────────────────────── */
+  --cuira-deep: #0a2540;
+  --cuira-deep-soft: #14315a;
+
+  /* ─── Surfaces (light) ──────────────────────────────────────── */
+  --bg: #f4f6f8;
+  --bg-soft: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
+  --surface-hover: #f6f8fa;
+
+  /* ─── Borders ───────────────────────────────────────────────── */
+  --border: #e7eaee;
+  --border-strong: #d4d9e0;
+
+  /* ─── Ink (Text-Hierarchie) ─────────────────────────────────── */
+  --ink: #0a2540;
+  --ink-2: #4b566b;
+  --ink-3: #8390a3;
+  --ink-4: #a9b3c1;
+
+  /* ─── Action Accent (Cuira-derivativ blau) ──────────────────── */
+  --accent: oklch(0.55 0.16 252);
+  --accent-soft: oklch(0.95 0.04 252);
+  --accent-ink: oklch(0.4 0.18 252);
+
+  /* ─── Status ────────────────────────────────────────────────── */
+  --pos: oklch(0.55 0.12 158);
+  --pos-soft: oklch(0.95 0.04 158);
+  --neg: oklch(0.6 0.18 25);
+  --neg-soft: oklch(0.96 0.04 25);
+  --warn: oklch(0.74 0.14 80);
+  --warn-soft: oklch(0.96 0.06 85);
+
+  /* ─── Type ──────────────────────────────────────────────────── */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ─── Geometry ──────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* ─── Shadows ───────────────────────────────────────────────── */
+  --shadow-card: 0 1px 2px rgba(10, 37, 64, 0.04),
+    0 0 0 1px rgba(10, 37, 64, 0.05);
+  --shadow-pop: 0 12px 32px -12px rgba(10, 37, 64, 0.18),
+    0 0 0 1px rgba(10, 37, 64, 0.06);
+
+  /* ─── Density (default: bequem) ─────────────────────────────── */
+  --row-h: 40px;
+  --pad: 14px;
+  --gap: 12px;
+
+  /* ─── Backwards-Compat (alte Tokens, nicht brechen) ─────────── */
+  --color-cuira-deep: var(--cuira-deep);
+  --color-cuira-deep-soft: var(--cuira-deep-soft);
+  --color-cuira-ink: var(--ink);
+  --color-cuira-bg: var(--bg);
+  --color-cuira-bg-soft: var(--bg-soft);
+  --color-cuira-accent: oklch(0.55 0.16 252);
+  --color-cuira-gold: #f59e0b;
+  --color-cuira-violet: #7c3aed;
   --color-cuira-emerald: #10b981;
   --color-cuira-rose: #f43f5e;
 }
 
-html, body {
+/* ─── Dark Theme (toggle via [data-theme="dark"] auf <html>) ──── */
+[data-theme="dark"] {
+  --bg: #0a1220;
+  --bg-soft: #0f1a2e;
+  --surface: #111d33;
+  --surface-2: #15243d;
+  --surface-hover: #1a2c49;
+  --border: #1f2f4d;
+  --border-strong: #2a3c5e;
+  --ink: #e7ecf3;
+  --ink-2: #a9b6cb;
+  --ink-3: #7a8aa6;
+  --ink-4: #56678a;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Density (toggle via [data-density="compact"] auf <html>) ── */
+[data-density="compact"] {
+  --row-h: 34px;
+  --pad: 10px;
+  --gap: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
   height: 100%;
 }
 
 body {
-  background: var(--color-cuira-bg);
-  color: var(--color-cuira-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Number-Input-Spinner global ausblenden — sonst kürzen sie den nutzbaren
-   Innen-Bereich und text-center wirkt visuell links-verschoben gegenüber
-   text-Inputs in derselben Zeile. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* ─── Utilities ──────────────────────────────────────────────── */
+.tabnums {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+}
+
+/* ─── Number-Input-Spinner ausblenden (Cuira-Konvention) ──────── */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -36,4 +144,269 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Component Primitives — adaptiert aus design_handoff_cuira_app/
+   Reusable via @apply oder direkten class-Use im JSX.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ─── Card ───────────────────────────────────────────────────── */
+.cui-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--pad) calc(var(--pad) + 4px);
+}
+.cui-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.cui-card-desc {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.cui-card-eyebrow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* ─── Button ─────────────────────────────────────────────────── */
+.cui-btn {
+  height: var(--row-h);
+  padding: 0 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.cui-btn:hover {
+  background: var(--surface-hover);
+}
+.cui-btn-primary {
+  background: var(--cuira-deep);
+  border-color: var(--cuira-deep);
+  color: white;
+}
+.cui-btn-primary:hover {
+  background: var(--cuira-deep-soft);
+}
+.cui-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+.cui-btn-ghost:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.cui-btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* ─── Input ─────────────────────────────────────────────────── */
+.cui-input {
+  width: 100%;
+  height: var(--row-h);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms, background 120ms;
+}
+.cui-input:hover {
+  border-color: var(--border-strong);
+}
+.cui-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 15%, transparent);
+}
+
+/* ─── Field (Label + Input) ─────────────────────────────────── */
+.cui-field-label {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 500;
+  display: block;
+  margin-bottom: 6px;
+}
+.cui-field-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ─── Segmented Control ─────────────────────────────────────── */
+.cui-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  border-radius: var(--radius);
+  padding: 3px;
+  width: 100%;
+}
+.cui-seg-btn {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 7px 10px;
+  font-size: 13px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-weight: 500;
+  transition: background 140ms, color 140ms, box-shadow 140ms;
+  cursor: pointer;
+}
+.cui-seg-btn:hover {
+  color: var(--ink);
+}
+.cui-seg-btn.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.06), 0 0 0 1px var(--border);
+}
+
+/* ─── Yes/No (Cuira-Stil — aktiv = Cuira-Deep gefüllt) ───────── */
+.cui-yesno {
+  display: inline-flex;
+  gap: 6px;
+}
+.cui-yesno-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--ink-2);
+  height: var(--row-h);
+  min-width: 64px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.cui-yesno-btn:hover {
+  background: var(--surface-hover);
+}
+.cui-yesno-btn.is-active {
+  background: var(--cuira-deep);
+  border-color: var(--cuira-deep);
+  color: white;
+}
+
+/* ─── KPI Card (mono-tabular, Cuira-Mono für Werte) ──────────── */
+.cui-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.cui-kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.cui-kpi-year {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.cui-kpi-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--cuira-deep);
+  margin-top: 2px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="dark"] .cui-kpi-value {
+  color: var(--ink);
+}
+
+/* ─── Status Pill ──────────────────────────────────────────── */
+.cui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cui-pill-pos {
+  background: var(--pos-soft);
+  color: var(--pos);
+}
+.cui-pill-neg {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+.cui-pill-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.cui-pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.cui-pill-muted {
+  background: var(--bg-soft);
+  color: var(--ink-3);
+}
+
+/* ─── Progress Bar (4px height, accent fill) ──────────────────── */
+.cui-progress-track {
+  height: 4px;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cui-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease-out;
+}
+
+/* ─── Animations ────────────────────────────────────────────── */
+@keyframes cui-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--pos-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--pos-soft);
+  }
+}
+.cui-autosave-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--pos);
+  box-shadow: 0 0 0 3px var(--pos-soft);
+  animation: cui-pulse 2.4s infinite;
 }
