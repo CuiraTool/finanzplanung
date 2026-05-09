@@ -1,23 +1,20 @@
 /**
- * Steuer-Engine V2 (basierend auf offiziellen ESTV-Tariftabellen).
+ * Steuer-Engine V3 — präzise Abzüge nach Schweizer Steuerrecht.
  *
  * Strategie:
- *  - Lädt JSON-Snapshots aus `./steuer-data/{year}/` (aus
- *    github.com/devbrains-com/swisstaxcalculator, MIT License) und nutzt
- *    `./steuer-engine/` für die Berechnung.
- *  - Bundessteuer: echter DBG-Tarif progressiv.
- *  - Kantonssteuer: echte progressive Tarife für alle 26 Kantone +
- *    Steuerfüsse Kanton/Gemeinde/Kirche pro Gemeinde (BfsID).
+ *  - Brutto-Erwerbseinkommen pro Person → echte Sozial+BVG+Berufsauslagen+3a-
+ *    Abzüge → steuerbares Einkommen separat für DBG (Bund) und Kanton.
+ *  - Bundessteuer + Kantonssteuer mit ESTV-Tariftabellen (alle 26 Kantone).
  *  - Vermögenssteuer: progressiv pro Kanton mit Freibeträgen.
- *  - Kapitalauszahlungssteuer: 1/5 DBG (Bund) + Kanton-Sondertarif (1/20 für ZH).
+ *  - Kapitalauszahlungssteuer: 1/5 DBG (Bund) + Kanton-Sondertarif.
  *  - User-Anker (Steuern_heute) überschreibt die Berechnung proportional.
  *
- * Vereinfachungen (offen für spätere Etappen):
- *  - Kinderabzüge / Säule-3a-Abzüge nicht modelliert (bruttoZuSteuerbarApprox)
- *  - Standardgemeinde = Hauptort des Kantons (User kann später spezifische
- *    Gemeinde wählen via bfsId)
- *  - Kapitalauszahlungssteuer pro Kanton: ZH echter 1/20-Tarif, andere
- *    nähern sich via 1/5-DBG-Bund + Pauschalsatz
+ * Vereinfachungen (offen):
+ *  - Kanton-Pauschalen: ZH-Werte als Default, andere Kantone gleich (Etappe
+ *    später ausdifferenziert).
+ *  - Schuldzinsen-Abzug bei Hypothek noch nicht modelliert.
+ *  - Eigenmietwert noch nicht in Einkommen integriert.
+ *  - NBU-Pauschal 1 % (real je Branche 0.7-1.5 %).
  */
 
 import {
@@ -32,12 +29,20 @@ import {
   type Religion,
   type SteuerJahr,
 } from "./steuer-engine";
+import {
+  abzuegeDbg,
+  abzuegeKanton,
+  type AbzugDetail,
+} from "./steuer-abzuege";
 
-// Re-export für Backwards-Kompatibilität (Religion-Type wird aus dem Wizard
-// importiert und sollte mit der Engine-Religion identisch sein)
+// Re-export für Backwards-Kompatibilität
 export type { Religion } from "./steuer-engine/types";
 
-/** Bruttojahreseinkommen → steuerbares Einkommen (Daumenregel 85%). */
+/**
+ * Brutto → steuerbar — Daumenregel-Funktion (DEPRECATED, nur noch für
+ * Backwards-Compat falls jemand sie ohne Kontext aufruft). Neue Berechnungen
+ * sollten `abzuegeDbg`/`abzuegeKanton` direkt nutzen.
+ */
 export function bruttoZuSteuerbarApprox(brutto: number): number {
   return Math.round(brutto * 0.85);
 }
@@ -52,11 +57,23 @@ export interface SteuerInput {
   fallart?: Fallart;
   /** BfsID einer spezifischen Gemeinde (sonst Hauptort des Kantons). */
   bfsId?: number;
-  /** Steuerjahr (Default 2025, max 2026 — neuere Jahre fallen auf 2026 zurück). */
+  /** Steuerjahr (Default 2025, max 2026). */
   jahr?: number;
   /** Anker fürs Kalibrierungs-Jahr (vom User eingegeben). */
   ankerSteuernHeute?: number | null;
   ankerEinkommenHeute?: number | null;
+
+  // ─── Detail-Felder für präzise Abzüge (Phase 5: Steuer-Abzuege-Engine) ───
+  /** Brutto-Erwerbseinkommen Person 1 — wenn 0 oder undefined: keine
+   *  Sozial+BVG+Berufsauslagen-Abzüge (z.B. nach Pensionierung). */
+  bruttoErwerbP1?: number;
+  bruttoErwerbP2?: number;
+  alterP1?: number;
+  alterP2?: number;
+  anzahlKinder?: number;
+  saeule3aEinzahlungJahr?: number;
+  hatPkAnschlussP1?: boolean;
+  hatPkAnschlussP2?: boolean;
 }
 
 export interface SteuerOutput {
@@ -70,6 +87,9 @@ export interface SteuerOutput {
   total: number;
   /** True wenn der User-Anker verwendet wurde. */
   kalibriert: boolean;
+  /** Optional: Detail der Abzüge (DBG + Kanton) für UI-Anzeige. */
+  abzuegeDbg?: AbzugDetail;
+  abzuegeKanton?: AbzugDetail;
 }
 
 /** Clamp Jahr auf verfügbare Tarife (2025/2026). */
@@ -79,7 +99,6 @@ function clampJahr(jahr: number | undefined): SteuerJahr {
   return 2026;
 }
 
-/** Validiert Kanton-String oder gibt null zurück (= unbekannter Kanton). */
 function asKantonCode(kanton: string): KantonCode | null {
   return kanton in KANTON_INFO ? (kanton as KantonCode) : null;
 }
@@ -90,16 +109,58 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   const kantonCode = asKantonCode(input.kanton);
   const religion = input.religion;
 
-  // Bundessteuer (Phase 4.2 → jetzt aus ESTV-Tabellen)
-  const steuerbaresEinkommen = bruttoZuSteuerbarApprox(input.einkommenJahr);
-  const bundSteuer = kantonCode
-    ? bundessteuerEinkommen(steuerbaresEinkommen, fallart, jahr)
-    : bundessteuerEinkommen(steuerbaresEinkommen, fallart, jahr);
+  // ─── Abzüge berechnen (DBG + Kanton getrennt) ────────────────────────
+  // Wenn detailfelder vorhanden: echte Abzüge berechnen.
+  // Sonst: bruttoZuSteuerbarApprox als Fallback (für Aufrufer ohne Kontext).
+  const hatDetailfelder =
+    input.bruttoErwerbP1 != null ||
+    input.bruttoErwerbP2 != null ||
+    input.anzahlKinder != null ||
+    input.saeule3aEinzahlungJahr != null;
 
-  // Kantons-/Gemeinde-/Kirchensteuer (Phase 4.3-4.4 → jetzt für alle 26 Kantone)
+  let steuerbarBund: number;
+  let steuerbarKanton: number;
+  let abzuegeBund: AbzugDetail | undefined;
+  let abzuegeKt: AbzugDetail | undefined;
+
+  if (hatDetailfelder) {
+    const abzInput = {
+      bruttoErwerbP1: Math.max(0, input.bruttoErwerbP1 ?? 0),
+      bruttoErwerbP2: Math.max(0, input.bruttoErwerbP2 ?? 0),
+      alterP1: input.alterP1 ?? 40,
+      alterP2: input.alterP2 ?? 40,
+      fallart,
+      anzahlKinder: Math.max(0, input.anzahlKinder ?? 0),
+      saeule3aEinzahlungJahr: Math.max(0, input.saeule3aEinzahlungJahr ?? 0),
+      hatPkAnschlussP1: input.hatPkAnschlussP1 ?? false,
+      hatPkAnschlussP2: input.hatPkAnschlussP2 ?? false,
+    };
+    abzuegeBund = abzuegeDbg(abzInput);
+    abzuegeKt = abzuegeKanton(abzInput, kantonCode ?? "ZH");
+
+    // Renten/Mieten/etc. = einkommenJahr - bruttoErwerb (Total) wird zur
+    // Bemessungsgrundlage addiert (kein BVG/Sozial/Berufsauslagen darauf,
+    // aber sehr wohl Versicherungs-/Kinder-/Doppelverdiener-Abzug bleibt).
+    const nichtErwerb = Math.max(
+      0,
+      input.einkommenJahr - abzInput.bruttoErwerbP1 - abzInput.bruttoErwerbP2
+    );
+    steuerbarBund = Math.max(0, abzuegeBund.steuerbar + nichtErwerb);
+    steuerbarKanton = Math.max(0, abzuegeKt.steuerbar + nichtErwerb);
+  } else {
+    // Fallback: alte 0.85-Daumenregel (aus Backwards-Compat-Tests / einfache Aufrufer)
+    const approx = bruttoZuSteuerbarApprox(input.einkommenJahr);
+    steuerbarBund = approx;
+    steuerbarKanton = approx;
+  }
+
+  // ─── Bundessteuer ────────────────────────────────────────────────────
+  const bundSteuer = bundessteuerEinkommen(steuerbarBund, fallart, jahr);
+
+  // ─── Kantons-/Gemeinde-/Kirchensteuer ────────────────────────────────
   let kantonsteuerNetto = 0;
   if (kantonCode) {
-    const r = einkommensteuerKanton(steuerbaresEinkommen, {
+    const r = einkommensteuerKanton(steuerbarKanton, {
       kanton: kantonCode,
       bfsId: input.bfsId,
       fallart,
@@ -108,12 +169,11 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     });
     kantonsteuerNetto = r.total;
   } else {
-    // Unbekannter Kanton: Schweiz-Median ~16% Bund+Kanton effektiv,
-    // davon Bund schon separat → Rest pauschal
-    kantonsteuerNetto = Math.max(0, steuerbaresEinkommen * 0.13);
+    // Unbekannter Kanton: Pauschal 13 % auf steuerbar (Schweiz-Median nach Bund)
+    kantonsteuerNetto = Math.max(0, steuerbarKanton * 0.13);
   }
 
-  // Anker-Modus: User-Eingabe überschreibt Default
+  // ─── Anker-Modus ─────────────────────────────────────────────────────
   let einkommensteuerKantonal = kantonsteuerNetto;
   let kalibriert = false;
   if (
@@ -131,7 +191,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
 
   const einkommensteuerTotal = bundSteuer + einkommensteuerKantonal;
 
-  // Vermögenssteuer (Phase 4.6 → jetzt für alle 26 Kantone)
+  // ─── Vermögenssteuer ─────────────────────────────────────────────────
   let vermoegensteuer = 0;
   const vermoegen = Math.max(0, input.vermoegenJahr);
   if (vermoegen > 0 && kantonCode) {
@@ -144,12 +204,11 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     });
     vermoegensteuer = r.total;
   } else if (vermoegen > 0) {
-    // Unbekannter Kanton: Default 3‰ mit Freibetrag 80k single / 160k paar
     const freibetrag = fallart === "paar" ? 160_000 : 80_000;
     vermoegensteuer = Math.max(0, vermoegen - freibetrag) * 0.003;
   }
 
-  // Kapitalauszahlungssteuer (Phase 4.5)
+  // ─── Kapitalauszahlungssteuer ────────────────────────────────────────
   const kapital = Math.max(0, input.kapAuszahlungenJahr);
   let kapitalBund = 0;
   let kapitalKanton = 0;
@@ -164,8 +223,6 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
         input.bfsId
       );
     } else if (kantonCode) {
-      // Andere Kantone: 1/5-Approximation des Einkommens-Tarifs als
-      // Kapital-Sondertarif (übliche Daumenregel)
       const r = einkommensteuerKanton(kapital, {
         kanton: kantonCode,
         bfsId: input.bfsId,
@@ -175,7 +232,6 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       });
       kapitalKanton = r.total / 5;
     } else {
-      // Unbekannter Kanton: Pauschal 6%
       kapitalKanton = kapital * 0.06;
     }
   }
@@ -191,11 +247,14 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     kapitalKanton: Math.round(kapitalKanton),
     total: Math.round(einkommensteuerTotal + vermoegensteuer + kapitalsteuer),
     kalibriert,
+    abzuegeDbg: abzuegeBund,
+    abzuegeKanton: abzuegeKt,
   };
 }
 
 /**
- * Indikative Jahressteuer heute, für die Anzeige im Block 3 (falls kein Anker).
+ * Indikative Jahressteuer heute (Block 3 Anzeige). Nutzt die simple Approx,
+ * weil hier kein Detail-Kontext vorhanden ist.
  */
 export function indikativeSteuerHeute(
   einkommenHeute: number,

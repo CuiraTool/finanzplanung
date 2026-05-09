@@ -18,6 +18,7 @@ export function Dashboard() {
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
+  const kinder = usePlanStore((s) => s.kinder);
   const ahv = usePlanStore((s) => s.ahv);
   const bvg = usePlanStore((s) => s.bvg);
   const saeuleDrei = usePlanStore((s) => s.saeuleDrei);
@@ -37,6 +38,7 @@ export function Dashboard() {
       fallart,
       person1,
       person2,
+      kinder,
       ahv,
       bvg,
       saeuleDrei,
@@ -52,6 +54,7 @@ export function Dashboard() {
       fallart,
       person1,
       person2,
+      kinder,
       ahv,
       bvg,
       saeuleDrei,

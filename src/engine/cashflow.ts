@@ -49,6 +49,7 @@ export type CashflowInput = Pick<
   | "fallart"
   | "person1"
   | "person2"
+  | "kinder"
   | "ahv"
   | "bvg"
   | "saeuleDrei"
@@ -213,6 +214,37 @@ export function cashflowReihe(
 
     // ─── Einnahmen ────────────────────────────────────────────────
     const einnahmenErwerb = erwerbseinkommenJahr(state.budget.einkommen, jahr);
+    // Aufgesplittet pro Person (für Steuer-Abzüge — Sozial+BVG+Berufsauslagen
+    // sind pro Person zu rechnen)
+    const erwerbP1Roh = erwerbseinkommenJahrPerson(state.budget.einkommen, jahr, 1);
+    const erwerbP2Roh = erwerbseinkommenJahrPerson(state.budget.einkommen, jahr, 2);
+    // Plausibilisierung: wenn Block 3 keine Perioden hat, fallback auf
+    // ahv.einkommenP1/P2 (gilt für alle Jahre vor Pensionierung)
+    const istVorPensionP1 =
+      pkBezugsjahrP1 == null || jahr < pkBezugsjahrP1;
+    const istVorPensionP2 =
+      pkBezugsjahrP2 == null || jahr < pkBezugsjahrP2;
+    const bruttoErwerbP1 =
+      erwerbP1Roh > 0
+        ? erwerbP1Roh
+        : istVorPensionP1
+          ? state.ahv.einkommenP1 ?? 0
+          : 0;
+    const bruttoErwerbP2 =
+      state.fallart === "paar"
+        ? erwerbP2Roh > 0
+          ? erwerbP2Roh
+          : istVorPensionP2
+            ? state.ahv.einkommenP2 ?? 0
+            : 0
+        : 0;
+    // Total 3a-Einzahlung im Jahr (alle Konten + Versicherungen, beide Personen,
+    // wenn jahr in einzahlungAb..einzahlungBis liegt)
+    const saeule3aEinzahlungJahr =
+      saeuleDreiEinzahlungJahr(state.saeuleDrei.p1, jahr) +
+      (state.fallart === "paar"
+        ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr)
+        : 0);
 
     let einnahmenAhv = 0;
     if (ahvBezugsjahrP1 != null && jahr >= ahvBezugsjahrP1) {
@@ -290,6 +322,19 @@ export function cashflowReihe(
       religion: state.budget.religion,
       fallart: state.fallart,
       jahr: jahr <= 2025 ? 2025 : 2026,
+      // Detail-Felder für präzise Abzüge (Phase 5)
+      bruttoErwerbP1,
+      bruttoErwerbP2,
+      alterP1: alterP1 ?? 40,
+      alterP2: alterP2 ?? 40,
+      anzahlKinder: state.kinder.length,
+      saeule3aEinzahlungJahr,
+      hatPkAnschlussP1:
+        state.bvg.p1.aktiverAnschluss && istVorPensionP1,
+      hatPkAnschlussP2:
+        state.fallart === "paar" &&
+        state.bvg.p2.aktiverAnschluss &&
+        istVorPensionP2,
       ankerSteuernHeute: state.budget.steuernHeute,
       ankerEinkommenHeute: state.budget.einkommenHeute,
     });
@@ -420,6 +465,39 @@ function erwerbseinkommenJahr(perioden: Einkommensperiode[], jahr: number): numb
     // Anzahl aktive Monate in `jahr`
     const aktivMonate = aktiveMonateImJahr(jahr, von, bis);
     total += p.betragMonatlich * aktivMonate;
+  }
+  return total;
+}
+
+/** Erwerbseinkommen für eine spezifische Person (filter über personIdx). */
+function erwerbseinkommenJahrPerson(
+  perioden: Einkommensperiode[],
+  jahr: number,
+  personIdx: 1 | 2
+): number {
+  let total = 0;
+  for (const p of perioden) {
+    if (p.personIdx !== personIdx) continue;
+    if (p.betragMonatlich == null) continue;
+    const von = parseYearMonth(p.von);
+    const bis = parseYearMonth(p.bis);
+    const aktivMonate = aktiveMonateImJahr(jahr, von, bis);
+    total += p.betragMonatlich * aktivMonate;
+  }
+  return total;
+}
+
+/** Total 3a-Einzahlungen einer Person im Jahr (alle Konten/Versicherungen). */
+function saeuleDreiEinzahlungJahr(
+  entries: { jaehrlicheEinzahlung: number | null; einzahlungAb: number; einzahlungBis: number }[],
+  jahr: number
+): number {
+  let total = 0;
+  for (const e of entries) {
+    if (e.jaehrlicheEinzahlung == null) continue;
+    if (jahr < e.einzahlungAb) continue;
+    if (e.einzahlungBis > 0 && jahr > e.einzahlungBis) continue;
+    total += e.jaehrlicheEinzahlung;
   }
   return total;
 }
