@@ -329,6 +329,78 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
   {
+    id: "F5_p1",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Hat Person 1 ein Freizügigkeitskonto oder eine -police?",
+    hilfe: "z.B. aus einer früheren Anstellung — auch ohne aktive PK möglich",
+    type: "yesno",
+    get: (s) => s.bvg.p1.freizuegigkeit.length > 0,
+    set: (s, v) => {
+      if (v === true) {
+        if (s.bvg.p1.freizuegigkeit.length === 0) {
+          const geburtsjahr =
+            parseInt(s.person1.geburtsdatum.slice(0, 4), 10) || 1965;
+          s.bvg.p1.freizuegigkeit = [
+            {
+              id: `flow-fz-p1-${Date.now()}`,
+              beschreibung: "Freizügigkeit",
+              saldoHeute: null,
+              auszahlungsjahr: geburtsjahr + s.ziele.bezugsalterP1,
+              renditeProzent: 0,
+            },
+          ];
+        }
+      } else {
+        s.bvg.p1.freizuegigkeit = [];
+      }
+    },
+  },
+  {
+    id: "F6_p1",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Höhe Freizügigkeit Person 1 (gesamt)",
+    hilfe: "Wenn mehrere Konten/Policen: Summe aller Saldi",
+    type: "number",
+    bedingung: (s) => s.bvg.p1.freizuegigkeit.length > 0,
+    suffix: "CHF",
+    get: (s) => s.bvg.p1.freizuegigkeit[0]?.saldoHeute ?? null,
+    set: (s, v) => {
+      if (s.bvg.p1.freizuegigkeit[0]) {
+        s.bvg.p1.freizuegigkeit[0].saldoHeute = v as number | null;
+      }
+    },
+  },
+  {
+    id: "F7_p1",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Konto oder angelegt (Wertschriften)?",
+    hilfe: "Konto = ~0 % Rendite. Angelegt = ~2.5 % p.a. (Standard-Annahme).",
+    type: "single",
+    bedingung: (s) => s.bvg.p1.freizuegigkeit.length > 0,
+    optionen: [
+      { value: "konto", label: "Konto (0 % Rendite)" },
+      { value: "angelegt", label: "Angelegt (~2.5 % Rendite)" },
+      { value: "weiss_nicht", label: "Weiss nicht" },
+    ],
+    get: (s) => {
+      const fz = s.bvg.p1.freizuegigkeit[0];
+      if (!fz) return "weiss_nicht";
+      if (fz.renditeProzent >= 1.5) return "angelegt";
+      return "konto";
+    },
+    set: (s, v) => {
+      const fz = s.bvg.p1.freizuegigkeit[0];
+      if (!fz) return;
+      const val = v as string;
+      if (val === "angelegt") fz.renditeProzent = 2.5;
+      else if (val === "konto") fz.renditeProzent = 0;
+      // "weiss_nicht": Default beibehalten
+    },
+  },
+  {
     id: "F14",
     block: "F",
     blockTitle: "2. Säule (Pensionskasse)",
@@ -368,6 +440,78 @@ export const QUESTIONS: QuestionSpec[] = [
     get: (s) => s.bvg.p2.altersguthabenHeute,
     set: (s, v) => {
       s.bvg.p2.altersguthabenHeute = v as number | null;
+    },
+  },
+  {
+    id: "F5_p2",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Hat Person 2 ein Freizügigkeitskonto oder eine -police?",
+    hilfe: "z.B. aus einer früheren Anstellung — auch ohne aktive PK möglich",
+    type: "yesno",
+    bedingung: (s) => s.fallart === "paar",
+    get: (s) => s.bvg.p2.freizuegigkeit.length > 0,
+    set: (s, v) => {
+      if (v === true) {
+        if (s.bvg.p2.freizuegigkeit.length === 0) {
+          const geburtsjahr =
+            parseInt(s.person2.geburtsdatum.slice(0, 4), 10) || 1965;
+          s.bvg.p2.freizuegigkeit = [
+            {
+              id: `flow-fz-p2-${Date.now()}`,
+              beschreibung: "Freizügigkeit",
+              saldoHeute: null,
+              auszahlungsjahr: geburtsjahr + s.ziele.bezugsalterP2,
+              renditeProzent: 0,
+            },
+          ];
+        }
+      } else {
+        s.bvg.p2.freizuegigkeit = [];
+      }
+    },
+  },
+  {
+    id: "F6_p2",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Höhe Freizügigkeit Person 2 (gesamt)",
+    hilfe: "Wenn mehrere Konten/Policen: Summe aller Saldi",
+    type: "number",
+    bedingung: (s) => s.fallart === "paar" && s.bvg.p2.freizuegigkeit.length > 0,
+    suffix: "CHF",
+    get: (s) => s.bvg.p2.freizuegigkeit[0]?.saldoHeute ?? null,
+    set: (s, v) => {
+      if (s.bvg.p2.freizuegigkeit[0]) {
+        s.bvg.p2.freizuegigkeit[0].saldoHeute = v as number | null;
+      }
+    },
+  },
+  {
+    id: "F7_p2",
+    block: "F",
+    blockTitle: "2. Säule (Pensionskasse)",
+    frage: "Konto oder angelegt (Wertschriften) — Person 2?",
+    hilfe: "Konto = ~0 % Rendite. Angelegt = ~2.5 % p.a. (Standard-Annahme).",
+    type: "single",
+    bedingung: (s) => s.fallart === "paar" && s.bvg.p2.freizuegigkeit.length > 0,
+    optionen: [
+      { value: "konto", label: "Konto (0 % Rendite)" },
+      { value: "angelegt", label: "Angelegt (~2.5 % Rendite)" },
+      { value: "weiss_nicht", label: "Weiss nicht" },
+    ],
+    get: (s) => {
+      const fz = s.bvg.p2.freizuegigkeit[0];
+      if (!fz) return "weiss_nicht";
+      if (fz.renditeProzent >= 1.5) return "angelegt";
+      return "konto";
+    },
+    set: (s, v) => {
+      const fz = s.bvg.p2.freizuegigkeit[0];
+      if (!fz) return;
+      const val = v as string;
+      if (val === "angelegt") fz.renditeProzent = 2.5;
+      else if (val === "konto") fz.renditeProzent = 0;
     },
   },
   {
