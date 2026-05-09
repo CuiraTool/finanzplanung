@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 /**
  * View-Modi der Hauptansicht:
@@ -12,34 +13,36 @@ import { useEffect, useState } from "react";
  */
 export type ViewMode = "split" | "wizard" | "dashboard";
 
-const STORAGE_KEY = "cuira-view-mode";
-const DEFAULT_MODE: ViewMode = "split";
-
-function readStored(): ViewMode {
-  if (typeof window === "undefined") return DEFAULT_MODE;
-  const v = localStorage.getItem(STORAGE_KEY);
-  if (v === "split" || v === "wizard" || v === "dashboard") return v;
-  return DEFAULT_MODE;
+interface ViewModeStore {
+  mode: ViewMode;
+  setMode: (m: ViewMode) => void;
 }
 
 /**
- * Globaler View-Mode-State. Wird in LocalStorage persistiert. Beim Mount auf
- * Server-Side mit Default initialisiert (kein Hydration-Mismatch), nach Mount
- * wird der gespeicherte Wert übernommen.
+ * Globaler View-Mode-State via zustand — cross-component synchronisiert.
+ *
+ * Wichtig: der erste Wurf war ein useState-Hook pro Komponente, was dazu
+ * führte dass Header (set) und Wizard (read) eigene States hatten. Mit
+ * zustand-Store wird der State global geteilt; persist sorgt für die
+ * LocalStorage-Bridge.
+ */
+const useViewModeStore = create<ViewModeStore>()(
+  persist(
+    (set) => ({
+      mode: "split",
+      setMode: (mode) => set({ mode }),
+    }),
+    {
+      name: "cuira-view-mode",
+    }
+  )
+);
+
+/**
+ * Tuple-API für minimale Aufrufer-Anpassung — wie ein useState.
  */
 export function useViewMode(): [ViewMode, (m: ViewMode) => void] {
-  const [mode, setModeState] = useState<ViewMode>(DEFAULT_MODE);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setModeState(readStored());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, mode);
-  }, [mode, hydrated]);
-
-  return [mode, setModeState];
+  const mode = useViewModeStore((s) => s.mode);
+  const setMode = useViewModeStore((s) => s.setMode);
+  return [mode, setMode];
 }
