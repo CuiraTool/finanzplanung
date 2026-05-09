@@ -6,6 +6,8 @@ import {
   ahvJahresrenteEinzel,
   bezugsfaktor,
   dreizehnteAhvFaktor,
+  ordentlichesAhvAlter,
+  istAhv21Uebergangsjahrgang,
   ORDENTLICHES_AHV_ALTER,
   ERSTES_JAHR_13TE_AHV,
 } from "./ahv";
@@ -212,5 +214,49 @@ describe("AHV — Konstanten", () => {
 
   it("erste 13. AHV im Jahr 2026", () => {
     expect(ERSTES_JAHR_13TE_AHV).toBe(2026);
+  });
+});
+
+describe("AHV21 — Frauen-Übergangsalter (Stufenplan)", () => {
+  it("Männer immer 65 (alle Jahrgänge)", () => {
+    expect(ordentlichesAhvAlter(1955, "m")).toBe(65);
+    expect(ordentlichesAhvAlter(1962, "m")).toBe(65);
+    expect(ordentlichesAhvAlter(1990, "m")).toBe(65);
+  });
+
+  it("Frauen Jg 1960 oder älter: 64", () => {
+    expect(ordentlichesAhvAlter(1955, "w")).toBe(64);
+    expect(ordentlichesAhvAlter(1960, "w")).toBe(64);
+  });
+
+  it("Frauen Jg 1961: 64.25 (64 + 3 Mt)", () => {
+    expect(ordentlichesAhvAlter(1961, "w")).toBe(64.25);
+  });
+
+  it("Frauen Jg 1962: 64.5 (64 + 6 Mt)", () => {
+    expect(ordentlichesAhvAlter(1962, "w")).toBe(64.5);
+  });
+
+  it("Frauen Jg 1963: 64.75 (64 + 9 Mt)", () => {
+    expect(ordentlichesAhvAlter(1963, "w")).toBe(64.75);
+  });
+
+  it("Frauen Jg 1964 und später: 65", () => {
+    expect(ordentlichesAhvAlter(1964, "w")).toBe(65);
+    expect(ordentlichesAhvAlter(1980, "w")).toBe(65);
+  });
+
+  it("Geschlecht 'andere' / null: 65 (Default)", () => {
+    expect(ordentlichesAhvAlter(1962, "andere")).toBe(65);
+    expect(ordentlichesAhvAlter(1962, null)).toBe(65);
+  });
+
+  it("istAhv21Uebergangsjahrgang: nur Frauen 1961-63", () => {
+    expect(istAhv21Uebergangsjahrgang(1961, "w")).toBe(true);
+    expect(istAhv21Uebergangsjahrgang(1962, "w")).toBe(true);
+    expect(istAhv21Uebergangsjahrgang(1963, "w")).toBe(true);
+    expect(istAhv21Uebergangsjahrgang(1960, "w")).toBe(false);
+    expect(istAhv21Uebergangsjahrgang(1964, "w")).toBe(false);
+    expect(istAhv21Uebergangsjahrgang(1962, "m")).toBe(false);
   });
 });

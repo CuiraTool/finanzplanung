@@ -252,14 +252,36 @@ function PersonForm({
           />
         </Field>
       </div>
-      <Field label="Geburtsdatum *" hint="Pflichtfeld — bestimmt Pensionsjahr">
-        <input
-          type="date"
-          value={person.geburtsdatum}
-          onChange={(e) => onChange({ geburtsdatum: e.target.value })}
-          className={inputClass}
-        />
-      </Field>
+      <div className="grid grid-cols-[1fr_140px] gap-2">
+        <Field label="Geburtsdatum *" hint="Pflichtfeld — bestimmt Pensionsjahr">
+          <input
+            type="date"
+            value={person.geburtsdatum}
+            onChange={(e) => onChange({ geburtsdatum: e.target.value })}
+            className={inputClass}
+          />
+        </Field>
+        <Field
+          label="Geschlecht"
+          hint={ahv21Hinweis(person)}
+        >
+          <select
+            value={person.geschlecht ?? ""}
+            onChange={(e) =>
+              onChange({
+                geschlecht:
+                  (e.target.value as "m" | "w" | "andere" | "") || null,
+              })
+            }
+            className={selectClass}
+          >
+            <option value="">—</option>
+            <option value="m">Mann</option>
+            <option value="w">Frau</option>
+            <option value="andere">Andere</option>
+          </select>
+        </Field>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Telefon">
           <input
@@ -282,5 +304,19 @@ function PersonForm({
       </div>
     </Section>
   );
+}
+
+/**
+ * Liefert einen kurzen Hinweis-Text wenn die Person zu den AHV21-
+ * Übergangsjahrgängen gehört (Frau Jg. 1961-63).
+ */
+function ahv21Hinweis(person: PersonInput): string | undefined {
+  if (person.geschlecht !== "w" || !person.geburtsdatum) return undefined;
+  const jahr = parseInt(person.geburtsdatum.slice(0, 4), 10);
+  if (jahr === 1961) return "AHV21: ord. Alter 64 + 3 Mt";
+  if (jahr === 1962) return "AHV21: ord. Alter 64 + 6 Mt";
+  if (jahr === 1963) return "AHV21: ord. Alter 64 + 9 Mt";
+  if (jahr <= 1960) return "AHV21: ord. Alter 64";
+  return undefined;
 }
 

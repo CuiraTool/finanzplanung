@@ -68,10 +68,14 @@ export interface Kind {
   zuordnung: KindZuordnung;
 }
 
+export type Geschlecht = "m" | "w" | "andere";
+
 export interface PersonInput {
   vorname: string;
   nachname: string;
   geburtsdatum: string;
+  /** Optional — relevant für AHV21-Übergangsalter (Frauen Jg. 1961-63). */
+  geschlecht: Geschlecht | null;
   telefon: string;
   email: string;
 }
@@ -538,6 +542,7 @@ const initialPerson: PersonInput = {
   vorname: "",
   nachname: "",
   geburtsdatum: "",
+  geschlecht: null,
   telefon: "",
   email: "",
 };
@@ -1214,7 +1219,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v23",
+      name: "cuira-plan-v24",
     }
   )
 );

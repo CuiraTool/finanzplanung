@@ -30,8 +30,16 @@
  *     (echte BSV-Skala ist gestaffelt — Ersatz in Etappe 1.5).
  *   - Fehljahre wirken linear: (44 - fehljahre) / 44 × Vollrente.
  *   - Symmetrisches Einkommens-Splitting beim Ehepaar.
- *   - Frauen-Übergangsalter (AHV21, Jahrgänge 1961–1963) noch nicht abgebildet —
- *     Annahme: ordentliches Alter = 65 für alle.
+ *
+ * AHV21 Übergangsalter (Phase 5.x):
+ *   - Frauen Jg. 1960 oder älter: 64
+ *   - Jg. 1961: 64 + 3 Monate (= 64.25)
+ *   - Jg. 1962: 64 + 6 Monate (= 64.5)
+ *   - Jg. 1963: 64 + 9 Monate (= 64.75)
+ *   - Jg. 1964 und jünger / alle Männer: 65
+ *   Plus: reduzierte Vorbezugskürzungssätze für Übergangs-Jg (BSV-Tabelle,
+ *   abhängig vom mittleren Einkommen) — hier nicht abgebildet, der User
+ *   kriegt einen Hinweis im Wizard.
  */
 
 const MIN_RENTE = 15_120;
@@ -46,6 +54,42 @@ export const ERSTES_JAHR_13TE_AHV = 2026;
 export const MAX_VORBEZUG_JAHRE = 2;
 export const MAX_AUFSCHUB_JAHRE = 5;
 export const VORBEZUG_KUERZUNG_PRO_JAHR = 0.068; // 6.8% / Jahr
+
+/**
+ * AHV21-Übergangsalter für Frauen (gestaffelt nach Geburtsjahr).
+ * Liefert das ordentliche Referenzalter in Jahren (mit Bruchteil für
+ * die Übergangsjahrgänge: z.B. 64.5 = 64 Jahre + 6 Monate).
+ *
+ * Männer: immer 65.
+ * Frauen Jg ≤1960: 64.
+ * Frauen Jg 1961: 64.25 (64 + 3 Monate).
+ * Frauen Jg 1962: 64.5 (64 + 6 Monate).
+ * Frauen Jg 1963: 64.75 (64 + 9 Monate).
+ * Frauen Jg ≥1964: 65.
+ */
+export function ordentlichesAhvAlter(
+  geburtsjahr: number,
+  geschlecht: "m" | "w" | "andere" | null | undefined
+): number {
+  if (geschlecht !== "w") return ORDENTLICHES_AHV_ALTER;
+  if (geburtsjahr <= 1960) return 64;
+  if (geburtsjahr === 1961) return 64.25;
+  if (geburtsjahr === 1962) return 64.5;
+  if (geburtsjahr === 1963) return 64.75;
+  return 65; // Jg 1964 und später
+}
+
+/**
+ * True wenn die Person zu den AHV21-Übergangsjahrgängen (Frauen 1961-63)
+ * gehört. Diese haben reduzierte Vorbezugskürzungs-Sätze (BSV-Tabelle,
+ * einkommensabhängig — hier nicht im Detail abgebildet).
+ */
+export function istAhv21Uebergangsjahrgang(
+  geburtsjahr: number,
+  geschlecht: "m" | "w" | "andere" | null | undefined
+): boolean {
+  return geschlecht === "w" && geburtsjahr >= 1961 && geburtsjahr <= 1963;
+}
 
 const AUFSCHUB_ZUSCHLAG_TABELLE: { monate: number; zuschlag: number }[] = [
   { monate: 0, zuschlag: 0 },
