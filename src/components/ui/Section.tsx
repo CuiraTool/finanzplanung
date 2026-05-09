@@ -1,5 +1,7 @@
 /**
  * Fieldset mit Legend und optionalem Hint — vereinheitlicht alle Wizard-Blocks.
+ *
+ * Phase 5.x: nutzt Cuira-Design-Tokens (--surface, --border, --ink, --ink-3).
  */
 export function Section({
   title,
@@ -11,10 +13,26 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-      <legend className="px-1 text-sm font-semibold text-slate-700">
+    <fieldset
+      className="space-y-3 rounded-[14px] border p-4"
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <legend
+        className="px-1 text-[14px] font-semibold"
+        style={{ color: "var(--ink)" }}
+      >
         {title}
-        {hint && <span className="ml-2 text-xs font-normal text-slate-400">{hint}</span>}
+        {hint && (
+          <span
+            className="ml-2 text-[11.5px] font-normal"
+            style={{ color: "var(--ink-3)" }}
+          >
+            {hint}
+          </span>
+        )}
       </legend>
       {children}
     </fieldset>

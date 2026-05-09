@@ -1,6 +1,7 @@
 /**
- * Form-Field-Wrapper mit Label und optionalem Hint — vereinheitlicht alle
- * Wizard-Blocks. Vorher in 9 Block-Files identisch dupliziert.
+ * Form-Field-Wrapper mit Label und optionalem Hint.
+ *
+ * Phase 5.x: nutzt Cuira-Design-Tokens (--ink-2 für Label, --ink-3 für Hint).
  */
 export function Field({
   label,
@@ -13,8 +14,20 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>
-      {hint && <div className="mb-1 text-xs text-slate-400">{hint}</div>}
+      <div
+        className="mb-1.5 text-[12px] font-medium"
+        style={{ color: "var(--ink-2)" }}
+      >
+        {label}
+      </div>
+      {hint && (
+        <div
+          className="mb-1.5 text-[11px]"
+          style={{ color: "var(--ink-3)" }}
+        >
+          {hint}
+        </div>
+      )}
       {children}
     </label>
   );

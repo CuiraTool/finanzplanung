@@ -196,7 +196,10 @@ function validiere(spec: QuestionSpec, wert: unknown): string | null {
 }
 
 const inputBaseClass =
-  "w-full rounded-md border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 transition-colors placeholder:text-slate-400 focus:border-[var(--color-cuira-deep)] focus:outline-none focus:ring-2 focus:ring-[var(--color-cuira-deep)]/20";
+  "w-full rounded-[10px] border bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--ink)] outline-none transition-[border-color,box-shadow,background] " +
+  "border-[var(--border)] hover:border-[var(--border-strong)] " +
+  "focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_15%,transparent)] " +
+  "placeholder:text-[var(--ink-4)]";
 
 function FieldInput({
   spec,
@@ -394,14 +397,27 @@ function ChoiceButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md border-2 px-4 py-3 text-left text-base transition ${
-        active
-          ? "border-[var(--color-cuira-deep)] bg-[var(--color-cuira-deep)]/5 text-slate-900"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-      } ${fullWidth ? "w-full" : ""}`}
+      className={`rounded-[12px] border-2 px-4 py-3.5 text-left text-[15px] transition-all ${
+        fullWidth ? "w-full" : ""
+      }`}
+      style={{
+        borderColor: active ? "var(--accent)" : "var(--border)",
+        background: active ? "var(--accent-soft)" : "var(--surface)",
+        color: "var(--ink)",
+        boxShadow: active
+          ? "0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent)"
+          : undefined,
+      }}
     >
       <div className="font-medium">{label}</div>
-      {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
+      {hint && (
+        <div
+          className="mt-0.5 text-[12px]"
+          style={{ color: active ? "var(--accent-ink)" : "var(--ink-3)" }}
+        >
+          {hint}
+        </div>
+      )}
     </button>
   );
 }

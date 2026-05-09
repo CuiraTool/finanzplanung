@@ -280,27 +280,42 @@ function KpiCard({
   diff?: number | null;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-baseline justify-between">
-        <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-        {jahr != null && (
-          <div className="text-xs tabular-nums text-slate-400">{jahr}</div>
-        )}
+    <div
+      className="cui-kpi"
+      style={{
+        padding: "16px 18px",
+        borderRadius: "var(--radius-lg)",
+      }}
+    >
+      <div className="cui-kpi-row flex items-baseline justify-between">
+        <div className="cui-kpi-label">{label}</div>
+        {jahr != null && <div className="cui-kpi-year">{jahr}</div>}
       </div>
-      <div className="mt-2 text-3xl font-semibold tabular-nums text-[var(--color-cuira-deep)]">
+      <div
+        className="cui-kpi-value"
+        style={{ fontSize: "26px", marginTop: "4px" }}
+      >
         {value}
       </div>
       {diff != null && (
         <div
-          className={`mt-1 text-xs font-medium tabular-nums ${
-            diff >= 0 ? "text-emerald-700" : "text-rose-700"
-          }`}
+          className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums"
+          style={{
+            background: diff >= 0 ? "var(--pos-soft)" : "var(--neg-soft)",
+            color: diff >= 0 ? "var(--pos)" : "var(--neg)",
+            fontFamily: "var(--font-mono)",
+          }}
         >
-          Variante B: {diff >= 0 ? "+" : ""}
+          B: {diff >= 0 ? "+" : ""}
           {formatChf(diff)}
         </div>
       )}
-      <div className="mt-2 text-xs text-slate-400">{hint}</div>
+      <div
+        className="mt-2 text-[11.5px] leading-snug"
+        style={{ color: "var(--ink-3)" }}
+      >
+        {hint}
+      </div>
     </div>
   );
 }

@@ -48,3 +48,7 @@ yarn-error.log*
 .claude/settings.local.json
 .claude/.credentials.json
 .claude/worktrees/
+
+# Design-Handoff-Pakete (lokale Reference, nicht ins Repo)
+*.zip
+design_handoff_*/
