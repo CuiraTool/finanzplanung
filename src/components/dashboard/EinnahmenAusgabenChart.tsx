@@ -29,6 +29,8 @@ const FARBE = {
   mieten: "#a7f3d0",
   haushalt: "#f43f5e",
   steuern: "#fb7185",
+  sozial: "#c084fc", // Sozial+BVG-Beiträge (Erwerbsphase)
+  vorsorge3a: "#a78bfa", // 3a-Einzahlung (Sparphase)
   einmalig: "#fda4af",
   saldo: "#0a2540",
 };
@@ -55,6 +57,8 @@ export function EinnahmenAusgabenChart({
     ...d,
     ausgabenHaushaltViz: -d.ausgabenHaushalt,
     ausgabenSteuernViz: -d.ausgabenSteuern,
+    ausgabenSozialBvgViz: -d.ausgabenSozialBvg,
+    ausgabenVorsorge3aViz: -d.ausgabenVorsorge3a,
     ausgabenEinmaligViz: -d.ausgabenEinmalig,
     saldoB: datenB?.[i]?.saldo ?? null,
   }));
@@ -121,6 +125,18 @@ export function EinnahmenAusgabenChart({
           />
 
           {/* Ausgaben — gestapelt nach unten (negative Werte) */}
+          <Bar
+            dataKey="ausgabenSozialBvgViz"
+            stackId="cf"
+            fill={FARBE.sozial}
+            name="Sozial+BVG"
+          />
+          <Bar
+            dataKey="ausgabenVorsorge3aViz"
+            stackId="cf"
+            fill={FARBE.vorsorge3a}
+            name="Säule 3a"
+          />
           <Bar
             dataKey="ausgabenHaushaltViz"
             stackId="cf"
@@ -254,21 +270,45 @@ function CustomTooltip({
     <div className="rounded-md border border-slate-200 bg-white p-3 shadow-md">
       <div className="mb-1 text-xs font-semibold text-slate-700">Jahr {label}</div>
       <div className="space-y-0.5 text-xs tabular-nums">
-        <div className="flex justify-between gap-4 text-emerald-700">
+        <div className="flex justify-between gap-4 font-medium text-emerald-700">
           <span>Einnahmen</span>
           <span>{fmt(z.einnahmenTotal)}</span>
         </div>
-        <div className="flex justify-between gap-4 text-rose-700">
+        <div className="flex justify-between gap-4 font-medium text-rose-700">
           <span>Ausgaben</span>
           <span>{fmt(-z.ausgabenTotal)}</span>
         </div>
+        {z.ausgabenSozialBvg > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-purple-600/80">
+            <span>davon Sozial+BVG</span>
+            <span>{fmt(-z.ausgabenSozialBvg)}</span>
+          </div>
+        )}
+        {z.ausgabenVorsorge3a > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-purple-600/80">
+            <span>davon Säule 3a</span>
+            <span>{fmt(-z.ausgabenVorsorge3a)}</span>
+          </div>
+        )}
+        {z.ausgabenSteuern > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
+            <span>davon Steuern</span>
+            <span>{fmt(-z.ausgabenSteuern)}</span>
+          </div>
+        )}
+        {z.ausgabenHaushalt > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
+            <span>davon Haushalt</span>
+            <span>{fmt(-z.ausgabenHaushalt)}</span>
+          </div>
+        )}
         <div className="mt-1 border-t border-slate-100 pt-1" />
         <div
           className={`flex justify-between gap-4 font-semibold ${
             z.saldo >= 0 ? "text-emerald-700" : "text-rose-700"
           }`}
         >
-          <span>Saldo</span>
+          <span>Saldo (Sparquote)</span>
           <span>{fmt(z.saldo)}</span>
         </div>
       </div>

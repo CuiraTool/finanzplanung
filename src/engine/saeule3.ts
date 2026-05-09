@@ -53,10 +53,21 @@ export function saeuleDreiAuszahlung(
 ): SaeuleDreiAuszahlung | null {
   if (item.type === "konto") {
     if (item.aktuellerWert == null) return null;
-    const jahre = Math.max(0, item.auszahlungsjahr - jetztJahr);
-    const projiziert =
-      item.aktuellerWert * Math.pow(1 + item.renditeProzent / 100, jahre);
-    return { jahr: item.auszahlungsjahr, betrag: Math.round(projiziert) };
+    const r = item.renditeProzent / 100;
+    let saldo = item.aktuellerWert;
+    // Jahr für Jahr: ggf. Einzahlung addieren, dann verzinsen.
+    // Damit ist auch die Sparphase korrekt modelliert.
+    for (let y = jetztJahr + 1; y <= item.auszahlungsjahr; y++) {
+      if (
+        item.jaehrlicheEinzahlung != null &&
+        y >= item.einzahlungAb &&
+        (item.einzahlungBis === 0 || y <= item.einzahlungBis)
+      ) {
+        saldo += item.jaehrlicheEinzahlung;
+      }
+      saldo *= 1 + r;
+    }
+    return { jahr: item.auszahlungsjahr, betrag: Math.round(saldo) };
   }
   // Versicherung: Ablaufwert hat Vorrang (Erlebensfallleistung), sonst Rückkaufswert
   const betrag = item.ablaufswert ?? item.rueckkaufswert;

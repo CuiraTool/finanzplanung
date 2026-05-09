@@ -156,6 +156,8 @@ export interface CashflowZeile {
   ausgabenSteuernKapital: number;
   ausgabenSteuernKapitalBund: number; // davon Bund (1/5 DBG)
   ausgabenSteuernKapitalKanton: number; // davon Kanton-Sondertarif
+  ausgabenSozialBvg: number; // AHV/IV/EO + ALV + NBU + BVG-AN-Beitrag (Erwerbsphase)
+  ausgabenVorsorge3a: number; // jährliche Einzahlungen Säule 3a/3b
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -347,7 +349,25 @@ export function cashflowReihe(
     const ausgabenSteuernKapitalBund = steuern.kapitalBund;
     const ausgabenSteuernKapitalKanton = steuern.kapitalKanton;
 
-    const ausgabenTotal = ausgabenHaushalt + ausgabenSteuern + ausgabenEinmalig;
+    // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
+    // (nur in Erwerbsphase relevant — bei Pensionierung sind die 0)
+    const ab = steuern.abzuegeDbg;
+    const ausgabenSozialBvg = ab
+      ? ab.sozialversicherungP1 +
+        ab.sozialversicherungP2 +
+        ab.bvgBeitragP1 +
+        ab.bvgBeitragP2
+      : 0;
+    // 3a-Einzahlung als separate Vorsorge-Ausgabe (geht NICHT auf das
+    // Hauptkonto, sondern wächst den 3a-Saldo)
+    const ausgabenVorsorge3a = saeule3aEinzahlungJahr;
+
+    const ausgabenTotal =
+      ausgabenHaushalt +
+      ausgabenSteuern +
+      ausgabenEinmalig +
+      ausgabenSozialBvg +
+      ausgabenVorsorge3a;
 
     // ─── Saldo ───────────────────────────────────────────────────
     const saldo = einnahmenTotal - ausgabenTotal;
@@ -422,6 +442,8 @@ export function cashflowReihe(
       ausgabenSteuernKapital: Math.round(ausgabenSteuernKapital),
       ausgabenSteuernKapitalBund: Math.round(ausgabenSteuernKapitalBund),
       ausgabenSteuernKapitalKanton: Math.round(ausgabenSteuernKapitalKanton),
+      ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
+      ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
@@ -787,15 +809,30 @@ function vorsorgeVermoegenAmJahresende(
     }
   }
 
-  // 3a — pro Item bis Auszahlungs-/Ablaufjahr
+  // 3a — pro Item bis Auszahlungs-/Ablaufjahr.
+  // Konto: Saldo wächst Jahr für Jahr durch Einzahlung + Verzinsung.
+  // Versicherung: statischer Wert (Rückkaufs-/Ablaufwert) — die Prämien
+  // sind im Vertrag gesperrt, der ausgewiesene Wert wächst nicht linear
+  // mit der Einzahlung (Versicherungsmathematik).
   for (const items of [state.saeuleDrei.p1, state.saeuleDrei.p2]) {
     for (const it of items) {
       if (it.type === "konto") {
         if (it.aktuellerWert == null) continue;
-        if (jahr < it.auszahlungsjahr) {
-          const j = Math.max(0, jahr - jetzt);
-          total += it.aktuellerWert * Math.pow(1 + it.renditeProzent / 100, j);
+        if (jahr >= it.auszahlungsjahr) continue;
+        const r = it.renditeProzent / 100;
+        let saldo = it.aktuellerWert;
+        // Pro Jahr von jetzt+1 bis jahr: ggf. Einzahlung addieren, dann verzinsen
+        for (let y = jetzt + 1; y <= jahr; y++) {
+          if (
+            it.jaehrlicheEinzahlung != null &&
+            y >= it.einzahlungAb &&
+            (it.einzahlungBis === 0 || y <= it.einzahlungBis)
+          ) {
+            saldo += it.jaehrlicheEinzahlung;
+          }
+          saldo *= 1 + r;
         }
+        total += saldo;
       } else {
         const wert = it.ablaufswert ?? it.rueckkaufswert;
         if (wert == null) continue;
