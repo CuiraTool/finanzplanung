@@ -28,7 +28,12 @@ export function DocUploadCenter() {
   const fullState = usePlanStore();
   const [results, setResults] = useState<UploadResult[]>([]);
   const [drag, setDrag] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Wenn Ergebnisse vorhanden sind, soll die Drop-Zone offen bleiben
+  // (sonst würde man die Vorschläge nicht sehen).
+  const showFull = expanded || results.length > 0 || drag;
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -151,6 +156,42 @@ export function DocUploadCenter() {
     setResults((rs) => rs.filter((_, i) => i !== idx));
   }
 
+  // Hidden input — immer im DOM, damit der collapsed-Trigger ihn auch öffnen kann
+  const hiddenInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      multiple
+      accept={ACCEPTED}
+      className="hidden"
+      onChange={(e) => handleFiles(e.target.files)}
+    />
+  );
+
+  // Kompakter Trigger — Default-Zustand. Eine Zeile.
+  if (!showFull) {
+    return (
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDrag(true);
+          }}
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-left text-xs text-slate-600 transition hover:border-slate-300 hover:bg-slate-100"
+        >
+          <span className="flex items-center gap-2">
+            <span aria-hidden>📄</span>
+            <span>Dokumente hochladen — automatisch ausfüllen</span>
+          </span>
+          <span className="text-slate-400">+</span>
+        </button>
+        {hiddenInput}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6 space-y-3">
       <div
@@ -182,25 +223,33 @@ export function DocUploadCenter() {
               · PDF/JPG/PNG · Drag & Drop oder klicken
             </div>
           </div>
-          <button
-            type="button"
-            className="rounded-md bg-[var(--color-cuira-deep)] px-3 py-2 text-xs font-medium text-white hover:opacity-90"
-            onClick={(e) => {
-              e.stopPropagation();
-              inputRef.current?.click();
-            }}
-          >
-            Datei wählen
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md bg-[var(--color-cuira-deep)] px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+              onClick={(e) => {
+                e.stopPropagation();
+                inputRef.current?.click();
+              }}
+            >
+              Datei wählen
+            </button>
+            {results.length === 0 && (
+              <button
+                type="button"
+                title="Einklappen"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded(false);
+                }}
+                className="rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-500 hover:bg-slate-50"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept={ACCEPTED}
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+        {hiddenInput}
       </div>
 
       {results.length > 0 && (

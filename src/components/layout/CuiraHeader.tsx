@@ -1,13 +1,22 @@
+"use client";
+
 import Image from "next/image";
+import { ViewModeToggle } from "./ViewModeToggle";
+import type { ViewMode } from "@/lib/view-mode";
 
 /**
  * Cuira-Header — offizielles Wordmark-Logo (weisse Version) auf
- * Cuira-Dunkelblau-Hintergrund, plus Tool-Bezeichnung.
+ * Cuira-Dunkelblau-Hintergrund, plus Tool-Bezeichnung und View-Mode-Toggle.
  *
  * Logo-Quelle: cuirapartners.ch (Cuira-Schriftzug-weiss-DEF.png), lokal
  * unter public/cuira-logo.png hinterlegt.
  */
-export function CuiraHeader() {
+interface Props {
+  viewMode: ViewMode;
+  onViewModeChange: (m: ViewMode) => void;
+}
+
+export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-[var(--color-cuira-deep)] px-6 py-3 text-white">
       <div className="flex items-center gap-4">
@@ -25,9 +34,7 @@ export function CuiraHeader() {
           </div>
         </div>
       </div>
-      <div className="hidden text-xs text-slate-300 md:block">
-        Etappe 1 — interaktive Auslegeordnung
-      </div>
+      <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
     </header>
   );
 }

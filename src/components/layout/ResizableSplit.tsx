@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { ViewMode } from "@/lib/view-mode";
 
 const STORAGE_KEY = "cuira-split-left-px";
 const DEFAULT_LEFT_PX = 440;
@@ -10,6 +11,11 @@ const MIN_RIGHT_PX = 480;
 interface ResizableSplitProps {
   left: React.ReactNode;
   right: React.ReactNode;
+  /**
+   * View-Mode steuert ob beide Panels (split), nur das linke (wizard) oder
+   * nur das rechte (dashboard) gerendert werden. Drag-Handle nur im split-Modus.
+   */
+  viewMode: ViewMode;
 }
 
 /**
@@ -21,7 +27,7 @@ interface ResizableSplitProps {
  *
  * Unter lg: Panels stapeln vertikal, kein Resize.
  */
-export function ResizableSplit({ left, right }: ResizableSplitProps) {
+export function ResizableSplit({ left, right, viewMode }: ResizableSplitProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftWidth, setLeftWidth] = useState<number>(DEFAULT_LEFT_PX);
   const [dragging, setDragging] = useState(false);
@@ -84,6 +90,23 @@ export function ResizableSplit({ left, right }: ResizableSplitProps) {
   // CSS-Variable steuert die Breite des linken Panels — nur ab lg aktiv
   const styleVars = { "--cuira-left-w": `${leftWidth}px` } as React.CSSProperties;
 
+  // Single-Panel-Modi: nur Wizard oder nur Dashboard, jeweils volle Breite.
+  if (viewMode === "wizard") {
+    return (
+      <div className="h-full overflow-y-auto bg-white">
+        <div className="mx-auto max-w-3xl">{left}</div>
+      </div>
+    );
+  }
+  if (viewMode === "dashboard") {
+    return (
+      <section className="h-full overflow-y-auto p-6">
+        <div className="mx-auto max-w-7xl">{right}</div>
+      </section>
+    );
+  }
+
+  // Split-Modus (Default)
   return (
     <div
       ref={containerRef}
