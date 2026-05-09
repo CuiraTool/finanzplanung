@@ -289,18 +289,6 @@ export const QUESTIONS: QuestionSpec[] = [
       s.budget.wunschverbrauchPension = v as number | null;
     },
   },
-  {
-    id: "D7",
-    block: "D",
-    blockTitle: "Zielverbrauch in der Pension",
-    frage: "Wie stellen Sie sich Ihr Leben in der Pension vor?",
-    hilfe: "Optional — hilft uns das Bild zu schärfen.",
-    type: "longtext",
-    get: (s) => s.erweitert.pensionsvision,
-    set: (s, v) => {
-      s.erweitert.pensionsvision = (v as string) ?? "";
-    },
-  },
 
   // ═══ Block E — 1. Säule (AHV) ═══
   {
