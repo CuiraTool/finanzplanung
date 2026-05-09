@@ -74,13 +74,20 @@ src/engine/
 
 **Validierungs-Regel:** Jedes Engine-Modul hat Vitest-Tests mit konkreten Werten (BSV 2025, Plafond-Tests, Edge-Cases).
 
-## Vereinfachungen Etappe 1 (dokumentiert in den Modul-Headern)
+## Vereinfachungen / Designentscheide
 
-- AHV: lineare Approximation der Skala 44 statt echter BSV-Tabellen → Etappe 1.5
-- BVG: Pauschaler UWS pro Person, keine Beitrags-Sparphase modelliert
-- Vermögensbilanz: keine Inflation, keine Steuern, Immobilien-Wert konstant,
-  Hypothek-Amortisation nicht modelliert, lineare Pensionsphase
-- Frauen-Übergangsalter (AHV21, Jahrgänge 1961–1963) noch nicht abgebildet
+- ✅ AHV: BSV-Skala 44 echte Tabelle (Etappe 1.5 done, Stand 2025)
+- ✅ AHV21-Übergangsalter (Frauen Jg 1961-63) modelliert
+- 🟡 BVG: Pauschaler UWS pro Person, lineare Saldo-Wachstum bis Bezugsjahr nicht modelliert
+- ✅ Vermögensbilanz: Inflation-Toggle, Steuern aus ESTV-Engine
+- ✅ Hypothek-Tragbarkeit modelliert (heute + bei Pension)
+- ❌ **Eigenmietwert + Schuldzinsabzug bewusst nicht modelliert** — die
+  Reform 2028 (Volksabstimmung Sept 2025 angenommen) schafft beides ab.
+  Die Auslegeordnung ist damit für den Zustand nach 2028 realistisch.
+  Kurzfristig kann das die Steuerschätzung der nächsten 1-3 Jahre leicht
+  überzeichnen. Dokumentiert in `Block8Immobilien.tsx`.
+- 🟡 Grundstückgewinnsteuer beim Verkauf noch offen
+- 🟡 BVG-Sparphase Saldo-Hochlauf (springt heute auf altersguthabenBeiBezug)
 
 ## Etappenplan
 

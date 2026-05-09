@@ -93,9 +93,25 @@ export function Block8Immobilien() {
 
       <TragbarkeitPanel />
 
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="mb-1 font-medium text-slate-700">
+          ℹ️ Eigenmietwert &amp; Schuldzinsabzug — bewusst nicht modelliert
+        </div>
+        <p className="leading-relaxed">
+          Die Schweiz schafft die Eigenmietwertbesteuerung per <strong>2028</strong>{" "}
+          ab (Volksabstimmung Sept 2025 angenommen). Mit dem Wegfall des
+          Eigenmietwerts entfällt auch der Schuldzinsabzug bei selbstbewohnten
+          Liegenschaften weitgehend. Da die Reform vor der Pensionierung der
+          meisten Cuira-Kunden greift, modellieren wir bewusst <em>weder</em>{" "}
+          den Eigenmietwert <em>noch</em> den Schuldzinsabzug — die Auslegeordnung
+          ist damit für den Zustand <strong>nach 2028</strong> realistisch.
+          Kurzfristig kann das die Steuerschätzung der nächsten 1-3 Jahre
+          leicht überzeichnen.
+        </p>
+      </div>
+
       <p className="text-xs text-slate-400">
-        Eigenmietwert + Schuldzinsabzug + Grundstückgewinnsteuer (kantonal) folgen
-        mit der Steuer-Engine in Etappe 2.
+        Grundstückgewinnsteuer (kantonal beim Verkauf) folgt mit Etappe 6.
       </p>
     </div>
   );
