@@ -148,7 +148,11 @@ function CustomTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number }[];
+  payload?: {
+    name: string;
+    value: number;
+    payload?: Record<string, number>;
+  }[];
   label?: number;
 }) {
   if (!active || !payload || payload.length === 0) return null;
@@ -157,6 +161,13 @@ function CustomTooltip({
   const kap = payload.find((p) => p.name === "Kapitalauszahlung")?.value ?? 0;
   const total = eink + verm + kap;
 
+  // Aufteilung Bund/Kanton via row payload
+  const row = payload[0]?.payload ?? {};
+  const einkBund = row.ausgabenSteuernEinkommenBund ?? 0;
+  const einkKanton = row.ausgabenSteuernEinkommenKanton ?? 0;
+  const kapBund = row.ausgabenSteuernKapitalBund ?? 0;
+  const kapKanton = row.ausgabenSteuernKapitalKanton ?? 0;
+
   const fmt = (n: number) =>
     new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 }).format(n);
 
@@ -164,18 +175,42 @@ function CustomTooltip({
     <div className="rounded-md border border-slate-200 bg-white p-3 shadow-md">
       <div className="mb-1 text-xs font-semibold text-slate-700">Jahr {label}</div>
       <div className="space-y-0.5 text-xs tabular-nums">
-        <div className="flex justify-between gap-4 text-slate-700">
+        <div className="flex justify-between gap-4 font-medium text-slate-700">
           <span>Einkommen</span>
           <span>{fmt(eink)}</span>
         </div>
-        <div className="flex justify-between gap-4 text-slate-700">
+        {eink > 0 && (
+          <>
+            <div className="flex justify-between gap-4 pl-3 text-slate-500">
+              <span>Bund</span>
+              <span>{fmt(einkBund)}</span>
+            </div>
+            <div className="flex justify-between gap-4 pl-3 text-slate-500">
+              <span>Kanton + Gem. + Kirche</span>
+              <span>{fmt(einkKanton)}</span>
+            </div>
+          </>
+        )}
+        <div className="flex justify-between gap-4 font-medium text-slate-700">
           <span>Vermögen</span>
           <span>{fmt(verm)}</span>
         </div>
-        <div className="flex justify-between gap-4 text-amber-700">
+        <div className="flex justify-between gap-4 font-medium text-amber-700">
           <span>Kapitalauszahlung</span>
           <span>{fmt(kap)}</span>
         </div>
+        {kap > 0 && (
+          <>
+            <div className="flex justify-between gap-4 pl-3 text-amber-600/80">
+              <span>Bund (1/5 DBG)</span>
+              <span>{fmt(kapBund)}</span>
+            </div>
+            <div className="flex justify-between gap-4 pl-3 text-amber-600/80">
+              <span>Kanton-Sondertarif</span>
+              <span>{fmt(kapKanton)}</span>
+            </div>
+          </>
+        )}
         <div className="mt-1 border-t border-slate-100 pt-1" />
         <div className="flex justify-between gap-4 font-semibold text-slate-800">
           <span>Total</span>

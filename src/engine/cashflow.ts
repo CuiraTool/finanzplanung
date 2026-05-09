@@ -149,8 +149,12 @@ export interface CashflowZeile {
   ausgabenHaushalt: number;
   ausgabenSteuern: number;
   ausgabenSteuernEinkommen: number;
+  ausgabenSteuernEinkommenBund: number; // davon Bund (DBG)
+  ausgabenSteuernEinkommenKanton: number; // davon Kanton+Gemeinde+Kirche
   ausgabenSteuernVermoegen: number;
   ausgabenSteuernKapital: number;
+  ausgabenSteuernKapitalBund: number; // davon Bund (1/5 DBG)
+  ausgabenSteuernKapitalKanton: number; // davon Kanton-Sondertarif
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -291,8 +295,12 @@ export function cashflowReihe(
     });
     const ausgabenSteuern = steuern.total;
     const ausgabenSteuernEinkommen = steuern.einkommen;
+    const ausgabenSteuernEinkommenBund = steuern.einkommenBund;
+    const ausgabenSteuernEinkommenKanton = steuern.einkommenKanton;
     const ausgabenSteuernVermoegen = steuern.vermoegen;
     const ausgabenSteuernKapital = steuern.kapital;
+    const ausgabenSteuernKapitalBund = steuern.kapitalBund;
+    const ausgabenSteuernKapitalKanton = steuern.kapitalKanton;
 
     const ausgabenTotal = ausgabenHaushalt + ausgabenSteuern + ausgabenEinmalig;
 
@@ -363,8 +371,12 @@ export function cashflowReihe(
       ausgabenHaushalt: Math.round(ausgabenHaushalt),
       ausgabenSteuern: Math.round(ausgabenSteuern),
       ausgabenSteuernEinkommen: Math.round(ausgabenSteuernEinkommen),
+      ausgabenSteuernEinkommenBund: Math.round(ausgabenSteuernEinkommenBund),
+      ausgabenSteuernEinkommenKanton: Math.round(ausgabenSteuernEinkommenKanton),
       ausgabenSteuernVermoegen: Math.round(ausgabenSteuernVermoegen),
       ausgabenSteuernKapital: Math.round(ausgabenSteuernKapital),
+      ausgabenSteuernKapitalBund: Math.round(ausgabenSteuernKapitalBund),
+      ausgabenSteuernKapitalKanton: Math.round(ausgabenSteuernKapitalKanton),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
