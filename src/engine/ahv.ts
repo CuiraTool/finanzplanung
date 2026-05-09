@@ -106,7 +106,7 @@ interface Skala44Daten {
   stufen: [number, number][];
 }
 
-const SKALA44 = skala44Daten as Skala44Daten;
+const SKALA44 = skala44Daten as unknown as Skala44Daten;
 
 function bsvSkala44Exakt(massgebendesEinkommen: number): number {
   if (massgebendesEinkommen <= SKALA44.minEinkommen) {
