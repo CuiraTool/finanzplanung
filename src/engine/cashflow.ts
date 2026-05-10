@@ -287,6 +287,11 @@ export function cashflowReihe(
       pkBezugsjahrP2
     );
     const kapAuszahlungen = kapZeile;
+    // WEF-Vorbezug: wird mit Kapitalauszahlungs-Sondertarif besteuert,
+    // fliesst aber typisch direkt ins Eigenheim (nicht aufs Hauptkonto).
+    // Daher zur Steuer-Bemessung dazu, aber NICHT zum Cashflow-Total.
+    const wefBetragJahr = wefVorbezugJahr(state, jahr);
+    const kapAuszahlungenFuerSteuer = kapAuszahlungen + wefBetragJahr;
 
     // ─── Ausgaben ────────────────────────────────────────────────
     const istPensioniert =
@@ -319,7 +324,7 @@ export function cashflowReihe(
     const steuern = steuerProJahr({
       einkommenJahr: einnahmenErwerb + einnahmenMieten + einnahmenAhv + einnahmenBvgRente,
       vermoegenJahr: vermoegenJahresanfang,
-      kapAuszahlungenJahr: kapAuszahlungen,
+      kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
       kanton: state.adresse.kanton,
       bfsId: state.adresse.gemeindeBfsId ?? undefined,
       religion: state.budget.religion,
@@ -615,8 +620,14 @@ function bvgRentePerson(
   const ekGueltig = p.einkaeufe
     .filter((e) => e.betrag != null)
     .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
+  // WEF-Vorbezüge bis Bezugsjahr mindern das Altersguthaben für die
+  // Renten-Berechnung (Vereinfachung: ohne Verzinsungs-Verlust-Approximation,
+  // weil das beim altersguthabenBeiBezug-Wert vom PK-Ausweis schon
+  // implizit drin sein kann).
+  const wefBisBezug = wefSummeBis(p, bj);
+  const ausgangssaldo = Math.max(0, p.altersguthabenBeiBezug - wefBisBezug);
   const saldo = bvgGesamtkapitalBeiBezug({
-    altersguthabenBeiBezug: p.altersguthabenBeiBezug,
+    altersguthabenBeiBezug: ausgangssaldo,
     bezugsjahr: bj,
     einkaeufe: ekGueltig,
   });
@@ -657,8 +668,11 @@ function bvgKapitalPerson(
   const ekGueltig = p.einkaeufe
     .filter((e) => e.betrag != null)
     .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
+  // WEF-Vorbezüge mindern Bezugskapital (siehe bvgRentePerson)
+  const wefBisBezug = wefSummeBis(p, bj);
+  const ausgangssaldo = Math.max(0, p.altersguthabenBeiBezug - wefBisBezug);
   const saldo = bvgGesamtkapitalBeiBezug({
-    altersguthabenBeiBezug: p.altersguthabenBeiBezug,
+    altersguthabenBeiBezug: ausgangssaldo,
     bezugsjahr: bj,
     einkaeufe: ekGueltig,
   });
@@ -798,8 +812,39 @@ function einmaligeAusgabenJahr(
  *       ab Auszahlungsjahr → 0.
  */
 /**
+ * Summe der WEF-Vorbezüge bis (und einschliesslich) eines Jahres.
+ * Nach einem WEF-Vorbezug ist das PK-Altersguthaben um diesen Betrag
+ * (plus Verzinsung-Verlust) niedriger.
+ */
+function wefSummeBis(p: BvgPersonInput, jahr: number): number {
+  return (p.wefVorbezuege ?? []).reduce(
+    (s, e) => s + (e.betrag ?? 0) * (e.jahr <= jahr ? 1 : 0),
+    0
+  );
+}
+
+/**
+ * Summe aller WEF-Vorbezüge im konkreten Jahr (P1 + P2). Wird zur
+ * Kapitalauszahlungs-Steuer-Bemessung addiert, fliesst aber NICHT zum
+ * Hauptkonto (Geld geht direkt ins Eigenheim).
+ */
+function wefVorbezugJahr(state: CashflowInput, jahr: number): number {
+  const sumP1 = (state.bvg.p1.wefVorbezuege ?? [])
+    .filter((e) => e.jahr === jahr && e.betrag != null)
+    .reduce((s, e) => s + (e.betrag ?? 0), 0);
+  const sumP2 =
+    state.fallart === "paar"
+      ? (state.bvg.p2.wefVorbezuege ?? [])
+          .filter((e) => e.jahr === jahr && e.betrag != null)
+          .reduce((s, e) => s + (e.betrag ?? 0), 0)
+      : 0;
+  return sumP1 + sumP2;
+}
+
+/**
  * PK-Saldo in der Sparphase — linearer Hochlauf vom Altersguthaben heute
- * zum voraussichtlichen Altersguthaben bei Bezug.
+ * zum voraussichtlichen Altersguthaben bei Bezug, abzüglich WEF-Vorbezüge
+ * die bis zum betreffenden Jahr stattgefunden haben.
  *
  * Logik:
  *   - kein aktiver Anschluss → 0
@@ -831,20 +876,24 @@ function pkSaldoSparphase(
   // Nach Bezug → 0 (Kapital ist auf Hauptkonto via kapAuszahlungenJahr)
   if (bezugsjahr != null && jahr >= bezugsjahr) return 0;
 
-  // Kein Bezugsjahr ODER kein altersguthabenBeiBezug → statisch heute
+  // WEF-Vorbezüge die bis zu diesem Jahr stattfinden, mindern das Saldo
+  const wefSumme = wefSummeBis(p, jahr);
+
+  // Kein Bezugsjahr ODER kein altersguthabenBeiBezug → statisch heute (− WEF)
   if (bezugsjahr == null || beiBezug == null) {
-    return heute ?? beiBezug ?? 0;
+    return Math.max(0, (heute ?? beiBezug ?? 0) - wefSumme);
   }
 
-  // Kein altersguthabenHeute → fallback auf statisch beiBezug
-  if (heute == null) return beiBezug;
+  // Kein altersguthabenHeute → fallback auf statisch beiBezug (− WEF)
+  if (heute == null) return Math.max(0, beiBezug - wefSumme);
 
-  // Linearer Hochlauf zwischen jetzt und bezugsjahr
-  if (bezugsjahr <= jetzt) return beiBezug;
-  if (jahr <= jetzt) return heute;
+  // Linearer Hochlauf zwischen jetzt und bezugsjahr (− WEF)
+  if (bezugsjahr <= jetzt) return Math.max(0, beiBezug - wefSumme);
+  if (jahr <= jetzt) return Math.max(0, heute - wefSumme);
 
   const t = (jahr - jetzt) / (bezugsjahr - jetzt);
-  return Math.round(heute + (beiBezug - heute) * t);
+  const saldoOhneWef = Math.round(heute + (beiBezug - heute) * t);
+  return Math.max(0, saldoOhneWef - wefSumme);
 }
 
 function vorsorgeVermoegenAmJahresende(

@@ -119,6 +119,29 @@ export interface EinkaufEntry {
   betrag: number | null;
 }
 
+/**
+ * WEF-Vorbezug (Wohneigentumsförderung): User bezieht PK-Kapital
+ * vorzeitig für Erwerb/Amortisation eines selbstbewohnten Eigenheims.
+ *
+ * Wirkung:
+ *   - Mindert sowohl `altersguthabenHeute` als auch
+ *     `altersguthabenBeiBezug` proportional zum Vorbezugs-Jahr.
+ *   - Wird mit Kapitalauszahlungssteuer-Sondertarif besteuert.
+ *   - Kann rückgezahlt werden (Rückzahlung wirkt wie Einkauf) — wenn
+ *     der User zurückzahlt, einfach via einkaeufe-Liste erfassen.
+ *
+ * BVG erlaubt WEF-Vorbezüge alle 5 Jahre, mind. CHF 20'000, bis Alter 50
+ * uneingeschränkt, danach max 50% des Altersguthabens (oder Stand mit 50).
+ * Wir machen aktuell keinen 50-Jahres-Check — der gehört in eine
+ * separate Validierung.
+ */
+export interface WefVorbezugEntry {
+  id: string;
+  jahr: number;
+  betrag: number | null;
+  beschreibung: string;
+}
+
 export interface BvgPersonInput {
   aktiverAnschluss: boolean;
   /** Aktuelles PK-Altersguthaben heute (vom PK-Ausweis, informativ). */
@@ -131,6 +154,8 @@ export interface BvgPersonInput {
   kapitalanteil: number; // 0–100
   freizuegigkeit: FreizuegigkeitEntry[];
   einkaeufe: EinkaufEntry[];
+  /** WEF-Vorbezüge für Eigenheim. */
+  wefVorbezuege?: WefVorbezugEntry[];
 }
 
 export interface BvgInput {
@@ -510,6 +535,13 @@ export interface PlanState {
     patch: Partial<EinkaufEntry>
   ) => void;
   removeEinkauf: (personIdx: 1 | 2, id: string) => void;
+  addWefVorbezug: (personIdx: 1 | 2) => void;
+  updateWefVorbezug: (
+    personIdx: 1 | 2,
+    id: string,
+    patch: Partial<WefVorbezugEntry>
+  ) => void;
+  removeWefVorbezug: (personIdx: 1 | 2, id: string) => void;
   addSaeuleDrei: (
     personIdx: 1 | 2,
     type: SaeuleDreiTyp,
@@ -593,6 +625,7 @@ const initialBvgPerson: BvgPersonInput = {
   kapitalanteil: 50,
   freizuegigkeit: [],
   einkaeufe: [],
+  wefVorbezuege: [],
 };
 
 const initialBvg: BvgInput = {
@@ -943,6 +976,57 @@ export const usePlanStore = create<PlanState>()(
             },
           };
         }),
+      addWefVorbezug: (personIdx) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                wefVorbezuege: [
+                  ...(s.bvg[key].wefVorbezuege ?? []),
+                  {
+                    id: newId(),
+                    jahr: new Date().getFullYear(),
+                    betrag: null,
+                    beschreibung: "",
+                  },
+                ],
+              },
+            },
+          };
+        }),
+      updateWefVorbezug: (personIdx, id, patch) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                wefVorbezuege: (s.bvg[key].wefVorbezuege ?? []).map((e) =>
+                  e.id === id ? { ...e, ...patch } : e
+                ),
+              },
+            },
+          };
+        }),
+      removeWefVorbezug: (personIdx, id) =>
+        set((s) => {
+          const key = personIdx === 1 ? "p1" : "p2";
+          return {
+            bvg: {
+              ...s.bvg,
+              [key]: {
+                ...s.bvg[key],
+                wefVorbezuege: (s.bvg[key].wefVorbezuege ?? []).filter(
+                  (e) => e.id !== id
+                ),
+              },
+            },
+          };
+        }),
       addSaeuleDrei: (personIdx, type, initial) =>
         set((s) => {
           const key = personIdx === 1 ? "p1" : "p2";
@@ -1242,7 +1326,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v28",
+      name: "cuira-plan-v29",
     }
   )
 );

@@ -6,6 +6,7 @@ import {
   type BvgPersonInput,
   type EinkaufEntry,
   type FreizuegigkeitEntry,
+  type WefVorbezugEntry,
 } from "@/lib/store";
 import { personLabel, pensionsjahr } from "@/lib/pension";
 import { SPERRFRIST_EINKAUF_JAHRE } from "@/engine/bvg";
@@ -35,6 +36,9 @@ export function Block5Bvg() {
   const addEk = usePlanStore((s) => s.addEinkauf);
   const updateEk = usePlanStore((s) => s.updateEinkauf);
   const removeEk = usePlanStore((s) => s.removeEinkauf);
+  const addWef = usePlanStore((s) => s.addWefVorbezug);
+  const updateWef = usePlanStore((s) => s.updateWefVorbezug);
+  const removeWef = usePlanStore((s) => s.removeWefVorbezug);
 
   const bezugsalterP1 = ziele.bezugsalterP1;
   const bezugsalterP2 = ziele.bezugsalterP2;
@@ -55,6 +59,9 @@ export function Block5Bvg() {
         onAddEk={() => addEk(1)}
         onUpdateEk={(id, p) => updateEk(1, id, p)}
         onRemoveEk={(id) => removeEk(1, id)}
+        onAddWef={() => addWef(1)}
+        onUpdateWef={(id, p) => updateWef(1, id, p)}
+        onRemoveWef={(id) => removeWef(1, id)}
       />
 
       {fallart === "paar" && (
@@ -70,6 +77,9 @@ export function Block5Bvg() {
           onAddEk={() => addEk(2)}
           onUpdateEk={(id, p) => updateEk(2, id, p)}
           onRemoveEk={(id) => removeEk(2, id)}
+          onAddWef={() => addWef(2)}
+          onUpdateWef={(id, p) => updateWef(2, id, p)}
+          onRemoveWef={(id) => removeWef(2, id)}
         />
       )}
     </div>
@@ -88,6 +98,9 @@ function PersonBvgForm({
   onAddEk,
   onUpdateEk,
   onRemoveEk,
+  onAddWef,
+  onUpdateWef,
+  onRemoveWef,
 }: {
   title: string;
   person: BvgPersonInput;
@@ -100,6 +113,9 @@ function PersonBvgForm({
   onAddEk: () => void;
   onUpdateEk: (id: string, p: Partial<EinkaufEntry>) => void;
   onRemoveEk: (id: string) => void;
+  onAddWef: () => void;
+  onUpdateWef: (id: string, p: Partial<WefVorbezugEntry>) => void;
+  onRemoveWef: (id: string) => void;
 }) {
   return (
     <fieldset className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
@@ -235,6 +251,13 @@ function PersonBvgForm({
             onAdd={onAddEk}
             onUpdate={onUpdateEk}
             onRemove={onRemoveEk}
+          />
+
+          <WefListe
+            items={person.wefVorbezuege ?? []}
+            onAdd={onAddWef}
+            onUpdate={onUpdateWef}
+            onRemove={onRemoveWef}
           />
         </>
       )}
@@ -466,6 +489,115 @@ function Einkaeufe({
         className="mt-1 w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
       >
         + Einkauf hinzufügen
+      </button>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WEF-Vorbezüge (Wohneigentumsförderung)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function WefListe({
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  items: WefVorbezugEntry[];
+  onAdd: () => void;
+  onUpdate: (id: string, p: Partial<WefVorbezugEntry>) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/50 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium text-slate-700">
+            WEF-Vorbezüge (Eigenheim)
+          </div>
+          <div className="text-xs text-slate-400">
+            PK-Kapital für Wohneigentum vorbeziehen — mindert Altersguthaben
+            und spätere Rente. Wird mit Kapitalauszahlungs-Sondertarif besteuert.
+          </div>
+        </div>
+        <KiHinweis
+          begriff="WEF-Vorbezug"
+          kontext="Wohneigentumsförderung BVG, Vorbezug PK-Kapital für Eigenheim"
+        />
+      </div>
+
+      {items.length === 0 && (
+        <p className="text-xs text-slate-400">
+          Noch keine WEF-Vorbezüge erfasst.
+        </p>
+      )}
+
+      <ul className="space-y-2">
+        {items.map((it) => (
+          <li
+            key={it.id}
+            className="rounded-md border border-slate-200 bg-white p-3"
+          >
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Field label="Jahr">
+                <input
+                  type="number"
+                  min={1990}
+                  max={2080}
+                  value={it.jahr}
+                  onChange={(e) =>
+                    onUpdate(it.id, { jahr: Number(e.target.value) })
+                  }
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Betrag (CHF)" hint="mind. 20'000 CHF gemäss BVG">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={it.betrag ?? ""}
+                  onChange={(e) =>
+                    onUpdate(it.id, {
+                      betrag:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="z.B. 80'000"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Beschreibung">
+                <input
+                  type="text"
+                  value={it.beschreibung}
+                  onChange={(e) =>
+                    onUpdate(it.id, { beschreibung: e.target.value })
+                  }
+                  placeholder="z.B. Kauf Wohnung Zürich"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => onRemove(it.id)}
+                className="text-xs text-rose-600 hover:underline"
+              >
+                Entfernen
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-1 w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
+      >
+        + WEF-Vorbezug hinzufügen
       </button>
     </div>
   );
