@@ -113,11 +113,27 @@ function generateMandantId(): string {
    Vollständigkeits-Logik (für Nav-Checks + Übergabe-Ring)
    ═══════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Vollständigkeits-Check pro Sektion — strenge Heuristik.
+ *
+ * Wichtig: Default-Werte (Pensionsalter 65, "Firma: nicht vorhanden",
+ * Default-Privatkonto ohne Saldo) zählen NICHT als erfasst. Erst echte
+ * Berater-Eingaben hakt eine Sektion ab.
+ */
 function completion(
   s: PlanState,
   meta: BeraterMeta
 ): Record<SectionId, boolean> {
   const isPaar = s.fallart === "paar";
+  const saeule3aTotal =
+    s.saeuleDrei.p1.reduce(
+      (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+      0
+    ) +
+    s.saeuleDrei.p2.reduce(
+      (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+      0
+    );
   return {
     personen: !!(
       s.person1.vorname &&
@@ -125,19 +141,24 @@ function completion(
       s.adresse.plz &&
       (!isPaar || (s.person2.vorname && s.person2.geburtsdatum))
     ),
-    ziele: s.ziele.bezugsalterP1 > 0,
+    // Wunschverbrauch oder einmalige Ausgaben — Pensionsalter ist Default.
+    ziele:
+      (s.budget.wunschverbrauchPension ?? 0) > 0 ||
+      s.einmaligeAusgaben.length > 0,
     budget:
       (s.budget.einkommenHeute ?? 0) > 0 ||
       (s.budget.ausgabenTotal ?? 0) > 0,
-    ahv: s.ahv.einkommenP1 != null && (s.ahv.einkommenP1 ?? 0) > 0,
+    ahv: (s.ahv.einkommenP1 ?? 0) > 0,
     pk: (s.bvg.p1.altersguthabenHeute ?? 0) > 0,
-    s3:
-      s.saeuleDrei.p1.length > 0 ||
-      (isPaar && s.saeuleDrei.p2.length > 0),
-    vermoegen: s.vermoegen.items.length > 0,
-    immo: true, // optional — immer ok
-    firma: !s.firma.vorhanden || !!s.firma.firmenname,
-    nachlass: true, // alle Checkboxen optional
+    s3: saeule3aTotal > 0,
+    // Default-Privatkonto mit saldo=null zählt nicht.
+    vermoegen: s.vermoegen.items.some((it) => (it.saldoHeute ?? 0) !== 0),
+    // Mindestens eine Liegenschaft mit Verkehrswert.
+    immo: s.immobilien.items.some((im) => (im.verkehrswert ?? 0) > 0),
+    // Nur wenn aktiv "vorhanden + Name" — "keine Firma" als Default zählt nicht.
+    firma: s.firma.vorhanden && !!s.firma.firmenname,
+    // Mindestens ein Nachlass-Häkchen gesetzt.
+    nachlass: (Object.values(s.nachlass) as boolean[]).some(Boolean),
     docs: !!meta.docs?.vorsorgeausweisP1?.attached,
     uebergabe: (meta.notiz?.length ?? 0) >= 10,
   };

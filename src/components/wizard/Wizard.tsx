@@ -55,43 +55,47 @@ const BLOCKS = [
  * Glance-Value pro Block — eine Zeile mit dem wichtigsten Eckwert,
  * damit der Berater im Sidebar sofort sieht, was schon erfasst ist.
  *
- * Bewusst defensiv: bei null/undefined einen sanften Hinweis statt
- * "—" oder leerer Zeile zeigen, weil das Sidebar-Polish Vertrauen
- * vermitteln soll ("hier siehst du, was du schon hast").
+ * **Wichtig:** Default-Werte (z.B. Pensionsalter 65, "behalten" bei Firma)
+ * sollen NICHT als "erfasst" wirken. Glance-Texte machen nur dann eine
+ * konkrete Aussage, wenn der Berater wirklich Daten eingegeben hat —
+ * sonst neutraler Hinweis "—" oder "noch offen".
  */
 function blockGlance(blockId: number, s: PlanState): string {
   switch (blockId) {
     case 1: {
       const isPaar = s.fallart === "paar";
-      if (!s.person1.vorname) return "noch nicht erfasst";
+      if (!s.person1.vorname && !s.person1.nachname) return "—";
       const name = isPaar
         ? `${s.person1.vorname || "P1"} + ${s.person2.vorname || "P2"}`
-        : s.person1.vorname;
+        : `${s.person1.vorname} ${s.person1.nachname}`.trim() || "—";
       return s.adresse.kanton ? `${name} · ${s.adresse.kanton}` : name;
     }
     case 2: {
-      const a = s.ziele.bezugsalterP1 || 0;
-      if (!a) return "Pensionsalter offen";
-      const note = a < 65 ? "Frühpension" : a === 65 ? "ordentlich" : "aufgeschoben";
-      return `Pension ${a} · ${note}`;
+      // Ziele gilt erst als erfasst, wenn entweder ein Wunschverbrauch oder
+      // einmalige Ausgaben da sind — nicht durch das Default-Pensionsalter.
+      const wunsch = s.budget.wunschverbrauchPension;
+      const einm = s.einmaligeAusgaben.length;
+      if (!wunsch && einm === 0) return "—";
+      if (wunsch) return `Wunsch ${formatChf(wunsch)}/Mt`;
+      return `${einm} einmalige Ausgabe${einm > 1 ? "n" : ""}`;
     }
     case 3: {
       const eink = s.budget.einkommenHeute;
       const ausg = s.budget.ausgabenTotal;
-      if (!eink && !ausg) return "Budget offen";
+      if (!eink && !ausg) return "—";
       if (eink && ausg)
-        return `${formatChf(eink)} / ${formatChf(ausg)}/Mt`;
-      if (eink) return `Einkommen ${formatChf(eink)}`;
-      return `Ausgaben ${formatChf(ausg)}/Mt`;
+        return `${formatChf(eink)}/J · ${formatChf(ausg)}/Mt`;
+      if (eink) return `Eink. ${formatChf(eink)}/J`;
+      return `Ausgab. ${formatChf(ausg)}/Mt`;
     }
     case 4: {
       const eink = s.ahv.einkommenP1;
-      if (!eink) return "AHV-Einkommen offen";
+      if (!eink) return "—";
       return `Massg. Eink. ${formatChf(eink)}`;
     }
     case 5: {
       const ag = s.bvg.p1.altersguthabenHeute;
-      if (!ag) return "PK-Guthaben offen";
+      if (!ag) return "—";
       return `PK-Saldo ${formatChf(ag)}`;
     }
     case 6: {
@@ -104,22 +108,26 @@ function blockGlance(blockId: number, s: PlanState): string {
           (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
           0
         );
+      if (total === 0) return "—";
       const n = s.saeuleDrei.p1.length + s.saeuleDrei.p2.length;
-      if (n === 0) return "noch nichts erfasst";
       return `${formatChf(total)} · ${n} Konto${n > 1 ? "s" : ""}`;
     }
     case 7: {
-      const total = s.vermoegen.items.reduce(
+      // Default-Privatkonto mit saldoHeute=null zählt nicht als erfasst.
+      const echteEintraege = s.vermoegen.items.filter(
+        (it) => (it.saldoHeute ?? 0) !== 0
+      );
+      if (echteEintraege.length === 0) return "—";
+      const total = echteEintraege.reduce(
         (a, it) => a + (it.saldoHeute ?? 0),
         0
       );
-      if (s.vermoegen.items.length === 0) return "noch nichts erfasst";
-      return `${formatChf(total)} · ${s.vermoegen.items.length} Position${
-        s.vermoegen.items.length > 1 ? "en" : ""
+      return `${formatChf(total)} · ${echteEintraege.length} Position${
+        echteEintraege.length > 1 ? "en" : ""
       }`;
     }
     case 8: {
-      if (s.immobilien.items.length === 0) return "keine Immobilie";
+      if (s.immobilien.items.length === 0) return "—";
       const total = s.immobilien.items.reduce(
         (a, im) => a + (im.verkehrswert ?? 0),
         0
@@ -127,32 +135,46 @@ function blockGlance(blockId: number, s: PlanState): string {
       return `${s.immobilien.items.length} Liegenschaft · ${formatChf(total)}`;
     }
     case 9:
-      return s.firma.vorhanden
-        ? s.firma.firmenname || "Firma erfasst"
-        : "keine Firma";
+      // Default ist "vorhanden: false". Erst wenn explizit "vorhanden" mit
+      // Firmenname → erfasst. "Keine Firma" ist nur sinnvoll wenn der
+      // Berater das aktiv geprüft hat — können wir nicht zuverlässig wissen.
+      if (s.firma.vorhanden && s.firma.firmenname) return s.firma.firmenname;
+      return "—";
     case 10: {
       const yes = (Object.values(s.nachlass) as boolean[]).filter(Boolean)
         .length;
+      if (yes === 0) return "—";
       const total = Object.keys(s.nachlass).length;
       return `${yes} / ${total} Dokumente`;
     }
     case 11:
-      return s.szenarioB.aktiv ? "Variante B aktiv" : "noch keine Variante B";
+      return s.szenarioB.aktiv ? "aktiv" : "—";
     default:
-      return "";
+      return "—";
   }
 }
 
 /**
- * Block ist "abgeschlossen" wenn ein Mindest-Eckwert da ist (Heuristik).
- * Wird für die Progress-Bar oben in der Sidebar verwendet.
+ * Block ist "abgeschlossen" wenn der Berater eine **echte Eingabe**
+ * gemacht hat — Default-Werte zählen NICHT.
+ *
+ * Faustregel pro Block:
+ *  - Pflicht-Felder (Vorname, Einkommen, etc.) müssen einen Wert haben
+ *  - Optionale Blöcke (Immo, Nachlass, Var B) sind erst ✓ wenn etwas
+ *    Aktives erfasst wurde
+ *  - Defaults wie Pensionsalter 65, "behalten" bei Firma, Privatkonto ohne
+ *    Saldo → sind NICHT genug
  */
 function blockIstErledigt(blockId: number, s: PlanState): boolean {
   switch (blockId) {
     case 1:
       return !!(s.person1.vorname && s.person1.geburtsdatum);
     case 2:
-      return s.ziele.bezugsalterP1 > 0;
+      // Wunschverbrauch oder einmalige Ausgaben — Pensionsalter ist Default.
+      return (
+        (s.budget.wunschverbrauchPension ?? 0) > 0 ||
+        s.einmaligeAusgaben.length > 0
+      );
     case 3:
       return (
         (s.budget.einkommenHeute ?? 0) > 0 ||
@@ -162,18 +184,35 @@ function blockIstErledigt(blockId: number, s: PlanState): boolean {
       return (s.ahv.einkommenP1 ?? 0) > 0;
     case 5:
       return (s.bvg.p1.altersguthabenHeute ?? 0) > 0;
-    case 6:
-      return s.saeuleDrei.p1.length + s.saeuleDrei.p2.length > 0;
+    case 6: {
+      const total =
+        s.saeuleDrei.p1.reduce(
+          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+          0
+        ) +
+        s.saeuleDrei.p2.reduce(
+          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+          0
+        );
+      return total > 0;
+    }
     case 7:
-      return s.vermoegen.items.length > 0;
+      // Mindestens ein Eintrag mit echtem Saldo (Default-Privatkonto = saldo null).
+      return s.vermoegen.items.some((it) => (it.saldoHeute ?? 0) !== 0);
     case 8:
-      return true; // optional
+      // Optional — gilt nur als erfasst wenn ≥ 1 Liegenschaft mit Verkehrswert
+      return s.immobilien.items.some((im) => (im.verkehrswert ?? 0) > 0);
     case 9:
-      return !s.firma.vorhanden || !!s.firma.firmenname;
+      // Nur wenn der Berater aktiv "Firma vorhanden + Name" gesetzt hat.
+      // "Keine Firma" als Default zählt nicht — wir wissen nicht, ob der
+      // Berater das geprüft hat.
+      return s.firma.vorhanden && !!s.firma.firmenname;
     case 10:
-      return true; // optional
+      // Mindestens ein Nachlass-Dokument mit Häkchen.
+      return (Object.values(s.nachlass) as boolean[]).some(Boolean);
     case 11:
-      return true; // optional
+      // Nur wenn Variante B aktiviert wurde.
+      return s.szenarioB.aktiv;
     default:
       return false;
   }
