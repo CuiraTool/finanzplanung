@@ -23,16 +23,18 @@ interface Props {
 }
 
 const FARBE = {
-  erwerb: "#10b981",
-  ahv: "#34d399",
-  bvg: "#6ee7b7",
-  mieten: "#a7f3d0",
+  // Einnahmen — klar unterscheidbare Farben statt 4 Grüntöne
+  erwerb: "#0a2540", // Cuira-Deep (Hauptfarbe Erwerb)
+  ahv: "#0d9488", // Teal-600
+  bvg: "#22c55e", // Green-500
+  mieten: "#84cc16", // Lime-500
+  // Ausgaben — bleiben wie bisher
   haushalt: "#f43f5e",
-  steuern: "#fb7185",
+  steuern: "#f59e0b",
   sozial: "#c084fc", // Sozial+BVG-Beiträge (Erwerbsphase)
   vorsorge3a: "#a78bfa", // 3a-Einzahlung (Sparphase)
   einmalig: "#fda4af",
-  saldo: "#0a2540",
+  saldo: "#1e3a8a", // Saldo-Linie etwas heller als erwerb (sonst kaum sichtbar)
 };
 
 export function EinnahmenAusgabenChart({
@@ -215,10 +217,23 @@ export function EinnahmenAusgabenChart({
 
 function Legende() {
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500">
-      <LegendItem color={FARBE.erwerb} label="Einnahmen" />
-      <LegendItem color={FARBE.haushalt} label="Ausgaben" />
-      <LegendItem color={FARBE.saldo} label="Saldo" line />
+    <div className="flex flex-col items-end gap-1 text-[10px] text-slate-500">
+      <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5">
+        <span className="font-medium text-slate-600">Einnahmen:</span>
+        <LegendItem color={FARBE.erwerb} label="Erwerb" />
+        <LegendItem color={FARBE.ahv} label="AHV" />
+        <LegendItem color={FARBE.bvg} label="BVG-Rente" />
+        <LegendItem color={FARBE.mieten} label="Mieten" />
+      </div>
+      <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5">
+        <span className="font-medium text-slate-600">Ausgaben:</span>
+        <LegendItem color={FARBE.haushalt} label="Haushalt" />
+        <LegendItem color={FARBE.steuern} label="Steuern" />
+        <LegendItem color={FARBE.sozial} label="Sozial+BVG" />
+        <LegendItem color={FARBE.vorsorge3a} label="Säule 3a" />
+        <LegendItem color={FARBE.einmalig} label="Einmalig" />
+      </div>
+      <LegendItem color={FARBE.saldo} label="Saldo (Sparquote)" line />
     </div>
   );
 }
@@ -270,14 +285,53 @@ function CustomTooltip({
     <div className="rounded-md border border-slate-200 bg-white p-3 shadow-md">
       <div className="mb-1 text-xs font-semibold text-slate-700">Jahr {label}</div>
       <div className="space-y-0.5 text-xs tabular-nums">
+        {/* Einnahmen — Total + Aufschlüsselung */}
         <div className="flex justify-between gap-4 font-medium text-emerald-700">
           <span>Einnahmen</span>
           <span>{fmt(z.einnahmenTotal)}</span>
         </div>
-        <div className="flex justify-between gap-4 font-medium text-rose-700">
+        {z.einnahmenErwerb > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-emerald-600/80">
+            <span>davon Erwerb</span>
+            <span>{fmt(z.einnahmenErwerb)}</span>
+          </div>
+        )}
+        {z.einnahmenAhv > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-emerald-600/80">
+            <span>davon AHV</span>
+            <span>{fmt(z.einnahmenAhv)}</span>
+          </div>
+        )}
+        {z.einnahmenBvgRente > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-emerald-600/80">
+            <span>davon BVG-Rente</span>
+            <span>{fmt(z.einnahmenBvgRente)}</span>
+          </div>
+        )}
+        {z.einnahmenMieten > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-emerald-600/80">
+            <span>davon Mieten</span>
+            <span>{fmt(z.einnahmenMieten)}</span>
+          </div>
+        )}
+
+        {/* Ausgaben — Total + Aufschlüsselung */}
+        <div className="mt-1 flex justify-between gap-4 font-medium text-rose-700">
           <span>Ausgaben</span>
           <span>{fmt(-z.ausgabenTotal)}</span>
         </div>
+        {z.ausgabenHaushalt > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
+            <span>davon Haushalt</span>
+            <span>{fmt(-z.ausgabenHaushalt)}</span>
+          </div>
+        )}
+        {z.ausgabenSteuern > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
+            <span>davon Steuern</span>
+            <span>{fmt(-z.ausgabenSteuern)}</span>
+          </div>
+        )}
         {z.ausgabenSozialBvg > 0 && (
           <div className="flex justify-between gap-4 pl-3 text-purple-600/80">
             <span>davon Sozial+BVG</span>
@@ -290,18 +344,14 @@ function CustomTooltip({
             <span>{fmt(-z.ausgabenVorsorge3a)}</span>
           </div>
         )}
-        {z.ausgabenSteuern > 0 && (
+        {z.ausgabenEinmalig > 0 && (
           <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
-            <span>davon Steuern</span>
-            <span>{fmt(-z.ausgabenSteuern)}</span>
+            <span>davon Einmalig</span>
+            <span>{fmt(-z.ausgabenEinmalig)}</span>
           </div>
         )}
-        {z.ausgabenHaushalt > 0 && (
-          <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
-            <span>davon Haushalt</span>
-            <span>{fmt(-z.ausgabenHaushalt)}</span>
-          </div>
-        )}
+
+        {/* Saldo */}
         <div className="mt-1 border-t border-slate-100 pt-1" />
         <div
           className={`flex justify-between gap-4 font-semibold ${

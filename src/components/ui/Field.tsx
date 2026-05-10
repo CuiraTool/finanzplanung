@@ -3,6 +3,10 @@
  *
  * Phase 5.x: nutzt Cuira-Design-Tokens (--ink-2 für Label, --ink-3 für Hint).
  * Phase 6 (KI): optional `info` für KI-Erklärung-Tooltip neben dem Label.
+ *
+ * Layout (geändert): Label oben, Input direkt darunter, Hint NACH dem
+ * Input. So bleiben Felder in einem Grid auf gleicher Höhe, auch wenn
+ * nur eines einen Hint hat (vorher schob der Hint das Input nach unten).
  */
 export function Field({
   label,
@@ -25,15 +29,15 @@ export function Field({
         <span>{label}</span>
         {info}
       </div>
+      {children}
       {hint && (
         <div
-          className="mb-1.5 text-[11px]"
+          className="mt-1 text-[11px]"
           style={{ color: "var(--ink-3)" }}
         >
           {hint}
         </div>
       )}
-      {children}
     </label>
   );
 }
