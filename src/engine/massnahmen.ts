@@ -392,14 +392,34 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
     }).einkommen;
     const ersparnis = aktuelleSteuer - mitEinkaufSteuer;
     if (ersparnis > 1_000) {
+      // Folge-Wirkung: zusätzliche PK-Rente lebenslang
+      // Einkauf wird mit BVG-Mindestzins (~1.25%) bis zum Bezug verzinst,
+      // dann via Umwandlungssatz zur Rente. Vereinfachte Approximation:
+      //   Einkauf × (1 + zinssatz)^(jahre) × umwandlungssatz
+      const wachstumsfaktor = Math.pow(
+        1 + 0.0125,
+        Math.max(0, jahreBis - 1) // -1 wegen 3-J-Sperrfrist; konservativ
+      );
+      const uws = bvg.umwandlungssatzProzent / 100;
+      const mehrRenteJahr =
+        bvg.bezugspraeferenz === "rente" ||
+        bvg.bezugspraeferenz === "mischung"
+          ? Math.round(beispielEinkauf * wachstumsfaktor * uws)
+          : 0;
+
+      const titel =
+        mehrRenteJahr > 0
+          ? `PK-Einkauf (${p.name}) 30k — spart ${formatChfKurz(ersparnis)} Steuer + ${formatChfKurz(mehrRenteJahr)} Rente/J`
+          : `PK-Einkauf prüfen (${p.name}) — pro 30k spart ~${formatChfKurz(ersparnis)} Steuern`;
+
       out.push({
         id: `opt-pk-einkauf-${p.idx}`,
         jahr: heute,
         wer: p.idx,
         kategorie: "optimierung",
         prioritaet: 2,
-        titel: `PK-Einkauf prüfen (${p.name}) — pro 30k spart ~${formatChfKurz(ersparnis)} Steuern`,
-        detail: `${jahreBis} Jahre bis Pension, 3-J-Sperrfrist beachten. Einkauf wirkt steuerlich wie 3a-Einzahlung. PK-Anbieter rechnet maximalen Einkauf-Betrag aus.`,
+        titel,
+        detail: `${jahreBis} Jahre bis Pension, 3-J-Sperrfrist beachten. Steuerersparnis ${formatChfKurz(ersparnis)} CHF im Einkauf-Jahr. Bei Bezugsform Rente/Mischung: zusätzliche ${formatChfKurz(mehrRenteJahr)} CHF Rente lebenslang (Approximation, exakter Wert via PK-Anbieter). Steuer-Bonus wiederholbar je Einkauf-Jahr.`,
         geschaetzteErsparnis: ersparnis,
       });
     }
@@ -486,6 +506,132 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
       prioritaet: 3,
       titel: `Doppelverdienerabzug wirkt automatisch (~${formatChfKurz(ddvDbg)} CHF DBG)`,
       detail: `Wird in der Steuerveranlagung automatisch berücksichtigt — keine Aktion nötig. Reduziert Bundessteuer, Kanton-Pauschale separat (ZH: bis 13'700 CHF).`,
+    });
+  }
+
+  // ─── Optimierung 7: 3a-Staffel-Bezug (Kapitalsteuer-Optimierung) ──
+  // Wenn alle 3a-Konten + FZ im gleichen Jahr fällig werden, fällt voller
+  // Kapitalsteuer-Tarif einmal an. Bei Staffelung über 3-5 Jahre tieferer
+  // Tarif pro Bezug → Steuerersparnis bei grossem Saldo signifikant.
+  for (const p of personen) {
+    const items = p.idx === "p1" ? state.saeuleDrei.p1 : state.saeuleDrei.p2;
+    const fz = p.idx === "p1" ? state.bvg.p1.freizuegigkeit : state.bvg.p2.freizuegigkeit;
+
+    // Nur Bezüge mit echtem Saldo, gruppiert nach Bezugsjahr
+    const bezuegeProJahr = new Map<number, number>();
+    for (const it of items) {
+      const saldo = (it.aktuellerWert ?? 0) + (it.rueckkaufswert ?? 0);
+      const bezugsjahr =
+        it.type === "konto" ? it.auszahlungsjahr : it.ablaufjahr;
+      if (saldo <= 0 || !bezugsjahr) continue;
+      bezuegeProJahr.set(
+        bezugsjahr,
+        (bezuegeProJahr.get(bezugsjahr) ?? 0) + saldo
+      );
+    }
+    for (const f of fz) {
+      const saldo = f.saldoHeute ?? 0;
+      if (saldo <= 0 || !f.auszahlungsjahr) continue;
+      bezuegeProJahr.set(
+        f.auszahlungsjahr,
+        (bezuegeProJahr.get(f.auszahlungsjahr) ?? 0) + saldo
+      );
+    }
+
+    // Auf Klumpung prüfen: ein Jahr mit > 200k oder grösstes ist > 60% Total
+    const total = Array.from(bezuegeProJahr.values()).reduce(
+      (a, b) => a + b,
+      0
+    );
+    if (total < 250_000 || bezuegeProJahr.size === 0) continue;
+    const max = Math.max(...bezuegeProJahr.values());
+    const istGeklumpt = max > 250_000 || max / total > 0.6;
+    if (!istGeklumpt) continue;
+
+    // Approximative Steuerersparnis bei Staffelung über 3 Jahre:
+    // Annahme progressive Kapitalsteuer ≈ 6-8% bei 200-500k → 4-5% bei
+    // <100k. Differenz ~2 % auf den Über-200k-Anteil.
+    const ueber200 = Math.max(0, max - 200_000);
+    const grobeErsparnis = Math.round(ueber200 * 0.02);
+
+    if (grobeErsparnis > 2_000) {
+      out.push({
+        id: `opt-3a-staffel-${p.idx}`,
+        jahr: heute,
+        wer: p.idx,
+        kategorie: "optimierung",
+        prioritaet: 2,
+        titel: `3a/FZ-Staffel-Bezug (${p.name}) — spart ~${formatChfKurz(grobeErsparnis)} Kapitalsteuer`,
+        detail: `Aktuell konzentriert sich der Bezug auf ein Jahr (${formatChfKurz(max)} CHF). Über 3-5 Jahre gestaffelt rutscht jeder Bezug in einen tieferen progressiven Kapitalsteuer-Tarif. Konten/Policen mit anderen Auszahlungsjahren versehen → bis ~${formatChfKurz(grobeErsparnis)} CHF Steuern weniger.`,
+        geschaetzteErsparnis: grobeErsparnis,
+      });
+    }
+  }
+
+  // ─── Optimierung 8: Nachlass-Sicherung ──────────────────────────
+  // Wenn Vorsorgeauftrag/Patientenverfügung/Testament fehlen → Hinweis.
+  // Wirkung ist primär nicht-monetär (Familie geschützt), aber wir
+  // schätzen die Notargebühren bei Nichtanlegen (Erbgang ohne Verfügung).
+  const nachlassFehlen: string[] = [];
+  if (!state.nachlass.vorsorgeauftrag) nachlassFehlen.push("Vorsorgeauftrag");
+  if (!state.nachlass.patientenverfuegung)
+    nachlassFehlen.push("Patientenverfügung");
+  if (!state.nachlass.testament && bruttoTotal > 80_000)
+    nachlassFehlen.push("Testament");
+  if (
+    state.fallart === "paar" &&
+    !state.nachlass.ehevertrag &&
+    state.zivilstand === "verheiratet"
+  ) {
+    nachlassFehlen.push("Ehevertrag");
+  }
+  if (nachlassFehlen.length >= 2) {
+    out.push({
+      id: "opt-nachlass-sicherung",
+      jahr: heute,
+      wer: "beide",
+      kategorie: "optimierung",
+      prioritaet: 2,
+      titel: `Nachlass-Sicherung — ${nachlassFehlen.length} Dokumente fehlen`,
+      detail: `Es fehlen: ${nachlassFehlen.join(", ")}. Bei Urteilsunfähigkeit oder Tod ohne Vorsorgeauftrag/Testament läuft Erbgang nach gesetzlicher Erbfolge — Familie hat keinen Einfluss. Notar-Kosten Vorsorgeauftrag CHF 300-800, Patientenverfügung kostenlos online, Testament CHF 600-1'500. Wert: rechtssicherer Nachlass + emotional entlastete Hinterbliebene.`,
+      geschaetzteErsparnis: 0,
+    });
+  }
+
+  // ─── Optimierung 9: AHV-Aufschub (Mehrrente lebenslang) ─────────
+  // Aufschub max 5 Jahre, BSV-Tabelle: 1J +5.2%, 2J +10.8%, 5J +31.5%.
+  // Lohnt bei: hoher Lebenserwartung + Liquiditäts-Polster.
+  // Wir schlagen es vor wenn aktuelles Bezugsalter = 65 und Vermögen
+  // bei Pension > 800k (Polster vorhanden).
+  for (const p of personen) {
+    const aktuellesBezugsalter =
+      p.idx === "p1"
+        ? state.ahv.ahvBezugsalterP1
+        : state.ahv.ahvBezugsalterP2;
+    if (aktuellesBezugsalter !== 65) continue; // schon Vorbezug oder Aufschub geplant
+
+    // Heuristik: nur Vorschlag wenn ausreichend Polster
+    const heuteJahr = new Date().getFullYear();
+    const geburtsjahrP =
+      p.idx === "p1"
+        ? parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
+        : parseInt(state.person2.geburtsdatum.slice(0, 4), 10);
+    if (!Number.isFinite(geburtsjahrP)) continue;
+    const alter = heuteJahr - geburtsjahrP;
+    if (alter < 50 || alter > 64) continue; // nur sinnvoll wenn nahe Pension
+
+    // Approximation: AHV-Maximalrente CHF 30'240, +10.8% bei 2J Aufschub = +3'266/J
+    const mehrRente2J = Math.round(30_240 * 0.108);
+
+    out.push({
+      id: `opt-ahv-aufschub-${p.idx}`,
+      jahr: heute,
+      wer: p.idx,
+      kategorie: "optimierung",
+      prioritaet: 3,
+      titel: `AHV-Aufschub 2 Jahre (${p.name}) — bis +${formatChfKurz(mehrRente2J)} CHF/Jahr lebenslang`,
+      detail: `Wer die AHV erst mit 67 statt 65 bezieht, erhält +10.8% Rente lebenslang (BSV-Aufschubtabelle). Bei Maximalrente: ~${formatChfKurz(mehrRente2J)} CHF mehr/Jahr. Lohnt bei: erwarteter Lebensdauer >82, ausreichendem Liquiditäts-Polster für die zwei Aufschub-Jahre, weiterer Erwerbstätigkeit. Bei Aufschub max 5 J. = +31.5%.`,
+      geschaetzteErsparnis: mehrRente2J,
     });
   }
 
