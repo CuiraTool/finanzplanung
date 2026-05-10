@@ -794,6 +794,56 @@ function einmaligeAusgabenJahr(
  * - FZ: vor Auszahlungsjahr → saldoHeute × Rendite^(jahr - jetzt);
  *       ab Auszahlungsjahr → 0.
  */
+/**
+ * PK-Saldo in der Sparphase — linearer Hochlauf vom Altersguthaben heute
+ * zum voraussichtlichen Altersguthaben bei Bezug.
+ *
+ * Logik:
+ *   - kein aktiver Anschluss → 0
+ *   - kein altersguthabenHeute → fallback auf altersguthabenBeiBezug (statisch)
+ *   - kein altersguthabenBeiBezug → fallback auf altersguthabenHeute (statisch)
+ *   - kein Bezugsjahr → statisch altersguthabenHeute
+ *   - jahr ≥ Bezugsjahr → 0 (PK ist ausbezahlt)
+ *   - sonst → linear interpoliert zwischen jetzt und Bezugsjahr
+ *
+ * Beispiel: heute CHF 580'000, bei Bezug 2032 CHF 720'000, aktuell 2026.
+ *   2026 → 580'000
+ *   2029 → 580'000 + (720'000-580'000) × 3/6 = 650'000
+ *   2032 → 0 (ausbezahlt; Kapital auf Hauptkonto via kapAuszahlungenJahr)
+ */
+function pkSaldoSparphase(
+  p: BvgPersonInput,
+  jahr: number,
+  bezugsjahr: number | null,
+  jetzt: number
+): number {
+  if (!p.aktiverAnschluss) return 0;
+
+  const heute = p.altersguthabenHeute;
+  const beiBezug = p.altersguthabenBeiBezug;
+
+  // Beide null → keine Daten
+  if (heute == null && beiBezug == null) return 0;
+
+  // Nach Bezug → 0 (Kapital ist auf Hauptkonto via kapAuszahlungenJahr)
+  if (bezugsjahr != null && jahr >= bezugsjahr) return 0;
+
+  // Kein Bezugsjahr ODER kein altersguthabenBeiBezug → statisch heute
+  if (bezugsjahr == null || beiBezug == null) {
+    return heute ?? beiBezug ?? 0;
+  }
+
+  // Kein altersguthabenHeute → fallback auf statisch beiBezug
+  if (heute == null) return beiBezug;
+
+  // Linearer Hochlauf zwischen jetzt und bezugsjahr
+  if (bezugsjahr <= jetzt) return beiBezug;
+  if (jahr <= jetzt) return heute;
+
+  const t = (jahr - jetzt) / (bezugsjahr - jetzt);
+  return Math.round(heute + (beiBezug - heute) * t);
+}
+
 function vorsorgeVermoegenAmJahresende(
   state: CashflowInput,
   jahr: number,
@@ -804,25 +854,26 @@ function vorsorgeVermoegenAmJahresende(
   let total = 0;
   const jetzt = new Date().getFullYear();
 
-  // PK: aktuelles Altersguthaben heute (informativ) bis Bezugsjahr,
-  // danach 0 (Kapital ist auf Hauptkonto, Rente fliesst als Cashflow).
-  if (state.bvg.p1.aktiverAnschluss && state.bvg.p1.altersguthabenHeute != null) {
-    if (pkBezugsjahrP1 == null || jahr < pkBezugsjahrP1) {
-      total += state.bvg.p1.altersguthabenHeute;
-    } else if (jahr === pkBezugsjahrP1 && state.bvg.p1.bezugspraeferenz === "mischung") {
-      // Bei Mischung: Restbetrag, der für Rente reserviert ist, bleibt formal in Vorsorge.
-      // Vereinfacht: nicht separat ausgewiesen — Rente fliesst als Cashflow.
-      total += 0;
-    }
-  }
-  if (
-    state.fallart === "paar" &&
-    state.bvg.p2.aktiverAnschluss &&
-    state.bvg.p2.altersguthabenHeute != null
-  ) {
-    if (pkBezugsjahrP2 == null || jahr < pkBezugsjahrP2) {
-      total += state.bvg.p2.altersguthabenHeute;
-    }
+  // PK-Sparphase: linearer Hochlauf vom Altersguthaben heute zum
+  // voraussichtlichen Altersguthaben bei Bezug. Vor Bezug → interpolierter
+  // Wert; nach Bezug → 0 (Kapital auf Hauptkonto, Rente fliesst als Cashflow).
+  //
+  // Vereinfachung: linearer Hochlauf statt echter Sparphasen-Mathematik
+  // (Beiträge × Verzinsung = leichter S-förmiger Verlauf). Bei normalen
+  // Karrieren ist der Fehler ±2-3% zur exakten Kurve.
+  total += pkSaldoSparphase(
+    state.bvg.p1,
+    jahr,
+    pkBezugsjahrP1,
+    jetzt
+  );
+  if (state.fallart === "paar") {
+    total += pkSaldoSparphase(
+      state.bvg.p2,
+      jahr,
+      pkBezugsjahrP2,
+      jetzt
+    );
   }
 
   // 3a — pro Item bis Auszahlungs-/Ablaufjahr.

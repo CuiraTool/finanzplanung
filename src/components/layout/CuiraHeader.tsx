@@ -8,6 +8,7 @@ import {
   Users,
   Heart,
   Download,
+  RotateCcw,
 } from "lucide-react";
 import { ViewModeToggle } from "./ViewModeToggle";
 import { usePlanStore } from "@/lib/store";
@@ -41,6 +42,18 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   const szenarioBAktiv = usePlanStore((s) => s.szenarioB.aktiv);
   const setSzenarioBAktiv = usePlanStore((s) => s.setSzenarioBAktiv);
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
+  const reset = usePlanStore((s) => s.reset);
+
+  const handleReset = () => {
+    if (
+      typeof window !== "undefined" &&
+      window.confirm(
+        "Plan komplett zurücksetzen?\n\nAlle Eingaben werden gelöscht — der Plan startet leer wie für einen neuen Mandanten. Die LocalStorage-Daten werden überschrieben.\n\nFortfahren?"
+      )
+    ) {
+      reset();
+    }
+  };
 
   const isPaar = fallart === "paar";
   const initials = isPaar
@@ -158,6 +171,16 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
         <span>Auto-Save</span>
       </span>
 
+      {/* Reset-Plan */}
+      <button
+        type="button"
+        onClick={handleReset}
+        className="cui-topbar-icon-btn"
+        title="Plan zurücksetzen — alle Eingaben löschen (für neuen Mandant)"
+      >
+        <RotateCcw className="h-4 w-4" />
+      </button>
+
       {/* PDF-Export */}
       <a
         href="/print"
@@ -194,8 +217,9 @@ function ModeLinks() {
     <div className="group relative">
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-md border bg-white px-2 py-1 text-[11px] font-medium transition-colors hover:bg-slate-50"
+        className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
         style={{
+          background: "var(--surface)",
           borderColor: "var(--border)",
           color: "var(--ink-2)",
         }}
@@ -206,14 +230,17 @@ function ModeLinks() {
         <ChevronDown className="h-3 w-3" />
       </button>
       <div
-        className="invisible absolute right-0 top-full z-50 mt-1 w-60 rounded-lg border bg-white p-1.5 opacity-0 shadow-[var(--shadow-pop)] transition-opacity group-hover:visible group-hover:opacity-100"
-        style={{ borderColor: "var(--border)" }}
+        className="invisible absolute right-0 top-full z-50 mt-1 w-60 rounded-lg border p-1.5 opacity-0 shadow-[var(--shadow-pop)] transition-opacity group-hover:visible group-hover:opacity-100"
+        style={{
+          background: "var(--surface)",
+          borderColor: "var(--border)",
+        }}
       >
         <a
           href="/erfassung"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-slate-50"
+          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
         >
           <Users className="mt-0.5 h-4 w-4" style={{ color: "var(--accent)" }} />
           <div>
@@ -232,7 +259,7 @@ function ModeLinks() {
           href="/kunde"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-slate-50"
+          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
         >
           <Heart className="mt-0.5 h-4 w-4" style={{ color: "var(--accent)" }} />
           <div>
@@ -251,7 +278,7 @@ function ModeLinks() {
           href="/app"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-slate-50"
+          className="flex items-start gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
         >
           <FileText
             className="mt-0.5 h-4 w-4"

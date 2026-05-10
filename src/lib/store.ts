@@ -638,18 +638,10 @@ function newId(): string {
 }
 
 function makeInitialVermoegen(): VermoegenInput {
-  return {
-    items: [
-      {
-        id: newId(),
-        typ: "konto",
-        beschreibung: "Privatkonto",
-        saldoHeute: null,
-        renditeProzent: 0,
-        istHauptkonto: true,
-      },
-    ],
-  };
+  // Bewusst leer — der Berater fügt selbst Konten hinzu. Das erste
+  // hinzugefügte Aktiv-Konto wird automatisch zum Hauptkonto (siehe
+  // addVermoegen). Default-"Privatkonto" wirkt sonst wie schon erfasst.
+  return { items: [] };
 }
 
 function isZivilstandEinzel(z: Zivilstand): z is ZivilstandEinzel {
@@ -993,21 +985,31 @@ export const usePlanStore = create<PlanState>()(
           };
         }),
       addVermoegen: (typ, initial) =>
-        set((s) => ({
-          vermoegen: {
-            items: [
-              ...s.vermoegen.items,
-              {
-                id: newId(),
-                typ,
-                beschreibung: initial?.beschreibung ?? "",
-                saldoHeute: initial?.saldoHeute ?? null,
-                renditeProzent: initial?.renditeProzent ?? 0,
-                istHauptkonto: false,
-              },
-            ],
-          },
-        })),
+        set((s) => {
+          // Erstes Aktiv-Item (Konto/Depot) wird automatisch zum
+          // Hauptkonto, sonst hätte die Cashflow-Engine keinen Anker.
+          // Darlehen können nicht Hauptkonto sein.
+          const keinAktivumVorhanden = !s.vermoegen.items.some(
+            (it) => it.typ !== "darlehen"
+          );
+          const sollHauptkontoSein =
+            typ !== "darlehen" && keinAktivumVorhanden;
+          return {
+            vermoegen: {
+              items: [
+                ...s.vermoegen.items,
+                {
+                  id: newId(),
+                  typ,
+                  beschreibung: initial?.beschreibung ?? "",
+                  saldoHeute: initial?.saldoHeute ?? null,
+                  renditeProzent: initial?.renditeProzent ?? 0,
+                  istHauptkonto: sollHauptkontoSein,
+                },
+              ],
+            },
+          };
+        }),
       updateVermoegen: (id, patch) =>
         set((s) => ({
           vermoegen: {
@@ -1019,13 +1021,10 @@ export const usePlanStore = create<PlanState>()(
       removeVermoegen: (id) =>
         set((s) => {
           const target = s.vermoegen.items.find((it) => it.id === id);
-          // Wenn das einzige Item entfernt wird, lass es stehen — sonst hätte
-          // der Cashflow keinen Anker. UI verhindert das auch.
-          if (s.vermoegen.items.length === 1) return {};
           const rest = s.vermoegen.items.filter((it) => it.id !== id);
           // Wenn das Hauptkonto entfernt wurde, mach das erste Nicht-Darlehen
           // dazu — ein Darlehen darf nicht Hauptkonto sein (würde Cashflow-
-          // Logik brechen).
+          // Logik brechen). Cashflow-Engine handhabt leere Listen safe.
           if (target?.istHauptkonto && rest.length > 0) {
             const ersteAktiva = rest.find((it) => it.typ !== "darlehen");
             if (ersteAktiva) {
@@ -1236,7 +1235,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v26",
+      name: "cuira-plan-v27",
     }
   )
 );

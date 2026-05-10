@@ -50,19 +50,35 @@ export function Block7Vermoegen() {
           <KpiPill label="Netto" value={formatChf(aufteilung.netto)} bold />
         </div>
 
-        <ul className="space-y-2">
-          {items.map((it, idx) => (
-            <VermoegenCard
-              key={it.id}
-              index={idx + 1}
-              item={it}
-              canRemove={items.length > 1}
-              onUpdate={(p) => updateVermoegen(it.id, p)}
-              onRemove={() => removeVermoegen(it.id)}
-              onSetHauptkonto={() => setHauptkonto(it.id)}
-            />
-          ))}
-        </ul>
+        {items.length === 0 ? (
+          <div
+            className="rounded-md border border-dashed px-4 py-6 text-center text-xs"
+            style={{
+              borderColor: "var(--border-strong)",
+              background: "var(--surface-2)",
+              color: "var(--ink-3)",
+            }}
+          >
+            Noch keine Konten, Depots oder Darlehen erfasst.
+            <div className="mt-1 text-[11px]">
+              Das erste Konto wird automatisch zum Hauptkonto.
+            </div>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {items.map((it, idx) => (
+              <VermoegenCard
+                key={it.id}
+                index={idx + 1}
+                item={it}
+                canRemove={true}
+                onUpdate={(p) => updateVermoegen(it.id, p)}
+                onRemove={() => removeVermoegen(it.id)}
+                onSetHauptkonto={() => setHauptkonto(it.id)}
+              />
+            ))}
+          </ul>
+        )}
 
         <div className="grid grid-cols-3 gap-2">
           <button
