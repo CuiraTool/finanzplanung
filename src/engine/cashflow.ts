@@ -28,9 +28,6 @@ import type {
   Einkommensperiode,
   Immobilie,
   VermoegenItem,
-  FreizuegigkeitEntry,
-  SaeuleDreiEntry,
-  FirmaInput,
 } from "@/lib/store";
 import {
   ahvJahresrenteEinzel,
@@ -282,9 +279,7 @@ export function cashflowReihe(
     const kapZeile = kapitalauszahlungenJahr(
       state,
       jahr,
-      bvgKapitalAuszahlungen,
-      pkBezugsjahrP1,
-      pkBezugsjahrP2
+      bvgKapitalAuszahlungen
     );
     const kapAuszahlungen = kapZeile;
     // WEF-Vorbezug: wird mit Kapitalauszahlungs-Sondertarif besteuert,
@@ -699,9 +694,7 @@ function mieteinnahmenJahr(items: Immobilie[], jahr: number): number {
 function kapitalauszahlungenJahr(
   state: CashflowInput,
   jahr: number,
-  bvgKap: ReturnType<typeof computeBvgKapitalAuszahlungen>,
-  _pkBjP1: number | null,
-  _pkBjP2: number | null
+  bvgKap: ReturnType<typeof computeBvgKapitalAuszahlungen>
 ): number {
   let total = 0;
 

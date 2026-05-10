@@ -113,10 +113,6 @@ export function Block8Immobilien() {
           leicht überzeichnen.
         </p>
       </div>
-
-      <p className="text-xs text-slate-400">
-        Grundstückgewinnsteuer (kantonal beim Verkauf) folgt mit Etappe 6.
-      </p>
     </div>
   );
 }

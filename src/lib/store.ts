@@ -1156,6 +1156,9 @@ export const usePlanStore = create<PlanState>()(
             plan: initial?.plan ?? "behalten",
             verkaufsjahr: initial?.verkaufsjahr ?? jahr + 10,
             jaehrlicheMieteinnahmen: initial?.jaehrlicheMieteinnahmen ?? null,
+            wertsteigerungProzent: initial?.wertsteigerungProzent ?? null,
+            kaufjahr: initial?.kaufjahr ?? null,
+            anlagekosten: initial?.anlagekosten ?? null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
