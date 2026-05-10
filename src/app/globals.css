@@ -1302,3 +1302,806 @@ input[type="number"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Erfassung (Affiliate) — 3-Spalten-Single-Page mit Scroll-Spy + Aside
+   Source: design_handoff_cuira_app/Cuira Erfassung.html + erfassung.jsx
+   Aktiviert über data-mode="erfassung" auf der Page-Wrapper-DIV.
+   ════════════════════════════════════════════════════════════════════ */
+
+[data-mode="erfassung"] {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  min-height: 100vh;
+}
+
+[data-mode="erfassung"] .erf-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ─── Topbar ─────────────────────────────────────────────────── */
+[data-mode="erfassung"] .erf-topbar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+[data-mode="erfassung"] .erf-logo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--cuira-deep);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+[data-mode="erfassung"] .erf-affiliate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+[data-mode="erfassung"] .erf-advisor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+[data-mode="erfassung"] .erf-advisor-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--cuira-deep);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-mode="erfassung"] .erf-search {
+  flex: 1;
+  max-width: 360px;
+  position: relative;
+}
+[data-mode="erfassung"] .erf-search input {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--ink);
+  outline: none;
+  font-family: inherit;
+}
+[data-mode="erfassung"] .erf-search input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+[data-mode="erfassung"] .erf-search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  width: 14px;
+  height: 14px;
+}
+[data-mode="erfassung"] .erf-spacer {
+  flex: 1;
+}
+[data-mode="erfassung"] .erf-autosave {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-pro-link {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-decoration: none;
+  transition: all 160ms ease;
+}
+[data-mode="erfassung"] .erf-pro-link:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  color: var(--cuira-deep);
+}
+
+/* ─── Layout: 3-Spalten ──────────────────────────────────────── */
+[data-mode="erfassung"] .erf-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  [data-mode="erfassung"] .erf-shell {
+    grid-template-columns: 200px 1fr 280px;
+  }
+}
+@media (max-width: 900px) {
+  [data-mode="erfassung"] .erf-shell {
+    grid-template-columns: 1fr;
+  }
+  [data-mode="erfassung"] .erf-sidenav,
+  [data-mode="erfassung"] .erf-handoff {
+    display: none;
+  }
+}
+
+/* ─── Side-Nav (links) ───────────────────────────────────────── */
+[data-mode="erfassung"] .erf-sidenav {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 20px 14px;
+  overflow-y: auto;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+}
+[data-mode="erfassung"] .erf-nav-group {
+  margin-bottom: 18px;
+}
+[data-mode="erfassung"] .erf-nav-group-h {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  padding: 0 10px 6px;
+}
+[data-mode="erfassung"] .erf-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 140ms ease, color 140ms ease;
+}
+[data-mode="erfassung"] .erf-nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+[data-mode="erfassung"] .erf-nav-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 500;
+}
+[data-mode="erfassung"] .erf-nav-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+  min-width: 18px;
+}
+[data-mode="erfassung"] .erf-nav-item.is-active .erf-nav-num {
+  color: var(--accent-ink);
+}
+[data-mode="erfassung"] .erf-nav-check {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-strong);
+  flex-shrink: 0;
+  position: relative;
+}
+[data-mode="erfassung"] .erf-nav-item.is-done .erf-nav-check {
+  background: var(--pos);
+  border-color: var(--pos);
+}
+[data-mode="erfassung"] .erf-nav-item.is-done .erf-nav-check::after {
+  content: "";
+  position: absolute;
+  inset: 3px 5px 5px 3px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg);
+  transform-origin: 0 100%;
+}
+
+/* ─── Form-Center ────────────────────────────────────────────── */
+[data-mode="erfassung"] .erf-main {
+  overflow-y: auto;
+  padding: 22px 28px 80px;
+  scroll-padding-top: 24px;
+}
+[data-mode="erfassung"] .erf-section {
+  margin-bottom: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  scroll-margin-top: 80px;
+}
+[data-mode="erfassung"] .erf-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+[data-mode="erfassung"] .erf-section-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+[data-mode="erfassung"] .erf-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+[data-mode="erfassung"] .erf-section-meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+[data-mode="erfassung"] .erf-section-body {
+  padding: 6px 6px 14px;
+}
+
+/* ─── Row (label + control) ──────────────────────────────────── */
+[data-mode="erfassung"] .erf-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  min-height: 40px;
+}
+[data-mode="erfassung"] .erf-row:hover {
+  background: var(--surface-2);
+}
+[data-mode="erfassung"] .erf-row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+[data-mode="erfassung"] .erf-row-help {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+[data-mode="erfassung"] .erf-row-control {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+[data-mode="erfassung"] .erf-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--ink);
+  outline: none;
+  font-family: inherit;
+  transition: border 140ms ease, box-shadow 140ms ease;
+  min-width: 0;
+}
+[data-mode="erfassung"] .erf-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+[data-mode="erfassung"] .erf-input.is-num {
+  font-family: var(--font-mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 130px;
+}
+[data-mode="erfassung"] .erf-input.is-grow {
+  flex: 1;
+}
+[data-mode="erfassung"] .erf-input.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+[data-mode="erfassung"] .erf-input-with-suffix {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+[data-mode="erfassung"] .erf-input-with-suffix .erf-input {
+  padding-right: 38px;
+}
+[data-mode="erfassung"] .erf-input-with-suffix .erf-suffix {
+  position: absolute;
+  right: 10px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+/* ─── Segmented ─────────────────────────────────────────────── */
+[data-mode="erfassung"] .erf-seg {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 1px;
+}
+[data-mode="erfassung"] .erf-seg button {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 140ms ease;
+}
+[data-mode="erfassung"] .erf-seg button.is-active {
+  background: var(--surface);
+  color: var(--cuira-deep);
+  box-shadow: var(--shadow-card);
+  font-weight: 500;
+}
+
+/* ─── Check ──────────────────────────────────────────────────── */
+[data-mode="erfassung"] .erf-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 140ms ease;
+}
+[data-mode="erfassung"] .erf-check:hover {
+  border-color: var(--border-strong);
+}
+[data-mode="erfassung"] .erf-check-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  position: relative;
+  flex-shrink: 0;
+}
+[data-mode="erfassung"] .erf-check.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+[data-mode="erfassung"] .erf-check.is-on .erf-check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+[data-mode="erfassung"] .erf-check.is-on .erf-check-box::after {
+  content: "";
+  position: absolute;
+  inset: 2px 3px 4px 2px;
+  border-left: 1.6px solid white;
+  border-bottom: 1.6px solid white;
+  transform: rotate(-45deg);
+  transform-origin: 0 100%;
+}
+
+/* ─── Repeater (Vermögen, Immo) ──────────────────────────────── */
+[data-mode="erfassung"] .erf-repeater {
+  margin: 6px 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+[data-mode="erfassung"] .erf-rep-head {
+  display: grid;
+  padding: 7px 10px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+[data-mode="erfassung"] .erf-rep-row {
+  display: grid;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 6px;
+}
+[data-mode="erfassung"] .erf-rep-row:last-of-type {
+  border-bottom: none;
+}
+[data-mode="erfassung"] .erf-grid-rep-4 {
+  grid-template-columns: 1fr 1fr 130px 28px;
+}
+[data-mode="erfassung"] .erf-grid-rep-immo {
+  grid-template-columns: 1.4fr 130px 130px 28px;
+}
+[data-mode="erfassung"] .erf-rep-row .erf-input {
+  border: none;
+  background: transparent;
+  padding: 5px 6px;
+  border-radius: 4px;
+}
+[data-mode="erfassung"] .erf-rep-row .erf-input:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+[data-mode="erfassung"] .erf-rep-del {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms ease;
+}
+[data-mode="erfassung"] .erf-rep-del:hover {
+  background: var(--neg-soft);
+  color: var(--neg);
+  border-color: var(--neg);
+}
+[data-mode="erfassung"] .erf-rep-add {
+  display: flex;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: none;
+  font-size: 12px;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background 140ms ease;
+}
+[data-mode="erfassung"] .erf-rep-add:hover {
+  background: var(--accent-soft);
+}
+
+/* ─── Upload-Slots ───────────────────────────────────────────── */
+[data-mode="erfassung"] .erf-upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 6px 14px 8px;
+}
+@media (max-width: 700px) {
+  [data-mode="erfassung"] .erf-upload-grid {
+    grid-template-columns: 1fr;
+  }
+}
+[data-mode="erfassung"] .erf-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--surface-2);
+  transition: all 160ms ease;
+}
+[data-mode="erfassung"] .erf-upload:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+[data-mode="erfassung"] .erf-upload.is-attached {
+  border-style: solid;
+  border-color: var(--pos);
+  background: var(--pos-soft);
+}
+[data-mode="erfassung"] .erf-upload-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+[data-mode="erfassung"] .erf-upload.is-attached .erf-upload-icon {
+  background: var(--pos);
+  color: white;
+}
+[data-mode="erfassung"] .erf-upload-info {
+  flex: 1;
+  min-width: 0;
+}
+[data-mode="erfassung"] .erf-upload-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+[data-mode="erfassung"] .erf-upload-sub {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-upload.is-attached .erf-upload-sub {
+  color: oklch(0.4 0.15 158);
+}
+
+/* ─── Übergabe-Aside (rechts) ────────────────────────────────── */
+[data-mode="erfassung"] .erf-handoff {
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+[data-mode="erfassung"] .erf-handoff-head {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+[data-mode="erfassung"] .erf-handoff-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-handoff-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 4px;
+}
+[data-mode="erfassung"] .erf-handoff-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+[data-mode="erfassung"] .erf-ring-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+[data-mode="erfassung"] .erf-ring {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+[data-mode="erfassung"] .erf-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cuira-deep);
+}
+[data-mode="erfassung"] .erf-ring-info-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+[data-mode="erfassung"] .erf-ring-info-sub {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+[data-mode="erfassung"] .erf-checklist-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  padding: 3px 0;
+}
+[data-mode="erfassung"] .erf-checklist-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+}
+[data-mode="erfassung"] .erf-checklist-item.is-done {
+  color: var(--ink-2);
+}
+[data-mode="erfassung"] .erf-checklist-item.is-done .erf-checklist-icon {
+  background: var(--pos);
+  border-color: var(--pos);
+}
+[data-mode="erfassung"] .erf-checklist-pct {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-checklist-item.is-done .erf-checklist-pct {
+  color: var(--pos);
+}
+[data-mode="erfassung"] .erf-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-mode="erfassung"] .erf-panel-h {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+[data-mode="erfassung"] .erf-priority {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+[data-mode="erfassung"] .erf-priority button {
+  padding: 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 140ms ease;
+}
+[data-mode="erfassung"] .erf-priority button:hover {
+  border-color: var(--border-strong);
+}
+[data-mode="erfassung"] .erf-priority button.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 500;
+}
+[data-mode="erfassung"] .erf-priority button[data-tone="warn"].is-active {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: oklch(0.5 0.15 60);
+}
+[data-mode="erfassung"] .erf-priority button[data-tone="urg"].is-active {
+  background: var(--neg-soft);
+  border-color: var(--neg);
+  color: var(--neg);
+}
+[data-mode="erfassung"] .erf-textarea {
+  width: 100%;
+  min-height: 80px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  transition: border 140ms ease;
+}
+[data-mode="erfassung"] .erf-textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+[data-mode="erfassung"] .erf-meta-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+[data-mode="erfassung"] .erf-panel-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+[data-mode="erfassung"] .erf-handoff-foot {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-mode="erfassung"] .erf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  transition: all 160ms ease;
+  background: none;
+  color: inherit;
+}
+[data-mode="erfassung"] .erf-btn-primary {
+  background: var(--cuira-deep);
+  color: white;
+}
+[data-mode="erfassung"] .erf-btn-primary:hover {
+  background: var(--cuira-deep-soft);
+}
+[data-mode="erfassung"] .erf-btn-primary:disabled {
+  background: var(--ink-4);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+[data-mode="erfassung"] .erf-btn-ghost {
+  color: var(--ink-2);
+}
+[data-mode="erfassung"] .erf-btn-ghost:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}

@@ -78,6 +78,25 @@ export interface QuestionSpec {
   suffix?: string;
 }
 
+/** Affiliate-Priorität für Übergabe-Panel (Phase 6 Erfassung-Migration). */
+export type ErfassungPriority = "normal" | "hoch" | "dringend";
+
+/** Mock-Doc für Upload-Slots (echtes File-Handling kommt mit Etappe 4). */
+export interface ErfassungDoc {
+  name: string;
+  size: string;
+  attached: boolean;
+}
+
+/** Doc-Slots im Erfassungsformular. */
+export interface ErfassungDocs {
+  vorsorgeausweisP1: ErfassungDoc | null;
+  vorsorgeausweisP2: ErfassungDoc | null;
+  steuererklaerung: ErfassungDoc | null;
+  saeule3aP1: ErfassungDoc | null;
+  saeule3aP2: ErfassungDoc | null;
+}
+
 /** Berater-Meta für V2 (Block A) — separater State, nicht im Hauptstore. */
 export interface BeraterMeta {
   datum: string; // ISO YYYY-MM-DD
@@ -87,6 +106,14 @@ export interface BeraterMeta {
   auftrag: "planung_beratung" | "nur_planung" | "";
   kundeP1Name: string;
   kundeP2Name: string;
+  /** Phase 6: Affiliate-Priorität für Übergabe-Panel. */
+  priority?: ErfassungPriority;
+  /** Phase 6: Berater-Notiz an Cuira (mind. 10 Zeichen für Submit). */
+  notiz?: string;
+  /** Phase 6: Mandanten-ID, auto-generiert bei erster Erfassung. */
+  mandantId?: string;
+  /** Phase 6: Mock-Doc-Status (kein echtes File-Handling vor Etappe 4). */
+  docs?: ErfassungDocs;
 }
 
 export interface FlowAntworten {
