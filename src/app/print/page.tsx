@@ -28,6 +28,7 @@ import { formatChf } from "@/lib/format";
 import { massnahmenAusState } from "@/engine/massnahmen";
 import { tragbarkeitHaushalt } from "@/engine/tragbarkeit";
 import { pensionseinkommenJahr } from "@/engine/pensionseinkommen";
+import { runAllStressTests, STRESS_TESTS } from "@/engine/stress-tests";
 import { VermoegensChart } from "@/components/dashboard/VermoegensChart";
 import { EinnahmenAusgabenChart } from "@/components/dashboard/EinnahmenAusgabenChart";
 
@@ -73,6 +74,53 @@ export default function PrintPage() {
   const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
+
+  // Stress-Tests (nur wenn genug Daten erfasst)
+  const hatStressBasis =
+    !!fullState.person1.geburtsdatum &&
+    (fullState.vermoegen.items.some((it) => (it.saldoHeute ?? 0) > 0) ||
+      (fullState.bvg.p1.altersguthabenHeute ?? 0) > 0);
+  const stressTests = useMemo(
+    () => (hatStressBasis ? runAllStressTests(fullState) : []),
+    [fullState, hatStressBasis]
+  );
+
+  // Verdict aus dem letzten Cashflow-Eintrag (Vermögen am Lebensende)
+  const verdict = useMemo(() => {
+    if (cashflow.length === 0)
+      return { type: "unbekannt" as const, titel: "—", text: "" };
+    const letzte = cashflow[cashflow.length - 1];
+    if (!letzte) return { type: "unbekannt" as const, titel: "—", text: "" };
+    const aufgebrauchtJahr = cashflow.find(
+      (z) => z.vermoegenNetto < 0
+    )?.jahr;
+    if (aufgebrauchtJahr) {
+      const geburtsjahrZ = parseInt(
+        fullState.person1.geburtsdatum.slice(0, 4),
+        10
+      );
+      const alter = Number.isFinite(geburtsjahrZ)
+        ? aufgebrauchtJahr - geburtsjahrZ
+        : null;
+      if (alter && alter < 80) {
+        return {
+          type: "neg" as const,
+          titel: `Eng — Vermögen reicht bis Alter ${alter}`,
+          text: `Bei den aktuellen Annahmen reicht das Vermögen voraussichtlich bis ins Jahr ${aufgebrauchtJahr}. Wir empfehlen Anpassungen am Pensionierungsalter, an der Bezugsform oder bei den Vorsorge-Einzahlungen.`,
+        };
+      }
+      return {
+        type: "warn" as const,
+        titel: `Knapp — Vermögen reicht bis Alter ${alter ?? "—"}`,
+        text: `Mit kleinen Anpassungen (3a-Lücke schliessen, PK-Einkauf, leicht später pensionieren) lässt sich das Bild verbessern.`,
+      };
+    }
+    return {
+      type: "good" as const,
+      titel: "Pension reicht komfortabel",
+      text: `Das Vermögen reicht voraussichtlich bis ins Jahr ${letzte.jahr}. Optimierungen siehe Massnahmen-Sektion.`,
+    };
+  }, [cashflow, fullState.person1.geburtsdatum]);
 
   const tragbarkeitHeute = useMemo(() => {
     if (fullState.immobilien.items.length === 0) return null;
@@ -130,32 +178,124 @@ export default function PrintPage() {
       </div>
 
       <article className="mx-auto max-w-[210mm] px-8 py-10 text-slate-800 print:px-0 print:py-0">
-        {/* ── Cover ───────────────────────────────────────────── */}
-        <header className="mb-12 flex items-start justify-between border-b border-slate-300 pb-6">
-          <div>
+        {/* ── Cover-Seite (eigene Seite) ──────────────────────── */}
+        <div className="cover-page flex h-[260mm] flex-col justify-between print:h-[260mm]">
+          <header className="border-b-2 pb-6" style={{ borderColor: "#0a2540" }}>
             <Image
               src="/cuira-logo.png"
               alt="Cuira Partners"
-              width={140}
-              height={56}
-              className="mb-4 h-12 w-auto"
+              width={180}
+              height={72}
+              className="mb-2 h-14 w-auto"
               style={{ filter: "invert(1) brightness(0.2)" }}
             />
-            <div className="text-sm text-slate-500">Cuira Partners GmbH</div>
-            <div className="text-sm text-slate-500">Pensionsplanung</div>
-          </div>
-          <div className="text-right text-xs text-slate-500">
-            <div>Stand: {heuteFormatiert}</div>
-          </div>
-        </header>
+            <div className="text-sm" style={{ color: "#4b566b" }}>
+              Cuira Partners GmbH · Pensionsplanung Schweiz
+            </div>
+          </header>
 
-        <h1 className="mb-1 text-3xl font-semibold text-[var(--color-cuira-deep)]">
-          Auslegeordnung Pensionsplanung
-        </h1>
-        <h2 className="mb-8 text-xl text-slate-700">
-          {kundeName || "—"}
-          {kundeName2 && <span> &amp; {kundeName2}</span>}
-        </h2>
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <div
+              className="text-[10px] font-medium uppercase tracking-[0.18em]"
+              style={{ color: "#8390a3" }}
+            >
+              Auslegeordnung Pensionsplanung
+            </div>
+            <h1
+              className="text-[44px] font-semibold leading-tight tracking-tight"
+              style={{ color: "#0a2540" }}
+            >
+              {kundeName || "Mandant"}
+              {kundeName2 && (
+                <>
+                  <br />
+                  <span className="text-[28px] font-normal" style={{ color: "#4b566b" }}>
+                    &amp; {kundeName2}
+                  </span>
+                </>
+              )}
+            </h1>
+            <div
+              className="mt-2 text-base"
+              style={{ color: "#4b566b" }}
+            >
+              {fullState.adresse.gemeindeName ||
+                fullState.adresse.ort ||
+                fullState.adresse.kanton ||
+                "—"}
+              {" · "}
+              Stand {heuteFormatiert}
+            </div>
+
+            {/* Verdict-Box */}
+            {verdict.type !== "unbekannt" && (
+              <div
+                className="mt-8 max-w-md rounded-md border-l-4 p-4 text-left"
+                style={{
+                  borderColor:
+                    verdict.type === "good"
+                      ? "#16a34a"
+                      : verdict.type === "warn"
+                        ? "#ca8a04"
+                        : "#dc2626",
+                  background:
+                    verdict.type === "good"
+                      ? "#f0fdf4"
+                      : verdict.type === "warn"
+                        ? "#fefce8"
+                        : "#fef2f2",
+                }}
+              >
+                <div
+                  className="text-base font-semibold"
+                  style={{
+                    color:
+                      verdict.type === "good"
+                        ? "#15803d"
+                        : verdict.type === "warn"
+                          ? "#854d0e"
+                          : "#991b1b",
+                  }}
+                >
+                  {verdict.titel}
+                </div>
+                <p
+                  className="mt-1 text-sm leading-relaxed"
+                  style={{ color: "#4b566b" }}
+                >
+                  {verdict.text}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <footer className="border-t pt-4 text-xs" style={{ borderColor: "#e7eaee", color: "#8390a3" }}>
+            <div className="flex justify-between">
+              <span>Cuira Partners GmbH · Pensionsplanung Schweiz</span>
+              <span>Vertraulich — nur für den Mandanten</span>
+            </div>
+          </footer>
+        </div>
+
+        {/* ── Inhalt ab Seite 2 ────────────────────────────────── */}
+        <div className="page-break-before pt-8">
+          <header className="mb-6 flex items-start justify-between border-b pb-4" style={{ borderColor: "#e7eaee" }}>
+            <div>
+              <Image
+                src="/cuira-logo.png"
+                alt="Cuira Partners"
+                width={100}
+                height={40}
+                className="h-7 w-auto"
+                style={{ filter: "invert(1) brightness(0.2)" }}
+              />
+            </div>
+            <div className="text-right text-[10px]" style={{ color: "#8390a3" }}>
+              <div>{kundeName}{kundeName2 && ` & ${kundeName2}`}</div>
+              <div>Stand: {heuteFormatiert}</div>
+            </div>
+          </header>
+        </div>
 
         {/* ── KPIs ────────────────────────────────────────────── */}
         <Section titel="Vermögen — drei Stichtage">
@@ -291,6 +431,120 @@ export default function PrintPage() {
           </div>
         )}
 
+        {/* ── Stress-Tests ──────────────────────────────────── */}
+        {stressTests.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Stress-Tests — Was wäre wenn?">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Drei realistische Schock-Szenarien und ihre Auswirkung auf das
+                Vermögen bei Pension und mit Alter 85 — Vergleich zum aktuellen
+                Plan.
+              </p>
+              <div className="space-y-2">
+                {stressTests.map((r) => {
+                  const def = STRESS_TESTS.find((s) => s.id === r.id);
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-md border p-3"
+                      style={{
+                        borderColor: "#e7eaee",
+                        background:
+                          r.schwere === "kritisch"
+                            ? "#fef2f2"
+                            : r.schwere === "mittel"
+                              ? "#fefce8"
+                              : "#f0fdf4",
+                      }}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <strong className="text-sm" style={{ color: "#0a2540" }}>
+                          {r.titel}
+                        </strong>
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wider"
+                          style={{
+                            color:
+                              r.schwere === "kritisch"
+                                ? "#991b1b"
+                                : r.schwere === "mittel"
+                                  ? "#854d0e"
+                                  : "#15803d",
+                          }}
+                        >
+                          {r.schwere === "leicht"
+                            ? "tragbar"
+                            : r.schwere === "mittel"
+                              ? "knapp"
+                              : "kritisch"}
+                        </span>
+                      </div>
+                      <p
+                        className="mt-1 text-[11px]"
+                        style={{ color: "#4b566b" }}
+                      >
+                        {def?.annahme}
+                      </p>
+                      <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <div
+                            className="text-[9px] uppercase tracking-wider"
+                            style={{ color: "#8390a3" }}
+                          >
+                            Δ bei Pension
+                          </div>
+                          <div
+                            className="font-mono font-semibold tabular-nums"
+                            style={{
+                              color: r.deltaPension < 0 ? "#dc2626" : "#16a34a",
+                            }}
+                          >
+                            {r.deltaPension > 0 ? "+" : ""}
+                            {formatChf(r.deltaPension)}
+                          </div>
+                        </div>
+                        <div>
+                          <div
+                            className="text-[9px] uppercase tracking-wider"
+                            style={{ color: "#8390a3" }}
+                          >
+                            Δ mit 85
+                          </div>
+                          <div
+                            className="font-mono font-semibold tabular-nums"
+                            style={{
+                              color: r.delta85 < 0 ? "#dc2626" : "#16a34a",
+                            }}
+                          >
+                            {r.delta85 > 0 ? "+" : ""}
+                            {formatChf(r.delta85)}
+                          </div>
+                        </div>
+                        <div>
+                          <div
+                            className="text-[9px] uppercase tracking-wider"
+                            style={{ color: "#8390a3" }}
+                          >
+                            Vermögen mit 85
+                          </div>
+                          <div
+                            className="font-mono tabular-nums"
+                            style={{
+                              color: r.mit85 < 0 ? "#dc2626" : "#0a2540",
+                            }}
+                          >
+                            {formatChf(r.mit85)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          </div>
+        )}
+
         {/* ── Optimierungs-Massnahmen ────────────────────────── */}
         {optimierungen.length > 0 && (
           <div className="page-break-before pt-4">
@@ -355,15 +609,78 @@ export default function PrintPage() {
           </Section>
         )}
 
+        {/* ── Berater-Block ───────────────────────────────────── */}
+        <div className="page-break-before pt-4">
+          <Section titel="Ihr Cuira-Berater">
+            <div
+              className="rounded-md border p-4"
+              style={{
+                borderColor: "#0a2540",
+                background: "#0a2540",
+                color: "white",
+              }}
+            >
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-[0.12em]"
+                    style={{ color: "#a9b3c1" }}
+                  >
+                    Berater
+                  </div>
+                  <div className="mt-1 text-base font-semibold">
+                    Kathir Muthukumar
+                  </div>
+                  <div
+                    className="text-[11px]"
+                    style={{ color: "#a9b3c1" }}
+                  >
+                    Senior Pensionsplaner
+                  </div>
+                </div>
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-[0.12em]"
+                    style={{ color: "#a9b3c1" }}
+                  >
+                    Kontakt
+                  </div>
+                  <div className="mt-1 text-sm">
+                    kathir@cuirapartners.ch
+                  </div>
+                  <div
+                    className="text-[11px]"
+                    style={{ color: "#a9b3c1" }}
+                  >
+                    cuirapartners.ch
+                  </div>
+                </div>
+              </div>
+              <div
+                className="mt-3 border-t pt-3 text-[11px]"
+                style={{ borderColor: "#14315a", color: "#a9b3c1" }}
+              >
+                Diese Auslegeordnung wurde am {heuteFormatiert} erstellt.
+                Für die Umsetzung der Empfehlungen, Detail-Berechnungen mit
+                Ihrer Pensionskasse und steueroptimale Strukturierung wenden
+                Sie sich an Ihren Cuira-Berater.
+              </div>
+            </div>
+          </Section>
+        </div>
+
         {/* ── Footer / Disclaimer ─────────────────────────────── */}
-        <footer className="mt-12 border-t border-slate-300 pt-6 text-xs text-slate-500">
+        <footer
+          className="mt-12 border-t pt-6 text-xs"
+          style={{ borderColor: "#e7eaee", color: "#8390a3" }}
+        >
           <p className="mb-2">
             <strong>Disclaimer:</strong> Diese Auslegeordnung basiert auf den
             von Ihnen eingegebenen Daten und Standard-Annahmen (Inflation
             1.5 % p.a., kalk. Hypozins 5 %, ESTV-Tarife 2025/26, BSV-Skala 44).
-            Sie ersetzt keine individuelle Steuer- oder Vorsorgeberatung.
-            Werte sind Schätzungen, abhängig von zukünftigen Gesetzes-,
-            Markt- und Lebenslagen.
+            Sie ersetzt keine individuelle Steuer- oder Vorsorgeberatung
+            i.S.v. Art. 2 RAG. Werte sind Schätzungen, abhängig von zukünftigen
+            Gesetzes-, Markt- und Lebenslagen.
           </p>
           <p>
             Cuira Partners GmbH · CH-Schweiz · Stand: {heuteFormatiert}
@@ -376,13 +693,49 @@ export default function PrintPage() {
         @media print {
           @page {
             size: A4;
+            margin: 15mm 15mm 18mm 15mm;
+            /* Page-Numbers im Footer rechts */
+            @bottom-right {
+              content: counter(page) " / " counter(pages);
+              font-family: ui-monospace, monospace;
+              font-size: 9pt;
+              color: #8390a3;
+            }
+            @bottom-left {
+              content: "Cuira Partners GmbH · Pensionsplanung";
+              font-size: 8.5pt;
+              color: #8390a3;
+            }
+          }
+          /* Cover-Page ohne Footer-Page-Number */
+          @page :first {
             margin: 15mm;
+            @bottom-right { content: ""; }
+            @bottom-left { content: ""; }
           }
           body {
             background: white !important;
+            font-size: 10pt;
+            line-height: 1.4;
           }
           .page-break-before {
             page-break-before: always;
+          }
+          .cover-page {
+            page-break-after: always;
+            min-height: 240mm;
+          }
+          /* Charts farbtreu drucken */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Tabellen nicht über Seitenränder brechen */
+          tr, li {
+            page-break-inside: avoid;
+          }
+          h1, h2, h3 {
+            page-break-after: avoid;
           }
         }
       `}</style>
