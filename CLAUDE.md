@@ -28,7 +28,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 | Bereich | Entscheidung |
 |---|---|
 | Frontend | Next.js 15 + React 19 + TypeScript strict + Tailwind v4 |
-| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v29) |
+| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v30) |
 | Forms | controlled inputs gegen Zustand-Store, kein React Hook Form |
 | Charts (geplant) | Recharts |
 | **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |

@@ -313,14 +313,8 @@ export function cashflowReihe(
     const block7DarlehenJahresanfang = block7
       .filter((b) => b.item.typ === "darlehen")
       .reduce((s, b) => s + b.saldo, 0);
-    const immoJahresanfang = immobilienWertAmJahresende(
-      state.immobilien.items,
-      jahr - 1
-    );
-    const hypoJahresanfang = hypothekenAmJahresende(
-      state.immobilien.items,
-      jahr - 1
-    );
+    const immoJahresanfang = immobilienWertAmJahresende(state, jahr - 1);
+    const hypoJahresanfang = hypothekenAmJahresende(state, jahr - 1);
     const vermoegenJahresanfang =
       block7AktivaJahresanfang +
       immoJahresanfang -
@@ -416,16 +410,13 @@ export function cashflowReihe(
     );
 
     // 5. Immobilien-Bucket: noch gehaltene Liegenschaften (vor Verkaufsjahr)
-    const vermoegenImmobilien = immobilienWertAmJahresende(
-      state.immobilien.items,
-      jahr
-    );
+    const vermoegenImmobilien = immobilienWertAmJahresende(state, jahr);
 
     // 6. Firma-Bucket: möglicher Verkaufserlös solange noch nicht verkauft
     const vermoegenFirma = firmaWertAmJahresende(state.firma, jahr);
 
     // 7. Schulden: Hypotheken auf noch gehaltenen Liegenschaften + Darlehen
-    const hypothekenStand = hypothekenAmJahresende(state.immobilien.items, jahr);
+    const hypothekenStand = hypothekenAmJahresende(state, jahr);
     const vermoegenSchulden = hypothekenStand + darlehenStand;
 
     const vermoegenAktiva =
@@ -841,7 +832,7 @@ function wefSummeBis(p: BvgPersonInput, jahr: number): number {
 /**
  * Summe aller WEF-Vorbezüge im konkreten Jahr (P1 + P2). Wird zur
  * Kapitalauszahlungs-Steuer-Bemessung addiert, fliesst aber NICHT zum
- * Hauptkonto (Geld geht direkt ins Eigenheim).
+ * Hauptkonto (Geld geht direkt ins Eigenheim — siehe wefSummeFuerImmoBis).
  */
 function wefVorbezugJahr(state: CashflowInput, jahr: number): number {
   const sumP1 = (state.bvg.p1.wefVorbezuege ?? [])
@@ -854,6 +845,40 @@ function wefVorbezugJahr(state: CashflowInput, jahr: number): number {
           .reduce((s, e) => s + (e.betrag ?? 0), 0)
       : 0;
   return sumP1 + sumP2;
+}
+
+/**
+ * Default-Immobilie für WEF-Bezüge ohne explizite Zuordnung: erste
+ * selbstbewohnte Immobilie, die im betreffenden Jahr noch gehalten wird.
+ */
+function defaultWefImmoId(state: CashflowInput, jahr: number): string | null {
+  const im = state.immobilien.items.find(
+    (x) =>
+      x.typ === "selbstbewohnt" &&
+      !(x.plan === "verkaufen" && jahr >= x.verkaufsjahr)
+  );
+  return im?.id ?? null;
+}
+
+/**
+ * Summe aller WEF-Bezüge (P1 + P2), die einer bestimmten Immobilie
+ * zugeordnet sind und bis zum Jahr (inkl.) stattgefunden haben.
+ * Einträge ohne explizite immoId fallen auf die Default-Immobilie zurück.
+ */
+function wefSummeFuerImmoBis(
+  state: CashflowInput,
+  immoId: string,
+  jahr: number
+): number {
+  const fallback = defaultWefImmoId(state, jahr);
+  const allEntries = [
+    ...(state.bvg.p1.wefVorbezuege ?? []),
+    ...(state.fallart === "paar" ? (state.bvg.p2.wefVorbezuege ?? []) : []),
+  ];
+  return allEntries
+    .filter((e) => e.betrag != null && e.jahr <= jahr)
+    .filter((e) => (e.immoId ?? fallback) === immoId)
+    .reduce((s, e) => s + (e.betrag ?? 0), 0);
 }
 
 /**
@@ -1008,24 +1033,50 @@ function immobilieWert(
   return Math.round(im.verkehrswert * Math.pow(1 + p, dauer));
 }
 
-function immobilienWertAmJahresende(items: Immobilie[], jahr: number): number {
+/**
+ * Berechnet pro Immobilie die durch WEF-Bezüge angepasste Bilanz:
+ *  • Hypothek wird primär durch WEF getilgt (max bis 0).
+ *  • WEF-Überschuss (wenn Hypo bereits getilgt) erhöht den Verkehrswert
+ *    — modelliert den initialen Eigenkapital-Einsatz beim Kauf.
+ * So bleibt das Nettovermögen über den WEF-Bezug konstant (PK-Saldo
+ * sinkt, Eigenheim-Position steigt um den gleichen Betrag).
+ */
+function immobilienBilanzAmJahresende(
+  state: CashflowInput,
+  jahr: number
+): { aktiva: number; schulden: number } {
   const heute = new Date().getFullYear();
-  let total = 0;
-  for (const im of items) {
+  let aktiva = 0;
+  let schulden = 0;
+  for (const im of state.immobilien.items) {
     if (im.verkehrswert == null) continue;
     if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
-    total += immobilieWert(im, jahr, heute);
+
+    const baseWert = immobilieWert(im, jahr, heute);
+    const baseHypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+    const wefSumme = wefSummeFuerImmoBis(state, im.id, jahr);
+
+    const hypoNetto = Math.max(0, baseHypo - wefSumme);
+    const wefRest = Math.max(0, wefSumme - baseHypo);
+
+    aktiva += baseWert + wefRest;
+    schulden += hypoNetto;
   }
-  return total;
+  return { aktiva, schulden };
 }
 
-function hypothekenAmJahresende(items: Immobilie[], jahr: number): number {
-  let total = 0;
-  for (const im of items) {
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
-    total += im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
-  }
-  return total;
+function immobilienWertAmJahresende(
+  state: CashflowInput,
+  jahr: number
+): number {
+  return immobilienBilanzAmJahresende(state, jahr).aktiva;
+}
+
+function hypothekenAmJahresende(
+  state: CashflowInput,
+  jahr: number
+): number {
+  return immobilienBilanzAmJahresende(state, jahr).schulden;
 }
 
 function firmaWertAmJahresende(

@@ -31,6 +31,11 @@ export function Block5Bvg() {
   const person2 = usePlanStore((s) => s.person2);
   const bvg = usePlanStore((s) => s.bvg);
   const ziele = usePlanStore((s) => s.ziele);
+  const immobilien = usePlanStore((s) => s.immobilien.items);
+  const immobilienOptionen = immobilien.map((im) => ({
+    id: im.id,
+    label: im.beschreibung || `Immobilie (${im.typ})`,
+  }));
 
   const setBvgP1 = usePlanStore((s) => s.setBvgP1);
   const setBvgP2 = usePlanStore((s) => s.setBvgP2);
@@ -57,6 +62,7 @@ export function Block5Bvg() {
         geburtsdatum={person1.geburtsdatum}
         bezugsalter={bezugsalterP1}
         bezugsjahr={bezugsjahrP1}
+        immobilienOptionen={immobilienOptionen}
         onPatch={setBvgP1}
         onAddFz={() => addFz(1)}
         onUpdateFz={(id, p) => updateFz(1, id, p)}
@@ -76,6 +82,7 @@ export function Block5Bvg() {
           geburtsdatum={person2.geburtsdatum}
           bezugsalter={bezugsalterP2}
           bezugsjahr={bezugsjahrP2}
+          immobilienOptionen={immobilienOptionen}
           onPatch={setBvgP2}
           onAddFz={() => addFz(2)}
           onUpdateFz={(id, p) => updateFz(2, id, p)}
@@ -98,6 +105,7 @@ function PersonBvgForm({
   geburtsdatum,
   bezugsalter,
   bezugsjahr,
+  immobilienOptionen,
   onPatch,
   onAddFz,
   onUpdateFz,
@@ -114,6 +122,7 @@ function PersonBvgForm({
   geburtsdatum: string;
   bezugsalter: number;
   bezugsjahr: number | null;
+  immobilienOptionen: { id: string; label: string }[];
   onPatch: (p: Partial<BvgPersonInput>) => void;
   onAddFz: () => void;
   onUpdateFz: (id: string, p: Partial<FreizuegigkeitEntry>) => void;
@@ -277,6 +286,7 @@ function PersonBvgForm({
           <WefListe
             items={person.wefVorbezuege ?? []}
             warnungenById={warnungenById}
+            immobilienOptionen={immobilienOptionen}
             onAdd={onAddWef}
             onUpdate={onUpdateWef}
             onRemove={onRemoveWef}
@@ -523,12 +533,14 @@ function Einkaeufe({
 function WefListe({
   items,
   warnungenById,
+  immobilienOptionen,
   onAdd,
   onUpdate,
   onRemove,
 }: {
   items: WefVorbezugEntry[];
   warnungenById: Map<string, WefWarnung[]>;
+  immobilienOptionen: { id: string; label: string }[];
   onAdd: () => void;
   onUpdate: (id: string, p: Partial<WefVorbezugEntry>) => void;
   onRemove: (id: string) => void;
@@ -605,6 +617,31 @@ function WefListe({
                   />
                 </Field>
               </div>
+              {immobilienOptionen.length > 0 && (
+                <div className="mt-2">
+                  <Field
+                    label="Verknüpfte Immobilie"
+                    hint="WEF-Betrag tilgt die Hypothek dieser Liegenschaft"
+                  >
+                    <select
+                      value={it.immoId ?? ""}
+                      onChange={(e) =>
+                        onUpdate(it.id, {
+                          immoId: e.target.value === "" ? null : e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">— erste selbstbewohnte (Default) —</option>
+                      {immobilienOptionen.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
               {warnungen.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {warnungen.map((w, i) => (
