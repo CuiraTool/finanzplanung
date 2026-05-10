@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import {
   ChevronDown,
@@ -9,9 +10,12 @@ import {
   Heart,
   Download,
   RotateCcw,
+  GitBranch,
 } from "lucide-react";
 import { ViewModeToggle } from "./ViewModeToggle";
+import { PlanVersionenModal } from "./PlanVersionen";
 import { usePlanStore } from "@/lib/store";
+import { usePlanVersionenStore } from "@/lib/plan-versionen";
 import type { ViewMode } from "@/lib/view-mode";
 
 /**
@@ -35,6 +39,8 @@ interface Props {
 }
 
 export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
+  const [versionenOpen, setVersionenOpen] = useState(false);
+  const versionenCount = usePlanVersionenStore((s) => s.versionen.length);
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
@@ -197,6 +203,24 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
         <span>Auto-Save</span>
       </span>
 
+      {/* Versionen */}
+      <button
+        type="button"
+        onClick={() => setVersionenOpen(true)}
+        className="cui-topbar-icon-btn relative"
+        title={`Plan-Versionen (${versionenCount})`}
+      >
+        <GitBranch className="h-4 w-4" />
+        {versionenCount > 0 && (
+          <span
+            className="absolute -right-1 -top-1 inline-flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium text-white"
+            style={{ background: "var(--accent)" }}
+          >
+            {versionenCount}
+          </span>
+        )}
+      </button>
+
       {/* Reset-Plan */}
       <button
         type="button"
@@ -231,6 +255,11 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
       >
         KM
       </div>
+
+      <PlanVersionenModal
+        open={versionenOpen}
+        onClose={() => setVersionenOpen(false)}
+      />
     </header>
   );
 }
