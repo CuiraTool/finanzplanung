@@ -524,8 +524,10 @@ function BlockNavigation({
 }
 
 function ActiveBlock({ aktiverBlock }: { aktiverBlock: number }) {
+  // Re-mount mit `key` triggert die fade-in-Animation (cui-block-fade)
+  // bei jedem Block-Wechsel.
   return (
-    <>
+    <div key={aktiverBlock} className="cui-block-fade">
       {aktiverBlock === 1 && <Block1Personen />}
       {aktiverBlock === 2 && <Block2Wuensche />}
       {aktiverBlock === 3 && <Block3Budget />}
@@ -536,6 +538,6 @@ function ActiveBlock({ aktiverBlock }: { aktiverBlock: number }) {
       {aktiverBlock === 8 && <Block8Immobilien />}
       {aktiverBlock === 9 && <Block9Firma />}
       {aktiverBlock === 10 && <Block10Nachlass />}
-    </>
+    </div>
   );
 }

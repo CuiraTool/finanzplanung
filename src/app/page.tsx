@@ -4,6 +4,7 @@ import { Wizard } from "@/components/wizard/Wizard";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { CuiraHeader } from "@/components/layout/CuiraHeader";
+import { AutoSaveToast } from "@/components/layout/AutoSaveToast";
 import { useViewMode } from "@/lib/view-mode";
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
           viewMode={viewMode}
         />
       </div>
+      <AutoSaveToast />
     </main>
   );
 }
