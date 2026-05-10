@@ -5,6 +5,7 @@ import { personLabel } from "@/lib/pension";
 import { saeuleDreiAuszahlung } from "@/engine/saeule3";
 import { formatChf } from "@/lib/format";
 import { Field } from "@/components/ui/Field";
+import { KiHinweis } from "@/components/ui/KiHinweis";
 import { inputClass } from "@/components/ui/styles";
 
 export function Block6Saeule3() {
@@ -59,7 +60,15 @@ function PersonSaeuleDrei({
 }) {
   return (
     <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-      <legend className="px-1 text-sm font-semibold text-slate-700">{title}</legend>
+      <legend className="px-1 text-sm font-semibold text-slate-700">
+        <span className="inline-flex items-center gap-1.5">
+          {title}
+          <KiHinweis
+            begriff="Säule 3a"
+            kontext="gebundene Selbstvorsorge Schweiz, Maximalbeitrag, Auszahlung"
+          />
+        </span>
+      </legend>
 
       {items.length === 0 && (
         <p className="text-xs text-slate-400">

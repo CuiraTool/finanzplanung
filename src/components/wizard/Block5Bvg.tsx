@@ -10,6 +10,7 @@ import {
 import { personLabel, pensionsjahr } from "@/lib/pension";
 import { SPERRFRIST_EINKAUF_JAHRE } from "@/engine/bvg";
 import { Field } from "@/components/ui/Field";
+import { KiHinweis } from "@/components/ui/KiHinweis";
 import { YesNoButtons } from "@/components/ui/YesNoButtons";
 import { inputClass } from "@/components/ui/styles";
 
@@ -119,6 +120,12 @@ function PersonBvgForm({
           <Field
             label="Aktuelles Altersguthaben heute (CHF)"
             hint="vom letzten PK-Ausweis — informativ, nicht für Bezugsberechnung"
+            info={
+              <KiHinweis
+                begriff="Altersguthaben"
+                kontext="Pensionskasse 2. Säule BVG, Schweiz"
+              />
+            }
           >
             <input
               type="number"
@@ -157,6 +164,12 @@ function PersonBvgForm({
           <Field
             label="Umwandlungssatz (%)"
             hint="laut PK-Reglement — gesetzliches Mindest 6.8%, real meist tiefer"
+            info={
+              <KiHinweis
+                begriff="Umwandlungssatz"
+                kontext="2. Säule Pensionskasse BVG"
+              />
+            }
           >
             <input
               type="number"
@@ -364,11 +377,17 @@ function Einkaeufe({
 }) {
   return (
     <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/50 p-3">
-      <div>
-        <div className="text-xs font-medium text-slate-700">Einkäufe simulieren</div>
-        <div className="text-xs text-slate-400">
-          freiwillige Einzahlungen — werden bis Bezugsjahr verzinst, steuerlich abzugsfähig
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium text-slate-700">Einkäufe simulieren</div>
+          <div className="text-xs text-slate-400">
+            freiwillige Einzahlungen — werden bis Bezugsjahr verzinst, steuerlich abzugsfähig
+          </div>
         </div>
+        <KiHinweis
+          begriff="PK-Einkauf"
+          kontext="freiwillige Einzahlung in die Pensionskasse, Sperrfrist 3 Jahre, Steueroptimierung"
+        />
       </div>
 
       {items.length === 0 && (

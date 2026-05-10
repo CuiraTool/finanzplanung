@@ -10,6 +10,7 @@ import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { MassnahmenListe } from "./MassnahmenListe";
+import { KiMassnahmen } from "./KiMassnahmen";
 import { InflationToggle } from "./InflationToggle";
 import { massnahmenAusState } from "@/engine/massnahmen";
 import { useInflation, deflationiereReihe } from "@/lib/inflation";
@@ -247,6 +248,8 @@ export function Dashboard() {
         ) : (
           <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
         )}
+
+        <KiMassnahmen />
 
         <MassnahmenListe
           massnahmen={massnahmen}

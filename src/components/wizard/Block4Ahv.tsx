@@ -9,6 +9,7 @@ import {
   MAX_AUFSCHUB_JAHRE,
 } from "@/engine/ahv";
 import { Field } from "@/components/ui/Field";
+import { KiHinweis } from "@/components/ui/KiHinweis";
 import { YesNoButtons } from "@/components/ui/YesNoButtons";
 import { inputClass, selectClass } from "@/components/ui/styles";
 
@@ -106,6 +107,12 @@ function PersonAhvForm({
       <Field
         label="Massgebendes Jahreseinkommen (CHF)"
         hint="durchschnittlich über die Karriere — laut IK-Auszug"
+        info={
+          <KiHinweis
+            begriff="Massgebendes Einkommen"
+            kontext="AHV-Rentenberechnung Schweiz"
+          />
+        }
       >
         <input
           type="number"
@@ -124,6 +131,12 @@ function PersonAhvForm({
       <Field
         label="AHV-Bezugsalter"
         hint="63/64 = Vorbezug, 65 = ordentlich, 66–70 = Aufschub"
+        info={
+          <KiHinweis
+            begriff="AHV-Vorbezug und Aufschub"
+            kontext="Wann lohnt es sich, die AHV früher oder später zu beziehen?"
+          />
+        }
       >
         <div className="flex items-center gap-3">
           <select
