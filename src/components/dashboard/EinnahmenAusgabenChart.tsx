@@ -33,6 +33,7 @@ const FARBE = {
   steuern: "#f59e0b",
   sozial: "#c084fc", // Sozial+BVG-Beiträge (Erwerbsphase)
   vorsorge3a: "#a78bfa", // 3a-Einzahlung (Sparphase)
+  hypozins: "#ec4899", // Hypothek-Zinsen (Pink/Magenta — klar von Haushalt unterschieden)
   einmalig: "#fda4af",
   saldo: "#1e3a8a", // Saldo-Linie etwas heller als erwerb (sonst kaum sichtbar)
 };
@@ -61,6 +62,7 @@ export function EinnahmenAusgabenChart({
     ausgabenSteuernViz: -d.ausgabenSteuern,
     ausgabenSozialBvgViz: -d.ausgabenSozialBvg,
     ausgabenVorsorge3aViz: -d.ausgabenVorsorge3a,
+    ausgabenHypozinsViz: -(d.ausgabenHypozins ?? 0),
     ausgabenEinmaligViz: -d.ausgabenEinmalig,
     saldoB: datenB?.[i]?.saldo ?? null,
   }));
@@ -146,6 +148,12 @@ export function EinnahmenAusgabenChart({
             name="Haushalt"
           />
           <Bar
+            dataKey="ausgabenHypozinsViz"
+            stackId="cf"
+            fill={FARBE.hypozins}
+            name="Hypozins"
+          />
+          <Bar
             dataKey="ausgabenSteuernViz"
             stackId="cf"
             fill={FARBE.steuern}
@@ -228,6 +236,7 @@ function Legende() {
       <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5">
         <span className="font-medium text-slate-600">Ausgaben:</span>
         <LegendItem color={FARBE.haushalt} label="Haushalt" />
+        <LegendItem color={FARBE.hypozins} label="Hypozins" />
         <LegendItem color={FARBE.steuern} label="Steuern" />
         <LegendItem color={FARBE.sozial} label="Sozial+BVG" />
         <LegendItem color={FARBE.vorsorge3a} label="Säule 3a" />
@@ -324,6 +333,12 @@ function CustomTooltip({
           <div className="flex justify-between gap-4 pl-3 text-rose-500/80">
             <span>davon Haushalt</span>
             <span>{fmt(-z.ausgabenHaushalt)}</span>
+          </div>
+        )}
+        {(z.ausgabenHypozins ?? 0) > 0 && (
+          <div className="flex justify-between gap-4 pl-3 text-pink-600/80">
+            <span>davon Hypozins</span>
+            <span>{fmt(-(z.ausgabenHypozins ?? 0))}</span>
           </div>
         )}
         {z.ausgabenSteuern > 0 && (

@@ -156,6 +156,7 @@ export interface CashflowZeile {
   ausgabenSteuernKapitalKanton: number; // davon Kanton-Sondertarif
   ausgabenSozialBvg: number; // AHV/IV/EO + ALV + NBU + BVG-AN-Beitrag (Erwerbsphase)
   ausgabenVorsorge3a: number; // jährliche Einzahlungen Säule 3a/3b
+  ausgabenHypozins: number; // jährliche Hypothek-Zinsen (Σ über alle laufenden Tranchen)
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -304,6 +305,7 @@ export function cashflowReihe(
       pkBezugsjahrP1 != null && jahr >= pkBezugsjahrP1;
     const ausgabenHaushalt = haushaltsausgabenJahr(state.budget, istPensioniert);
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
+    const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
 
     // Vermögen vor Steuern (Stand Jahresanfang) — vereinfacht: Block-7-Saldi
     // VOR der Cashflow-Buchung in diesem Jahr, plus Immobilien minus Hypotheken.
@@ -379,7 +381,8 @@ export function cashflowReihe(
       ausgabenSteuern +
       ausgabenEinmalig +
       ausgabenSozialBvg +
-      ausgabenVorsorge3a;
+      ausgabenVorsorge3a +
+      ausgabenHypozins;
 
     // ─── Saldo ───────────────────────────────────────────────────
     const saldo = einnahmenTotal - ausgabenTotal;
@@ -453,6 +456,7 @@ export function cashflowReihe(
       ausgabenSteuernKapitalKanton: Math.round(ausgabenSteuernKapitalKanton),
       ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
       ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
+      ausgabenHypozins: Math.round(ausgabenHypozins),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
@@ -1083,6 +1087,25 @@ function hypothekenAmJahresende(
   jahr: number
 ): number {
   return immobilienBilanzAmJahresende(state, jahr).schulden;
+}
+
+/**
+ * Hypothek-Zinsen-Total im Jahr (Σ über alle laufenden Tranchen).
+ *
+ * Pro Hypothek-Tranche: hoehe × zinssatzProzent / 100. Zählt nur, wenn
+ * die Liegenschaft im Jahr noch nicht verkauft ist. Eigenmietwert +
+ * Schuldzinsabzug bewusst nicht modelliert (Reform 2028 schafft beides ab).
+ */
+function hypothekenZinsenJahr(state: CashflowInput, jahr: number): number {
+  let total = 0;
+  for (const im of state.immobilien.items) {
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    for (const h of im.hypotheken) {
+      if (h.hoehe == null) continue;
+      total += (h.hoehe * (h.zinssatzProzent ?? 0)) / 100;
+    }
+  }
+  return Math.round(total);
 }
 
 function firmaWertAmJahresende(
