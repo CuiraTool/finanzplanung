@@ -29,8 +29,25 @@ import { massnahmenAusState } from "@/engine/massnahmen";
 import { tragbarkeitHaushalt } from "@/engine/tragbarkeit";
 import { pensionseinkommenJahr } from "@/engine/pensionseinkommen";
 import { runAllStressTests, STRESS_TESTS } from "@/engine/stress-tests";
+
+interface KiMassnahmePrint {
+  titel: string;
+  begruendung: string;
+  wirkungChf: number;
+  wirkungBeschrieb: string;
+  prioritaet: "hoch" | "mittel" | "niedrig";
+  kategorie:
+    | "steuern"
+    | "rente"
+    | "vermoegen"
+    | "vorsorge"
+    | "immobilien"
+    | "nachlass";
+  umsetzbarBis: string | null;
+}
 import { VermoegensChart } from "@/components/dashboard/VermoegensChart";
 import { EinnahmenAusgabenChart } from "@/components/dashboard/EinnahmenAusgabenChart";
+import { SteuerChart } from "@/components/dashboard/SteuerChart";
 
 const PROJEKTIONS_END_ALTER = 85;
 
@@ -74,6 +91,29 @@ export default function PrintPage() {
   const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
+
+  // KI-Massnahmen aus LocalStorage laden (vom Dashboard generiert)
+  const [kiMassnahmen, setKiMassnahmen] = useState<
+    null | { massnahmen: KiMassnahmePrint[]; generatedAt: string }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("cuira-ki-massnahmen-v1");
+      if (!raw) return;
+      const p = JSON.parse(raw) as {
+        snapshotHash: string;
+        massnahmen: KiMassnahmePrint[];
+        generatedAt: string;
+      };
+      setKiMassnahmen({
+        massnahmen: p.massnahmen ?? [],
+        generatedAt: p.generatedAt,
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Stress-Tests (nur wenn genug Daten erfasst)
   const hatStressBasis =
@@ -277,9 +317,12 @@ export default function PrintPage() {
           </footer>
         </div>
 
-        {/* ── Inhalt ab Seite 2 ────────────────────────────────── */}
-        <div className="page-break-before pt-8">
-          <header className="mb-6 flex items-start justify-between border-b pb-4" style={{ borderColor: "#e7eaee" }}>
+        {/* ── Seite 2 Start: Header + KPIs + Eckdaten zusammen ── */}
+        <div className="page-break-before pt-6">
+          <header
+            className="mb-5 flex items-start justify-between border-b pb-3"
+            style={{ borderColor: "#e7eaee" }}
+          >
             <div>
               <Image
                 src="/cuira-logo.png"
@@ -290,15 +333,20 @@ export default function PrintPage() {
                 style={{ filter: "invert(1) brightness(0.2)" }}
               />
             </div>
-            <div className="text-right text-[10px]" style={{ color: "#8390a3" }}>
-              <div>{kundeName}{kundeName2 && ` & ${kundeName2}`}</div>
+            <div
+              className="text-right text-[10px]"
+              style={{ color: "#8390a3" }}
+            >
+              <div>
+                {kundeName}
+                {kundeName2 && ` & ${kundeName2}`}
+              </div>
               <div>Stand: {heuteFormatiert}</div>
             </div>
           </header>
-        </div>
 
-        {/* ── KPIs ────────────────────────────────────────────── */}
-        <Section titel="Vermögen — drei Stichtage">
+          {/* KPIs */}
+          <Section titel="Vermögen — drei Stichtage">
           <div className="grid grid-cols-3 gap-3">
             <KpiBox
               label="Heute"
@@ -359,21 +407,18 @@ export default function PrintPage() {
                 }
               />
               <Row
-                k="Brutto-Haushaltseinkommen heute"
-                v={
-                  fullState.budget.einkommenHeute
-                    ? formatChf(fullState.budget.einkommenHeute)
-                    : "—"
-                }
+                k="Religion"
+                v={religionLabel(fullState.budget.religion)}
               />
             </tbody>
           </table>
         </Section>
+        </div>
 
-        {/* ── Charts: Page-Break davor ───────────────────────── */}
-        <div className="page-break-before pt-4">
+        {/* ── Vermögensentwicklung-Chart (eigene Seite) ───────── */}
+        <div className="page-break-before pt-4 chart-section">
           <Section titel="Vermögensentwicklung">
-            <div className="h-[300px]">
+            <div className="chart-wrap">
               {cashflow.length > 0 && (
                 <VermoegensChart
                   daten={cashflow}
@@ -385,9 +430,12 @@ export default function PrintPage() {
               )}
             </div>
           </Section>
+        </div>
 
+        {/* ── Cashflow-Chart (eigene Seite) ───────────────────── */}
+        <div className="page-break-before pt-4 chart-section">
           <Section titel="Cashflow Jahr für Jahr">
-            <div className="h-[300px]">
+            <div className="chart-wrap">
               {cashflow.length > 0 && (
                 <EinnahmenAusgabenChart
                   daten={cashflow}
@@ -400,6 +448,22 @@ export default function PrintPage() {
             </div>
           </Section>
         </div>
+
+        {/* ── Steuerentwicklung-Chart (eigene Seite) ──────────── */}
+        {cashflow.length > 0 && (
+          <div className="page-break-before pt-4 chart-section">
+            <Section titel="Steuerentwicklung">
+              <div className="chart-wrap">
+                <SteuerChart
+                  daten={cashflow}
+                  pensionsjahr={ordPensionsjahr}
+                  wunschPensionsjahr={null}
+                  fallart={fullState.fallart}
+                />
+              </div>
+            </Section>
+          </div>
+        )}
 
         {/* ── Tragbarkeit ────────────────────────────────────── */}
         {(tragbarkeitHeute || tragbarkeitPension) && (
@@ -541,6 +605,81 @@ export default function PrintPage() {
                   );
                 })}
               </div>
+            </Section>
+          </div>
+        )}
+
+        {/* ── KI-Empfehlungen (wenn im Dashboard generiert) ──── */}
+        {kiMassnahmen && kiMassnahmen.massnahmen.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="KI-Empfehlungen">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Personalisierte Optimierungs-Vorschläge — generiert am{" "}
+                {new Date(kiMassnahmen.generatedAt).toLocaleDateString(
+                  "de-CH",
+                  { day: "2-digit", month: "long", year: "numeric" }
+                )}{" "}
+                von Claude (Anthropic) anhand des aktuellen Plans.
+              </p>
+              <ul className="space-y-2">
+                {kiMassnahmen.massnahmen.map((m, i) => (
+                  <li
+                    key={i}
+                    className="rounded-md border p-3"
+                    style={{
+                      borderColor: "#e7eaee",
+                      background: "#fafbfc",
+                    }}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <strong className="text-sm" style={{ color: "#0a2540" }}>
+                        {m.titel}
+                      </strong>
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-wider"
+                        style={{
+                          color:
+                            m.prioritaet === "hoch"
+                              ? "#854d0e"
+                              : m.prioritaet === "mittel"
+                              ? "#1e40af"
+                              : "#475569",
+                        }}
+                      >
+                        {m.prioritaet} · {m.kategorie}
+                      </span>
+                    </div>
+                    <p
+                      className="mt-1 text-xs leading-relaxed"
+                      style={{ color: "#4b566b" }}
+                    >
+                      {m.begruendung}
+                    </p>
+                    {m.wirkungChf !== 0 && (
+                      <div
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
+                        style={{
+                          background: "#f0fdf4",
+                          color: "#15803d",
+                        }}
+                      >
+                        <strong>
+                          {m.wirkungChf > 0 ? "+" : ""}
+                          {formatChf(m.wirkungChf)}
+                        </strong>
+                        <span>{m.wirkungBeschrieb}</span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p
+                className="mt-3 text-[10px] italic"
+                style={{ color: "#8390a3" }}
+              >
+                KI-generiert · keine Rechts- oder Steuerberatung im Sinne von
+                Art. 2 RAG. Im Cuira-Termin verfeinert.
+              </p>
             </Section>
           </div>
         )}
@@ -690,6 +829,14 @@ export default function PrintPage() {
 
       {/* Print-spezifische Styles */}
       <style jsx global>{`
+        /* Chart-Wrapper auch am Bildschirm — sonst würde der Chart bei
+           langem Inhalt aus dem Container fliessen. */
+        .chart-wrap {
+          width: 100%;
+          height: 380px;
+          overflow: hidden;
+        }
+
         @media print {
           @page {
             size: A4;
@@ -710,8 +857,12 @@ export default function PrintPage() {
           /* Cover-Page ohne Footer-Page-Number */
           @page :first {
             margin: 15mm;
-            @bottom-right { content: ""; }
-            @bottom-left { content: ""; }
+            @bottom-right {
+              content: "";
+            }
+            @bottom-left {
+              content: "";
+            }
           }
           body {
             background: white !important;
@@ -720,22 +871,45 @@ export default function PrintPage() {
           }
           .page-break-before {
             page-break-before: always;
+            break-before: page;
           }
           .cover-page {
             page-break-after: always;
+            break-after: page;
             min-height: 240mm;
+          }
+          /* Chart-Wrapper im Print: feste Höhe, nicht über Seiten brechen */
+          .chart-wrap {
+            height: 240px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .chart-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           /* Charts farbtreu drucken */
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Tabellen nicht über Seitenränder brechen */
-          tr, li {
+          /* Tabellen + Listen nicht über Seitenränder brechen */
+          tr,
+          li {
             page-break-inside: avoid;
+            break-inside: avoid;
           }
-          h1, h2, h3 {
+          h1,
+          h2,
+          h3 {
             page-break-after: avoid;
+            break-after: avoid;
+          }
+          /* Recharts auf Bildschirm-Layout zwingen — sonst kollabiert das SVG */
+          .recharts-responsive-container,
+          .recharts-wrapper,
+          .recharts-surface {
+            max-height: 100% !important;
           }
         }
       `}</style>
@@ -835,6 +1009,19 @@ function Row({ k, v }: { k: string; v: string }) {
 
 function fallartLabel(f: "einzel" | "paar"): string {
   return f === "paar" ? "Paar" : "Einzelperson";
+}
+
+function religionLabel(r: string): string {
+  return (
+    {
+      katholisch: "Katholisch",
+      reformiert: "Reformiert",
+      christkatholisch: "Christkatholisch",
+      israelitisch: "Israelitisch",
+      andere: "Andere",
+      keine: "Keine",
+    }[r] ?? "—"
+  );
 }
 
 function zivilstandLabel(z: string): string {

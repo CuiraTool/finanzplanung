@@ -46,6 +46,37 @@ interface KiMassnahme {
 // Module-level Cache (gleicher Snapshot-Hash → kein API-Re-Hit)
 const cache = new Map<string, KiMassnahme[]>();
 
+// LocalStorage-Persistenz: damit die KI-Empfehlungen ins Print/PDF
+// mitgenommen werden können (z.B. der Berater drückt PDF nach
+// Generierung und will die Empfehlungen im Output sehen).
+const LS_KEY = "cuira-ki-massnahmen-v1";
+
+interface PersistedKi {
+  snapshotHash: string;
+  massnahmen: KiMassnahme[];
+  generatedAt: string;
+}
+
+function loadPersisted(): PersistedKi | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedKi;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(p: PersistedKi): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(p));
+  } catch {
+    // ignore (z.B. Quota überschritten)
+  }
+}
+
 const KAT_LABELS: Record<KiMassnahme["kategorie"], string> = {
   steuern: "Steuern",
   rente: "Rente",
@@ -63,10 +94,16 @@ const PRIO_BADGE: Record<KiMassnahme["prioritaet"], string> = {
 
 export function KiMassnahmen() {
   const fullState = usePlanStore();
-  const [data, setData] = useState<KiMassnahme[] | null>(null);
+  const [data, setData] = useState<KiMassnahme[] | null>(() => {
+    // Bei Mount: prüfe ob persistierte Massnahmen vorhanden sind
+    const persisted = loadPersisted();
+    return persisted?.massnahmen ?? null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [lastSnapshotHash, setLastSnapshotHash] = useState<string | null>(null);
+  const [lastSnapshotHash, setLastSnapshotHash] = useState<string | null>(
+    () => loadPersisted()?.snapshotHash ?? null
+  );
 
   // Snapshot vom aktuellen State bauen
   const snapshot = useMemo(() => {
@@ -87,6 +124,11 @@ export function KiMassnahmen() {
     if (cached) {
       setData(cached);
       setLastSnapshotHash(snapshotHash);
+      savePersisted({
+        snapshotHash,
+        massnahmen: cached,
+        generatedAt: new Date().toISOString(),
+      });
       return;
     }
     setLoading(true);
@@ -106,6 +148,11 @@ export function KiMassnahmen() {
       cache.set(snapshotHash, massnahmen);
       setData(massnahmen);
       setLastSnapshotHash(snapshotHash);
+      savePersisted({
+        snapshotHash,
+        massnahmen,
+        generatedAt: new Date().toISOString(),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
