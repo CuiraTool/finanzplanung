@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   usePlanStore,
   type Fallart,
@@ -15,6 +16,7 @@ import { Field } from "@/components/ui/Field";
 import { Section } from "@/components/ui/Section";
 import { inputClass, selectClass } from "@/components/ui/styles";
 import { OrtKantonPicker } from "./OrtKantonPicker";
+import { lookupPlz } from "@/lib/plz-lookup";
 
 const FALLARTEN: { value: Fallart; label: string }[] = [
   { value: "einzel", label: "Einzelperson" },
@@ -114,7 +116,25 @@ export function Block1Personen() {
               inputMode="numeric"
               maxLength={4}
               value={adresse.plz}
-              onChange={(e) => setAdresse({ plz: e.target.value.replace(/\D/g, "") })}
+              onChange={(e) => {
+                const plz = e.target.value.replace(/\D/g, "");
+                // Bei 4-stelliger PLZ: Auto-Lookup für Ort/Gemeinde/Kanton
+                if (plz.length === 4) {
+                  const matches = lookupPlz(plz);
+                  if (matches.length > 0) {
+                    const m = matches[0]!;
+                    setAdresse({
+                      plz,
+                      ort: m.ort,
+                      kanton: m.kanton,
+                      gemeindeBfsId: m.gemeindeBfsId,
+                      gemeindeName: m.gemeindeName,
+                    });
+                    return;
+                  }
+                }
+                setAdresse({ plz });
+              }}
               placeholder="8001"
               className={inputClass}
             />
@@ -124,7 +144,7 @@ export function Block1Personen() {
             hint={
               adresse.gemeindeBfsId
                 ? `Kanton ${adresse.kanton} · Steuerfuss exakt`
-                : "tippen → Gemeinde wählen → Kanton wird automatisch gesetzt"
+                : "PLZ eingeben → automatisch · oder tippen und auswählen"
             }
           >
             <OrtKantonPicker
@@ -312,11 +332,12 @@ function PersonForm({
  *
  * Hintergrund: native <input type="date"> hat einen Browser-Bug, bei dem
  * ein Tippen einer 4-stelligen Jahreszahl wie "1985" zwischendurch zu
- * "0085" oder "0001985" interpretiert wird. Auf Safari / macOS macht der
- * Date-Picker dann komische Sprünge.
+ * "0085" interpretiert wird (Safari/macOS).
  *
- * Lösung: drei separate Inputs, die im Hintergrund auf YYYY-MM-DD
- * normalisiert werden (Format des Stores).
+ * Wichtig: lokaler State pro Teil. Sonst würde jedes Tippen einer einzelnen
+ * Ziffer den Store auf "" setzen (weil das ISO-Datum nur bei vollständigen
+ * Werten gebildet wird) und beim nächsten Render würde parseIso("") wieder
+ * alle Felder leer zurückgeben → Eingabe ginge sofort verloren.
  */
 function DatumInput({
   value,
@@ -325,29 +346,42 @@ function DatumInput({
   value: string;
   onChange: (iso: string) => void;
 }) {
-  // Initial parsen: YYYY-MM-DD oder leer
-  const parsed = parseIso(value);
+  const [parts, setParts] = useState<DatumParts>(() => parseIso(value));
+
+  // Externe Updates synchronisieren (z.B. nach Reset oder Restore aus
+  // Plan-Version) — aber nur wenn das aktuelle ISO sich vom externen
+  // value unterscheidet (sonst Loop).
+  useEffect(() => {
+    if (zuIso(parts) !== value) {
+      setParts(parseIso(value));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const setPart = (
     teil: "tag" | "monat" | "jahr",
     rohwert: string
   ) => {
     const cleaned = rohwert.replace(/\D/g, "");
-    const next = { ...parsed };
-    if (teil === "tag") next.tag = cleaned.slice(0, 2);
-    if (teil === "monat") next.monat = cleaned.slice(0, 2);
-    if (teil === "jahr") next.jahr = cleaned.slice(0, 4);
+    const next: DatumParts = {
+      ...parts,
+      [teil]:
+        teil === "jahr" ? cleaned.slice(0, 4) : cleaned.slice(0, 2),
+    };
+    setParts(next);
     onChange(zuIso(next));
   };
+
   return (
     <div className="flex items-center gap-1.5">
       <input
         type="text"
         inputMode="numeric"
         maxLength={2}
-        value={parsed.tag}
+        value={parts.tag}
         onChange={(e) => setPart("tag", e.target.value)}
         placeholder="TT"
-        className={`${inputClass} w-12 text-center tabular-nums`}
+        className={`${inputClass} w-14 text-center tabular-nums`}
         aria-label="Tag"
       />
       <span style={{ color: "var(--ink-3)" }}>.</span>
@@ -355,10 +389,10 @@ function DatumInput({
         type="text"
         inputMode="numeric"
         maxLength={2}
-        value={parsed.monat}
+        value={parts.monat}
         onChange={(e) => setPart("monat", e.target.value)}
         placeholder="MM"
-        className={`${inputClass} w-12 text-center tabular-nums`}
+        className={`${inputClass} w-14 text-center tabular-nums`}
         aria-label="Monat"
       />
       <span style={{ color: "var(--ink-3)" }}>.</span>
@@ -366,7 +400,7 @@ function DatumInput({
         type="text"
         inputMode="numeric"
         maxLength={4}
-        value={parsed.jahr}
+        value={parts.jahr}
         onChange={(e) => setPart("jahr", e.target.value)}
         placeholder="JJJJ"
         className={`${inputClass} w-20 text-center tabular-nums`}
