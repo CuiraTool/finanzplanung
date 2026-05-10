@@ -56,15 +56,41 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   };
 
   const isPaar = fallart === "paar";
-  const initials = isPaar
-    ? `${(person1.vorname || "?")[0]}${(person2.vorname || "?")[0]}`
-    : `${(person1.vorname || "?")[0]}${(person1.nachname || "?")[0]}`;
 
-  const mandantName = isPaar
-    ? `Familie ${person1.nachname || "—"}`
+  // Mandant-Namen-Logik:
+  //  • Einzel: "Anna Keller" (oder "Anna" wenn nur Vorname)
+  //  • Paar mit gemeinsamem Nachname: "Familie Keller"
+  //  • Paar mit unterschiedlichen Nachnamen: "Anna + Marc"
+  //  • Paar nur Vornamen: "Anna + Marc"
+  //  • Wenn keine Namen erfasst: "Neuer Mandant"
+  const p1Voll = `${person1.vorname} ${person1.nachname}`.trim();
+  const p2Voll = `${person2.vorname} ${person2.nachname}`.trim();
+  const hatPersonenNamen = !!(p1Voll || (isPaar && p2Voll));
+
+  let mandantName: string;
+  if (!hatPersonenNamen) {
+    mandantName = "Neuer Mandant";
+  } else if (!isPaar) {
+    mandantName = p1Voll || person1.vorname || "Neuer Mandant";
+  } else if (
+    person1.nachname &&
+    person2.nachname &&
+    person1.nachname === person2.nachname
+  ) {
+    mandantName = `Familie ${person1.nachname}`;
+  } else if (person1.vorname && person2.vorname) {
+    mandantName = `${person1.vorname} + ${person2.vorname}`;
+  } else {
+    mandantName = p1Voll || p2Voll || "Neuer Mandant";
+  }
+
+  // Initialen-Avatar — fallback "?" wenn nichts erfasst
+  const ini = (s: string) => (s ? s[0]!.toUpperCase() : "?");
+  const initials = isPaar
+    ? `${ini(person1.vorname || person1.nachname)}${ini(person2.vorname || person2.nachname)}`
     : person1.vorname || person1.nachname
-    ? `${person1.vorname} ${person1.nachname}`.trim()
-    : "Neuer Mandant";
+    ? `${ini(person1.vorname)}${ini(person1.nachname)}`.replace(/\?+/g, "?")
+    : "??";
 
   return (
     <header
@@ -103,7 +129,7 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
       {/* Mandant-Pill */}
       <button type="button" className="cui-topbar-mandant hidden md:inline-flex">
         <span className="cui-topbar-mandant-avatar">
-          {initials.toUpperCase()}
+          {initials}
         </span>
         <span className="cui-topbar-mandant-name">{mandantName}</span>
         {adresse.kanton && (
