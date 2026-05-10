@@ -72,6 +72,8 @@ export interface SteuerInput {
   alterP2?: number;
   anzahlKinder?: number;
   saeule3aEinzahlungJahr?: number;
+  /** PK-Einkauf Total Haushalt im Jahr (CHF). Voll abzugsfähig. */
+  pkEinkaufJahr?: number;
   hatPkAnschlussP1?: boolean;
   hatPkAnschlussP2?: boolean;
 }
@@ -116,7 +118,8 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     input.bruttoErwerbP1 != null ||
     input.bruttoErwerbP2 != null ||
     input.anzahlKinder != null ||
-    input.saeule3aEinzahlungJahr != null;
+    input.saeule3aEinzahlungJahr != null ||
+    input.pkEinkaufJahr != null;
 
   let steuerbarBund: number;
   let steuerbarKanton: number;
@@ -132,6 +135,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       fallart,
       anzahlKinder: Math.max(0, input.anzahlKinder ?? 0),
       saeule3aEinzahlungJahr: Math.max(0, input.saeule3aEinzahlungJahr ?? 0),
+      pkEinkaufJahr: Math.max(0, input.pkEinkaufJahr ?? 0),
       hatPkAnschlussP1: input.hatPkAnschlussP1 ?? false,
       hatPkAnschlussP2: input.hatPkAnschlussP2 ?? false,
     };

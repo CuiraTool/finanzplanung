@@ -54,7 +54,7 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
     if (
       typeof window !== "undefined" &&
       window.confirm(
-        "Plan komplett zurücksetzen?\n\nAlle Eingaben werden gelöscht — der Plan startet leer wie für einen neuen Mandanten. Die LocalStorage-Daten werden überschrieben.\n\nFortfahren?"
+        "Plan komplett zurücksetzen?\n\nAlle Eingaben werden gelöscht — der Plan startet leer wie für einen neuen Mandanten. Die im Browser gespeicherten Daten werden überschrieben.\n\nFortfahren?"
       )
     ) {
       reset();

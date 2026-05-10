@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projektstatus
 
-**Etappe 1 weitgehend implementiert.** Alle 10 Wizard-Blöcke haben funktionsfähige UI mit Live-Berechnung, Vermögensbilanz-Engine läuft mit drei Stichtagen (heute / Pensionierung / +20 Jahre). Tests grün (73/73), TypeScript strict.
+**Etappe 1 weitgehend implementiert.** Alle 10 Wizard-Blöcke haben funktionsfähige UI mit Live-Berechnung, Vermögensbilanz-Engine läuft mit drei Stichtagen (heute / Pensionierung / +20 Jahre). Tests grün (170/170), TypeScript strict.
 
 **Was als nächstes kommt:** echte Cashflow-Engine mit Jahres-Iteration (Etappe 2), Charts (Recharts), Steuer-Engine pro Kanton, dann Etappe 1.5 (BSV-Rententabellen statt linearer Approximation).
 
@@ -28,7 +28,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 | Bereich | Entscheidung |
 |---|---|
 | Frontend | Next.js 15 + React 19 + TypeScript strict + Tailwind v4 |
-| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v27) |
+| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v30) |
 | Forms | controlled inputs gegen Zustand-Store, kein React Hook Form |
 | Charts (geplant) | Recharts |
 | **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |
@@ -53,7 +53,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 
 **Kontextsensitivität:** Sektion-Titel wechseln je Fallart (Einzelperson → "Personendaten", Paar → "Person 1 — Vorname"). Zivilstand-Optionen abhängig von Fallart.
 
-## Engine-Module (Stand 165 Tests grün)
+## Engine-Module (Stand 170 Tests grün)
 
 ```
 src/engine/

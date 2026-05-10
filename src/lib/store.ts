@@ -140,6 +140,12 @@ export interface WefVorbezugEntry {
   jahr: number;
   betrag: number | null;
   beschreibung: string;
+  /**
+   * Verknüpfte Immobilie — der WEF-Betrag reduziert die Hypothek dieser
+   * Immobilie (Tilgung) bzw. erhöht das Eigenkapital (Kauf). Bei `null`
+   * fällt die Engine auf die erste selbstbewohnte Immobilie zurück.
+   */
+  immoId?: string | null;
 }
 
 export interface BvgPersonInput {
@@ -991,6 +997,7 @@ export const usePlanStore = create<PlanState>()(
                     jahr: new Date().getFullYear(),
                     betrag: null,
                     beschreibung: "",
+                    immoId: null,
                   },
                 ],
               },
@@ -1156,6 +1163,9 @@ export const usePlanStore = create<PlanState>()(
             plan: initial?.plan ?? "behalten",
             verkaufsjahr: initial?.verkaufsjahr ?? jahr + 10,
             jaehrlicheMieteinnahmen: initial?.jaehrlicheMieteinnahmen ?? null,
+            wertsteigerungProzent: initial?.wertsteigerungProzent ?? null,
+            kaufjahr: initial?.kaufjahr ?? null,
+            anlagekosten: initial?.anlagekosten ?? null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
@@ -1326,7 +1336,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v29",
+      name: "cuira-plan-v30",
     }
   )
 );

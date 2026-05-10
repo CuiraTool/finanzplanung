@@ -193,6 +193,12 @@ export interface AbzugInput {
   anzahlKinder: number;
   /** Total Säule-3a-Einzahlung Haushalt im Jahr. */
   saeule3aEinzahlungJahr: number;
+  /**
+   * Total PK-Einkauf Haushalt im Jahr (CHF). Voll abzugsfähig (keine
+   * 3a-Cap-Regel) — der Cap ist die individuelle Einkaufsspanne aus dem
+   * PK-Reglement, die wir hier nicht kennen. User-Eingabe wird vertraut.
+   */
+  pkEinkaufJahr?: number;
   /** True wenn aktiver PK-Anschluss → BVG-Abzug + 3a-Limit "mit BVG". */
   hatPkAnschlussP1: boolean;
   hatPkAnschlussP2: boolean;
@@ -212,6 +218,8 @@ export interface AbzugDetail {
   versicherungspraemien: number;
   /** Säule-3a-Einzahlung anerkannt (max-cap). */
   saeule3aAbzug: number;
+  /** PK-Einkauf (voll abzugsfähig). */
+  pkEinkaufAbzug: number;
   /** Doppelverdienerabzug (Paar mit zwei Erwerbseinkommen). */
   doppelverdienerabzug: number;
   /** Kinderabzug (Anzahl Kinder × Pauschale). */
@@ -365,6 +373,7 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
       ? saeule3aMaxProPerson(input.bruttoErwerbP2, input.hatPkAnschlussP2)
       : 0);
   const saeule3aAbzug = Math.min(input.saeule3aEinzahlungJahr, max3a);
+  const pkEinkaufAbzug = Math.max(0, input.pkEinkaufJahr ?? 0);
 
   const ddvAbzug = doppelverdienerabzug(
     input.bruttoErwerbP1,
@@ -391,6 +400,7 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
     berufsauslagenP2 +
     versicherungspraemien +
     saeule3aAbzug +
+    pkEinkaufAbzug +
     ddvAbzug +
     kinderabzug;
 
@@ -405,6 +415,7 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
     berufsauslagenP2,
     versicherungspraemien,
     saeule3aAbzug,
+    pkEinkaufAbzug,
     doppelverdienerabzug: ddvAbzug,
     kinderabzug,
     total,
@@ -460,6 +471,7 @@ export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetai
       ? saeule3aMaxProPerson(input.bruttoErwerbP2, input.hatPkAnschlussP2)
       : 0);
   const saeule3aAbzug = Math.min(input.saeule3aEinzahlungJahr, max3a);
+  const pkEinkaufAbzug = Math.max(0, input.pkEinkaufJahr ?? 0);
 
   const ddvAbzug = doppelverdienerabzug(
     input.bruttoErwerbP1,
@@ -486,6 +498,7 @@ export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetai
     berufsauslagenP2 +
     versicherungspraemien +
     saeule3aAbzug +
+    pkEinkaufAbzug +
     ddvAbzug +
     kinderabzug;
 
@@ -500,6 +513,7 @@ export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetai
     berufsauslagenP2,
     versicherungspraemien,
     saeule3aAbzug,
+    pkEinkaufAbzug,
     doppelverdienerabzug: ddvAbzug,
     kinderabzug,
     total,

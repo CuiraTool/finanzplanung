@@ -9,7 +9,11 @@ import {
   type WefVorbezugEntry,
 } from "@/lib/store";
 import { personLabel, pensionsjahr } from "@/lib/pension";
-import { SPERRFRIST_EINKAUF_JAHRE } from "@/engine/bvg";
+import {
+  SPERRFRIST_EINKAUF_JAHRE,
+  wefValidiere,
+  type WefWarnung,
+} from "@/engine/bvg";
 import { Field } from "@/components/ui/Field";
 import { KiHinweis } from "@/components/ui/KiHinweis";
 import { YesNoButtons } from "@/components/ui/YesNoButtons";
@@ -27,6 +31,11 @@ export function Block5Bvg() {
   const person2 = usePlanStore((s) => s.person2);
   const bvg = usePlanStore((s) => s.bvg);
   const ziele = usePlanStore((s) => s.ziele);
+  const immobilien = usePlanStore((s) => s.immobilien.items);
+  const immobilienOptionen = immobilien.map((im) => ({
+    id: im.id,
+    label: im.beschreibung || `Immobilie (${im.typ})`,
+  }));
 
   const setBvgP1 = usePlanStore((s) => s.setBvgP1);
   const setBvgP2 = usePlanStore((s) => s.setBvgP2);
@@ -50,8 +59,10 @@ export function Block5Bvg() {
       <PersonBvgForm
         title={personLabel(1, person1.vorname, fallart)}
         person={bvg.p1}
+        geburtsdatum={person1.geburtsdatum}
         bezugsalter={bezugsalterP1}
         bezugsjahr={bezugsjahrP1}
+        immobilienOptionen={immobilienOptionen}
         onPatch={setBvgP1}
         onAddFz={() => addFz(1)}
         onUpdateFz={(id, p) => updateFz(1, id, p)}
@@ -68,8 +79,10 @@ export function Block5Bvg() {
         <PersonBvgForm
           title={personLabel(2, person2.vorname, fallart)}
           person={bvg.p2}
+          geburtsdatum={person2.geburtsdatum}
           bezugsalter={bezugsalterP2}
           bezugsjahr={bezugsjahrP2}
+          immobilienOptionen={immobilienOptionen}
           onPatch={setBvgP2}
           onAddFz={() => addFz(2)}
           onUpdateFz={(id, p) => updateFz(2, id, p)}
@@ -89,8 +102,10 @@ export function Block5Bvg() {
 function PersonBvgForm({
   title,
   person,
+  geburtsdatum,
   bezugsalter,
   bezugsjahr,
+  immobilienOptionen,
   onPatch,
   onAddFz,
   onUpdateFz,
@@ -104,8 +119,10 @@ function PersonBvgForm({
 }: {
   title: string;
   person: BvgPersonInput;
+  geburtsdatum: string;
   bezugsalter: number;
   bezugsjahr: number | null;
+  immobilienOptionen: { id: string; label: string }[];
   onPatch: (p: Partial<BvgPersonInput>) => void;
   onAddFz: () => void;
   onUpdateFz: (id: string, p: Partial<FreizuegigkeitEntry>) => void;
@@ -117,6 +134,19 @@ function PersonBvgForm({
   onUpdateWef: (id: string, p: Partial<WefVorbezugEntry>) => void;
   onRemoveWef: (id: string) => void;
 }) {
+  const geburtsjahr = geburtsdatum ? Number(geburtsdatum.slice(0, 4)) : 0;
+  const wefWarnungen = wefValidiere({
+    vorbezuege: person.wefVorbezuege ?? [],
+    altersguthabenHeute: person.altersguthabenHeute,
+    geburtsjahr,
+    pkBezugsjahr: bezugsjahr,
+  });
+  const warnungenById = new Map<string, WefWarnung[]>();
+  for (const w of wefWarnungen) {
+    const arr = warnungenById.get(w.entryId) ?? [];
+    arr.push(w);
+    warnungenById.set(w.entryId, arr);
+  }
   return (
     <fieldset className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
       <legend className="px-1 text-sm font-semibold text-slate-700">{title}</legend>
@@ -255,6 +285,8 @@ function PersonBvgForm({
 
           <WefListe
             items={person.wefVorbezuege ?? []}
+            warnungenById={warnungenById}
+            immobilienOptionen={immobilienOptionen}
             onAdd={onAddWef}
             onUpdate={onUpdateWef}
             onRemove={onRemoveWef}
@@ -500,11 +532,15 @@ function Einkaeufe({
 
 function WefListe({
   items,
+  warnungenById,
+  immobilienOptionen,
   onAdd,
   onUpdate,
   onRemove,
 }: {
   items: WefVorbezugEntry[];
+  warnungenById: Map<string, WefWarnung[]>;
+  immobilienOptionen: { id: string; label: string }[];
   onAdd: () => void;
   onUpdate: (id: string, p: Partial<WefVorbezugEntry>) => void;
   onRemove: (id: string) => void;
@@ -534,62 +570,107 @@ function WefListe({
       )}
 
       <ul className="space-y-2">
-        {items.map((it) => (
-          <li
-            key={it.id}
-            className="rounded-md border border-slate-200 bg-white p-3"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Field label="Jahr">
-                <input
-                  type="number"
-                  min={1990}
-                  max={2080}
-                  value={it.jahr}
-                  onChange={(e) =>
-                    onUpdate(it.id, { jahr: Number(e.target.value) })
-                  }
-                  className={`${inputClass} tabular-nums`}
-                />
-              </Field>
-              <Field label="Betrag (CHF)" hint="mind. 20'000 CHF gemäss BVG">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={it.betrag ?? ""}
-                  onChange={(e) =>
-                    onUpdate(it.id, {
-                      betrag:
-                        e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                  placeholder="z.B. 80'000"
-                  className={`${inputClass} tabular-nums`}
-                />
-              </Field>
-              <Field label="Beschreibung">
-                <input
-                  type="text"
-                  value={it.beschreibung}
-                  onChange={(e) =>
-                    onUpdate(it.id, { beschreibung: e.target.value })
-                  }
-                  placeholder="z.B. Kauf Wohnung Zürich"
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => onRemove(it.id)}
-                className="text-xs text-rose-600 hover:underline"
-              >
-                Entfernen
-              </button>
-            </div>
-          </li>
-        ))}
+        {items.map((it) => {
+          const warnungen = warnungenById.get(it.id) ?? [];
+          return (
+            <li
+              key={it.id}
+              className="rounded-md border border-slate-200 bg-white p-3"
+            >
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Field label="Jahr">
+                  <input
+                    type="number"
+                    min={1990}
+                    max={2080}
+                    value={it.jahr}
+                    onChange={(e) =>
+                      onUpdate(it.id, { jahr: Number(e.target.value) })
+                    }
+                    className={`${inputClass} tabular-nums`}
+                  />
+                </Field>
+                <Field label="Betrag (CHF)" hint="mind. 20'000 CHF gemäss BVG">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={it.betrag ?? ""}
+                    onChange={(e) =>
+                      onUpdate(it.id, {
+                        betrag:
+                          e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                    placeholder="z.B. 80'000"
+                    className={`${inputClass} tabular-nums`}
+                  />
+                </Field>
+                <Field label="Beschreibung">
+                  <input
+                    type="text"
+                    value={it.beschreibung}
+                    onChange={(e) =>
+                      onUpdate(it.id, { beschreibung: e.target.value })
+                    }
+                    placeholder="z.B. Kauf Wohnung Zürich"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              {immobilienOptionen.length > 0 && (
+                <div className="mt-2">
+                  <Field
+                    label="Verknüpfte Immobilie"
+                    hint="WEF-Betrag tilgt die Hypothek dieser Liegenschaft"
+                  >
+                    <select
+                      value={it.immoId ?? ""}
+                      onChange={(e) =>
+                        onUpdate(it.id, {
+                          immoId: e.target.value === "" ? null : e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">— erste selbstbewohnte (Default) —</option>
+                      {immobilienOptionen.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
+              {warnungen.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {warnungen.map((w, i) => (
+                    <li
+                      key={i}
+                      className={`rounded-sm border px-2 py-1 text-xs ${
+                        w.schwere === "fehler"
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : "border-amber-200 bg-amber-50 text-amber-800"
+                      }`}
+                    >
+                      {w.schwere === "fehler" ? "⚠ " : "ℹ "}
+                      {w.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onRemove(it.id)}
+                  className="text-xs text-rose-600 hover:underline"
+                >
+                  Entfernen
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       <button
