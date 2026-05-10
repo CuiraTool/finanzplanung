@@ -1,6 +1,12 @@
 "use client";
 
-import { usePlanStore, type NachlassThemaKey } from "@/lib/store";
+import {
+  usePlanStore,
+  type NachlassThemaKey,
+  type ErbschaftGroesse,
+} from "@/lib/store";
+import { Field } from "@/components/ui/Field";
+import { selectClass, inputClass } from "@/components/ui/styles";
 
 const THEMEN: { key: NachlassThemaKey; titel: string; erklaerung: string }[] = [
   {
@@ -44,11 +50,124 @@ const THEMEN: { key: NachlassThemaKey; titel: string; erklaerung: string }[] = [
 export function Block10Nachlass() {
   const nachlass = usePlanStore((s) => s.nachlass);
   const setNachlass = usePlanStore((s) => s.setNachlass);
+  const erbschaft = usePlanStore((s) => s.erbschaft);
+  const setErbschaft = usePlanStore((s) => s.setErbschaft);
 
   const erledigt = THEMEN.filter((t) => nachlass[t.key]).length;
 
   return (
     <div className="space-y-6">
+      {/* Anwartschaften / erwartete Erbschaft */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">
+          Anwartschaften
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            erwartete Erbschaften / Schenkungen in den nächsten Jahren
+          </span>
+        </legend>
+
+        <Field
+          label="Wird in den nächsten Jahren eine Erbschaft / ein Erbvorbezug erwartet?"
+          hint="bewusst weich gefragt — der Mandant darf 'möglich' wählen ohne sich festzulegen"
+        >
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(
+              [
+                { value: "ja_absehbar", label: "Ja, absehbar" },
+                { value: "moeglich", label: "Möglich" },
+                { value: "nein", label: "Nein" },
+                { value: "keine_angabe", label: "Keine Angabe" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setErbschaft({ erwartet: opt.value })}
+                className={`rounded-md border px-3 py-2 text-sm transition ${
+                  erbschaft.erwartet === opt.value
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {(erbschaft.erwartet === "ja_absehbar" ||
+          erbschaft.erwartet === "moeglich") && (
+          <Field
+            label="Grössenordnung (grobe Schätzung)"
+            hint="optional — keine fixe Zahl nötig, dient der Pensions-Hochrechnung"
+          >
+            <select
+              value={erbschaft.groessenordnung ?? ""}
+              onChange={(e) =>
+                setErbschaft({
+                  groessenordnung:
+                    (e.target.value as ErbschaftGroesse | "") || null,
+                })
+              }
+              className={selectClass}
+            >
+              <option value="">— wählen —</option>
+              <option value="lt200k">unter CHF 200'000</option>
+              <option value="200k_1m">CHF 200'000 – 1 Mio</option>
+              <option value="1m_5m">CHF 1 – 5 Mio</option>
+              <option value="gt5m">über CHF 5 Mio</option>
+            </select>
+          </Field>
+        )}
+
+        <Field
+          label="Schenkungen / Erbvorbezüge an Kinder"
+          hint="bereits getätigt, geplant oder nicht vorgesehen?"
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { value: "getaetigt", label: "Bereits getätigt" },
+                { value: "geplant", label: "Geplant" },
+                { value: "nein", label: "Nein" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setErbschaft({ schenkungenStatus: opt.value })}
+                className={`rounded-md border px-3 py-2 text-sm transition ${
+                  erbschaft.schenkungenStatus === opt.value
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {(erbschaft.schenkungenStatus === "getaetigt" ||
+          erbschaft.schenkungenStatus === "geplant") && (
+          <Field
+            label="Details (optional)"
+            hint="Beträge, Zeitpunkt, Begünstigte — frei in Worten"
+          >
+            <textarea
+              value={erbschaft.schenkungenDetails}
+              onChange={(e) =>
+                setErbschaft({ schenkungenDetails: e.target.value })
+              }
+              rows={2}
+              placeholder="z.B. 100k an Tochter 2024 als Erbvorbezug; 50k an Sohn 2027 geplant"
+              className={`${inputClass} resize-none`}
+            />
+          </Field>
+        )}
+      </fieldset>
+
+      {/* Vorsorge-Dokumente */}
       <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
         <legend className="px-1 text-sm font-semibold text-slate-700">
           Vorsorge- und Nachlassdokumente
@@ -79,6 +198,7 @@ export function Block10Nachlass() {
     </div>
   );
 }
+
 
 function ThemaCard({
   titel,
