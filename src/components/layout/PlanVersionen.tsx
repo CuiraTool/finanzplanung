@@ -44,6 +44,7 @@ export function PlanVersionenModal({ open, onClose }: Props) {
   const [view, setView] = useState<"list" | "compare" | "save">("list");
   const [comparingId, setComparingId] = useState<string | null>(null);
   const [neuNotiz, setNeuNotiz] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const versionen = usePlanVersionenStore((s) => s.versionen);
   const saveVersion = usePlanVersionenStore((s) => s.saveVersion);
@@ -55,14 +56,24 @@ export function PlanVersionenModal({ open, onClose }: Props) {
     setView("list");
     setComparingId(null);
     setNeuNotiz("");
+    setSaveError(null);
     onClose();
   };
 
   const handleSave = () => {
     const currentState = usePlanStore.getState();
-    saveVersion(currentState as unknown as SerialPlan, neuNotiz);
-    setNeuNotiz("");
-    setView("list");
+    try {
+      saveVersion(currentState as unknown as SerialPlan, neuNotiz);
+      setSaveError(null);
+      setNeuNotiz("");
+      setView("list");
+    } catch (err) {
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : "Speicher voll — bitte alte Versionen löschen."
+      );
+    }
   };
 
   const handleRestore = (v: PlanVersion) => {
@@ -185,8 +196,12 @@ export function PlanVersionenModal({ open, onClose }: Props) {
             <SaveView
               notiz={neuNotiz}
               setNotiz={setNeuNotiz}
+              error={saveError}
               onSubmit={handleSave}
-              onCancel={() => setView("list")}
+              onCancel={() => {
+                setSaveError(null);
+                setView("list");
+              }}
             />
           )}
 
@@ -340,11 +355,13 @@ function ListView({
 function SaveView({
   notiz,
   setNotiz,
+  error,
   onSubmit,
   onCancel,
 }: {
   notiz: string;
   setNotiz: (s: string) => void;
+  error: string | null;
   onSubmit: () => void;
   onCancel: () => void;
 }) {
@@ -357,6 +374,11 @@ function SaveView({
         Speichert den aktuellen Plan-Stand als Snapshot. Du kannst später
         zurückwechseln oder Versionen vergleichen.
       </p>
+      {error && (
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] text-rose-700">
+          ⚠ {error}
+        </div>
+      )}
       <label className="block">
         <span
           className="mb-1.5 block text-[12px] font-medium"
