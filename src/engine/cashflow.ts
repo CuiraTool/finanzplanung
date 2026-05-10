@@ -350,7 +350,7 @@ export function cashflowReihe(
       bruttoErwerbP2,
       alterP1: alterP1 ?? 40,
       alterP2: alterP2 ?? 40,
-      anzahlKinder: state.kinder.length,
+      anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
       saeule3aEinzahlungJahr,
       hatPkAnschlussP1:
         state.bvg.p1.aktiverAnschluss && istVorPensionP1,
@@ -1132,6 +1132,33 @@ function firmaWertAmJahresende(
   if (firma.moeglicherVerkaufserloes == null) return 0;
   if (firma.plan === "verkaufen" && jahr >= firma.verkaufsjahr) return 0;
   return firma.moeglicherVerkaufserloes;
+}
+
+/**
+ * Anzahl Kinder, die im Steuerjahr noch abzugsfähig sind.
+ *
+ * Schweizer Recht: Kinderabzug gilt für minderjährige Kinder UND für
+ * volljährige Kinder in Erstausbildung (typisch bis ~25). Wir nutzen:
+ *   - Kind < 18 im Jahr → abzugsfähig
+ *   - Kind ≥ 18 UND ausbildungBisJahr >= jahr → abzugsfähig
+ *   - sonst nicht abzugsfähig
+ */
+function anzahlKinderAbzugsfaehig(
+  kinder: CashflowInput["kinder"],
+  jahr: number
+): number {
+  let count = 0;
+  for (const k of kinder) {
+    const geburtsjahr = parseInt((k.geburtsdatum || "").slice(0, 4), 10);
+    if (!Number.isFinite(geburtsjahr)) continue;
+    const alter = jahr - geburtsjahr;
+    if (alter < 18) {
+      count++;
+    } else if (k.ausbildungBisJahr != null && k.ausbildungBisJahr >= jahr) {
+      count++;
+    }
+  }
+  return count;
 }
 
 /**

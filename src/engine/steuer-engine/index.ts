@@ -92,11 +92,14 @@ function getKirchensatz(
   prefix: "Income" | "Fortune",
   religion: Religion
 ): number {
-  if (religion === "keine") return 0;
-  const key =
-    religion === "reformiert"
-      ? `${prefix}RateProtestant`
-      : `${prefix}RateRoman`;
+  // Nur die staatlich anerkannten Landeskirchen erheben Kirchensteuer
+  // via ESTV-Faktor. Israelitisch/Andere/Keine = 0 (Beiträge laufen
+  // separat, nicht via Steuerveranlagung).
+  let key: string | null = null;
+  if (religion === "reformiert") key = `${prefix}RateProtestant`;
+  else if (religion === "katholisch") key = `${prefix}RateRoman`;
+  else if (religion === "christkatholisch") key = `${prefix}RateChrist`;
+  if (!key) return 0;
   const v = factor[key];
   return typeof v === "number" ? v : 0;
 }

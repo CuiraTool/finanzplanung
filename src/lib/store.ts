@@ -66,6 +66,13 @@ export interface Kind {
   vorname: string;
   geburtsdatum: string;
   zuordnung: KindZuordnung;
+  /**
+   * In Erstausbildung bis (Jahr). Wenn gesetzt, wird das Kind auch nach
+   * dem 18. Geburtstag bis zu diesem Jahr als steuerlich abzugsfähig
+   * gezählt (typisch Erstausbildung max bis ~25). Wenn null/undefined:
+   * Default-Heuristik = Kind ist abzugsfähig solange < 18.
+   */
+  ausbildungBisJahr?: number | null;
 }
 
 export type Geschlecht = "m" | "w" | "andere";
@@ -479,7 +486,23 @@ export interface AusgabenKategorien {
   sonstiges: number | null;
 }
 
-export type Religion = "katholisch" | "reformiert" | "keine";
+/**
+ * Steuerlich relevante Religionszugehörigkeit. Wirkt auf Kirchensteuer:
+ *  - katholisch (römisch-katholisch) → ESTV-Satz IncomeRateRoman
+ *  - reformiert (evangelisch-reformiert) → IncomeRateProtestant
+ *  - christkatholisch (Alt-Katholisch) → IncomeRateChrist (in ZH/AG/BS/SO/BE etc.)
+ *  - israelitisch → eigene Gemeinden, in den ESTV-Faktoren nicht erfasst —
+ *    wir setzen 0% (Beratung im Termin, kantonal unterschiedlich)
+ *  - andere → 0% (z.B. orthodox, muslimisch — keine Landeskirche)
+ *  - keine → 0%
+ */
+export type Religion =
+  | "katholisch"
+  | "reformiert"
+  | "christkatholisch"
+  | "israelitisch"
+  | "andere"
+  | "keine";
 
 export interface Budget {
   einkommen: Einkommensperiode[];
@@ -822,6 +845,7 @@ export const usePlanStore = create<PlanState>()(
               vorname: "",
               geburtsdatum: "",
               zuordnung: s.fallart === "paar" ? "gemeinsam" : "p1",
+              ausbildungBisJahr: null,
             },
           ],
         })),
@@ -1369,7 +1393,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v31",
+      name: "cuira-plan-v32",
     }
   )
 );

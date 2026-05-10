@@ -64,7 +64,13 @@ export interface LocationData {
   Canton: string;
 }
 
-export type Religion = "reformiert" | "katholisch" | "keine";
+export type Religion =
+  | "reformiert"
+  | "katholisch"
+  | "christkatholisch"
+  | "israelitisch"
+  | "andere"
+  | "keine";
 export type Fallart = "einzel" | "paar";
 export type SteuerJahr = 2025 | 2026;
 

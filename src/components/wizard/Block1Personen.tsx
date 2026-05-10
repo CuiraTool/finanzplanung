@@ -209,11 +209,28 @@ export function Block1Personen() {
                 />
               </Field>
               <Field label="Geburtsdatum">
-                <input
-                  type="date"
+                <DatumInput
                   value={k.geburtsdatum}
-                  onChange={(e) => updateKind(k.id, { geburtsdatum: e.target.value })}
-                  className={inputClass}
+                  onChange={(v) => updateKind(k.id, { geburtsdatum: v })}
+                />
+              </Field>
+              <Field
+                label="In Erstausbildung bis (Jahr)"
+                hint="optional — Kinderabzug gilt bei Ausbildung bis ~25; leer = bis 18 abzugsfähig"
+              >
+                <input
+                  type="number"
+                  min={2024}
+                  max={2080}
+                  value={k.ausbildungBisJahr ?? ""}
+                  onChange={(e) =>
+                    updateKind(k.id, {
+                      ausbildungBisJahr:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="z.B. 2032"
+                  className={`${inputClass} w-32 tabular-nums`}
                 />
               </Field>
               {fallart === "paar" && (
@@ -446,30 +463,50 @@ function ReligionPanel() {
   const religion = usePlanStore((s) => s.budget.religion);
   const setReligion = usePlanStore((s) => s.setReligion);
 
-  const optionen: { value: typeof religion; label: string }[] = [
-    { value: "keine", label: "Keine" },
-    { value: "katholisch", label: "Katholisch" },
-    { value: "reformiert", label: "Reformiert" },
+  const optionen: {
+    value: typeof religion;
+    label: string;
+    sub?: string;
+  }[] = [
+    { value: "katholisch", label: "Katholisch", sub: "römisch-katholisch" },
+    { value: "reformiert", label: "Reformiert", sub: "evangelisch-reformiert" },
+    {
+      value: "christkatholisch",
+      label: "Christkatholisch",
+      sub: "alt-katholisch",
+    },
+    { value: "israelitisch", label: "Israelitisch", sub: "kantonal separat" },
+    { value: "andere", label: "Andere", sub: "z.B. orthodox, muslimisch" },
+    { value: "keine", label: "Keine", sub: "konfessionslos" },
   ];
 
   return (
     <Section
       title="Religion"
-      hint="für Kirchensteuer-Berechnung — wirkt auf Wohnsitz-Gemeinde"
+      hint="für Kirchensteuer — wirkt auf Wohnsitz-Gemeinde. Nur die anerkannten Landeskirchen erheben Steuer via Veranlagung."
     >
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {optionen.map((o) => (
           <button
             key={o.value}
             type="button"
             onClick={() => setReligion(o.value)}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
+            className={`flex flex-col items-start rounded-md border px-3 py-2 text-left text-sm transition ${
               religion === o.value
                 ? "border-blue-600 bg-blue-50 text-blue-700"
                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
             }`}
           >
-            {o.label}
+            <span className="font-medium">{o.label}</span>
+            {o.sub && (
+              <span
+                className={`text-[10.5px] ${
+                  religion === o.value ? "text-blue-600/80" : "text-slate-400"
+                }`}
+              >
+                {o.sub}
+              </span>
+            )}
           </button>
         ))}
       </div>
