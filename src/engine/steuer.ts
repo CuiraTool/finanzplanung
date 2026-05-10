@@ -76,6 +76,11 @@ export interface SteuerInput {
   pkEinkaufJahr?: number;
   hatPkAnschlussP1?: boolean;
   hatPkAnschlussP2?: boolean;
+  /**
+   * Wenn true: bruttoErwerbP1/P2 sind als Netto interpretiert.
+   * Sozial-/BVG-Abzüge fallen weg. Siehe AbzugInput.einkommenIstNetto.
+   */
+  einkommenIstNetto?: boolean;
 }
 
 export interface SteuerOutput {
@@ -138,6 +143,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       pkEinkaufJahr: Math.max(0, input.pkEinkaufJahr ?? 0),
       hatPkAnschlussP1: input.hatPkAnschlussP1 ?? false,
       hatPkAnschlussP2: input.hatPkAnschlussP2 ?? false,
+      einkommenIstNetto: input.einkommenIstNetto ?? false,
     };
     abzuegeBund = abzuegeDbg(abzInput);
     abzuegeKt = abzuegeKanton(abzInput, kantonCode ?? "ZH");

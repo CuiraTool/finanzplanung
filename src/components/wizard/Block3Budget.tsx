@@ -4,7 +4,6 @@ import {
   usePlanStore,
   type AusgabenKategorien,
   type AusgabenModus,
-  type Religion,
 } from "@/lib/store";
 import { indikativeSteuerHeute } from "@/engine/steuer";
 import { Field } from "@/components/ui/Field";
@@ -43,7 +42,6 @@ export function Block3Budget() {
   const setKategorie = usePlanStore((s) => s.setAusgabenKategorie);
   const setWunsch = usePlanStore((s) => s.setWunschverbrauchPension);
   const setSteuerAnker = usePlanStore((s) => s.setSteuerAnker);
-  const setReligion = usePlanStore((s) => s.setReligion);
   const adresse = usePlanStore((s) => s.adresse);
 
   const indikativHeute =
@@ -265,52 +263,18 @@ export function Block3Budget() {
         </Field>
       </fieldset>
 
-      {/* Steuern — Anker-Werte fürs aktuelle Jahr */}
+      {/* Steuern — optionaler Anker aus letzter Veranlagung */}
       <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
         <legend className="px-1 text-sm font-semibold text-slate-700">
           Steuern
           <span className="ml-2 text-xs font-normal text-slate-400">
-            Anker fürs aktuelle Jahr — Folgejahre proportional
+            optional — die Engine rechnet sonst aus dem Netto-Einkommen
           </span>
         </legend>
 
         <Field
-          label="Religion"
-          hint="für Kirchensteuer-Multiplikator"
-        >
-          <select
-            value={budget.religion}
-            onChange={(e) => setReligion(e.target.value as Religion)}
-            className={selectClass}
-          >
-            <option value="keine">Keine</option>
-            <option value="reformiert">Reformiert</option>
-            <option value="katholisch">Katholisch</option>
-          </select>
-        </Field>
-
-        <Field
-          label="Bruttojahreseinkommen Haushalt heute (CHF)"
-          hint="Referenz für die Steuer-Hochrechnung"
-        >
-          <input
-            type="number"
-            inputMode="numeric"
-            value={budget.einkommenHeute ?? ""}
-            onChange={(e) =>
-              setSteuerAnker(
-                budget.steuernHeute,
-                e.target.value === "" ? null : Number(e.target.value)
-              )
-            }
-            placeholder="z.B. 184'000"
-            className={`${inputClass} tabular-nums`}
-          />
-        </Field>
-
-        <Field
           label="Aktuelle Jahressteuer (CHF) — laut letzter Veranlagung"
-          hint="leer lassen, wenn unbekannt — dann nutzt die Engine den Kantons-Default"
+          hint="leer lassen, wenn unbekannt — dann nutzt die Engine die ESTV-Tarif-Berechnung pro Kanton/Gemeinde"
         >
           <input
             type="number"
@@ -332,9 +296,10 @@ export function Block3Budget() {
         </Field>
 
         {indikativHeute != null && budget.steuernHeute == null && (
-          <p className="text-xs text-amber-700">
-            Ohne Anker rechnet die Engine mit indikativem Kantons-Satz: ca.{" "}
-            {formatChf(indikativHeute)} Steuer auf {formatChf(budget.einkommenHeute)} Einkommen.
+          <p className="text-xs text-slate-500">
+            Engine schätzt: ca. {formatChf(indikativHeute)} Steuer/Jahr auf
+            das Netto-Einkommen — Religion und Wohnort werden in Block 1
+            erfasst.
           </p>
         )}
       </fieldset>

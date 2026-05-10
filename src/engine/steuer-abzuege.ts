@@ -202,6 +202,16 @@ export interface AbzugInput {
   /** True wenn aktiver PK-Anschluss → BVG-Abzug + 3a-Limit "mit BVG". */
   hatPkAnschlussP1: boolean;
   hatPkAnschlussP2: boolean;
+  /**
+   * Wenn true: bruttoErwerbP1/P2 werden als Netto (nach Sozial+BVG)
+   * interpretiert. Sozial- und BVG-Abzug fallen weg, nur Berufsauslagen,
+   * Versicherung, Kinder, 3a, DDV bleiben.
+   *
+   * UX-Hintergrund: Berater erfasst im Wizard das Netto-Einkommen
+   * (bereits nach AHV/ALV/BVG abgezogen). Der gesonderte BVG-Beitrag
+   * ist im Block 5 (Pensionskasse) erfasst — keine doppelte Modellierung.
+   */
+  einkommenIstNetto?: boolean;
 }
 
 export interface AbzugDetail {
@@ -320,7 +330,13 @@ function nettolohn(input: {
   brutto: number;
   alter: number;
   hatPkAnschluss: boolean;
+  istBereitsNetto?: boolean;
 }): { netto: number; sozial: number; bvg: number } {
+  if (input.istBereitsNetto) {
+    // User hat bereits Netto eingegeben — keine Sozial-/BVG-Abzüge mehr.
+    // Berufsauslagen werden vom 'netto'-Wert berechnet, was hier === brutto-Eingabe ist.
+    return { netto: input.brutto, sozial: 0, bvg: 0 };
+  }
   const sozial = sozialversicherung(input.brutto);
   const bvg = bvgArbeitnehmerBeitrag(input.brutto, input.alter, input.hatPkAnschluss);
   return {
@@ -339,11 +355,13 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
     brutto: input.bruttoErwerbP1,
     alter: input.alterP1,
     hatPkAnschluss: input.hatPkAnschlussP1,
+    istBereitsNetto: input.einkommenIstNetto,
   });
   const p2 = nettolohn({
     brutto: input.bruttoErwerbP2,
     alter: input.alterP2,
     hatPkAnschluss: input.hatPkAnschlussP2,
+    istBereitsNetto: input.einkommenIstNetto,
   });
 
   const berufsauslagenP1 = berufsauslagen(
@@ -438,11 +456,13 @@ export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetai
     brutto: input.bruttoErwerbP1,
     alter: input.alterP1,
     hatPkAnschluss: input.hatPkAnschlussP1,
+    istBereitsNetto: input.einkommenIstNetto,
   });
   const p2 = nettolohn({
     brutto: input.bruttoErwerbP2,
     alter: input.alterP2,
     hatPkAnschluss: input.hatPkAnschlussP2,
+    istBereitsNetto: input.einkommenIstNetto,
   });
 
   const berufsauslagenP1 = berufsauslagen(

@@ -77,6 +77,25 @@ export function Block1Personen() {
         </select>
       </Section>
 
+      {/* Person 1 (oder einzelne Person) */}
+      <PersonForm
+        title={personLabel(1, person1.vorname, fallart)}
+        person={person1}
+        onChange={setPerson1}
+      />
+
+      {/* Person 2 nur bei Paar */}
+      {fallart === "paar" && (
+        <PersonForm
+          title={personLabel(2, person2.vorname, fallart)}
+          person={person2}
+          onChange={setPerson2}
+        />
+      )}
+
+      {/* Religion (für Kirchensteuer) */}
+      <ReligionPanel />
+
       {/* Adresse */}
       <Section title="Adresse" hint="Kanton ist Pflicht für Steuerberechnung">
         <Field label="Strasse">
@@ -137,22 +156,6 @@ export function Block1Personen() {
           </Field>
         )}
       </Section>
-
-      {/* Person 1 (oder einzelne Person) */}
-      <PersonForm
-        title={personLabel(1, person1.vorname, fallart)}
-        person={person1}
-        onChange={setPerson1}
-      />
-
-      {/* Person 2 nur bei Paar */}
-      {fallart === "paar" && (
-        <PersonForm
-          title={personLabel(2, person2.vorname, fallart)}
-          person={person2}
-          onChange={setPerson2}
-        />
-      )}
 
       {/* Kinder */}
       <Section title="Kinder" hint="für spätere Kinderabzüge in der Steuer">
@@ -254,11 +257,9 @@ function PersonForm({
       </div>
       <div className="grid grid-cols-[1fr_140px] gap-2">
         <Field label="Geburtsdatum *" hint="Pflichtfeld — bestimmt Pensionsjahr">
-          <input
-            type="date"
+          <DatumInput
             value={person.geburtsdatum}
-            onChange={(e) => onChange({ geburtsdatum: e.target.value })}
-            className={inputClass}
+            onChange={(v) => onChange({ geburtsdatum: v })}
           />
         </Field>
         <Field
@@ -301,6 +302,142 @@ function PersonForm({
             className={inputClass}
           />
         </Field>
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * Geburtsdatum-Eingabe als 3 Felder (TT / MM / JJJJ).
+ *
+ * Hintergrund: native <input type="date"> hat einen Browser-Bug, bei dem
+ * ein Tippen einer 4-stelligen Jahreszahl wie "1985" zwischendurch zu
+ * "0085" oder "0001985" interpretiert wird. Auf Safari / macOS macht der
+ * Date-Picker dann komische Sprünge.
+ *
+ * Lösung: drei separate Inputs, die im Hintergrund auf YYYY-MM-DD
+ * normalisiert werden (Format des Stores).
+ */
+function DatumInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+}) {
+  // Initial parsen: YYYY-MM-DD oder leer
+  const parsed = parseIso(value);
+  const setPart = (
+    teil: "tag" | "monat" | "jahr",
+    rohwert: string
+  ) => {
+    const cleaned = rohwert.replace(/\D/g, "");
+    const next = { ...parsed };
+    if (teil === "tag") next.tag = cleaned.slice(0, 2);
+    if (teil === "monat") next.monat = cleaned.slice(0, 2);
+    if (teil === "jahr") next.jahr = cleaned.slice(0, 4);
+    onChange(zuIso(next));
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={parsed.tag}
+        onChange={(e) => setPart("tag", e.target.value)}
+        placeholder="TT"
+        className={`${inputClass} w-12 text-center tabular-nums`}
+        aria-label="Tag"
+      />
+      <span style={{ color: "var(--ink-3)" }}>.</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={parsed.monat}
+        onChange={(e) => setPart("monat", e.target.value)}
+        placeholder="MM"
+        className={`${inputClass} w-12 text-center tabular-nums`}
+        aria-label="Monat"
+      />
+      <span style={{ color: "var(--ink-3)" }}>.</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={4}
+        value={parsed.jahr}
+        onChange={(e) => setPart("jahr", e.target.value)}
+        placeholder="JJJJ"
+        className={`${inputClass} w-20 text-center tabular-nums`}
+        aria-label="Jahr"
+      />
+    </div>
+  );
+}
+
+interface DatumParts {
+  tag: string;
+  monat: string;
+  jahr: string;
+}
+
+function parseIso(iso: string): DatumParts {
+  if (!iso) return { tag: "", monat: "", jahr: "" };
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return { jahr: m[1] ?? "", monat: m[2] ?? "", tag: m[3] ?? "" };
+  return { tag: "", monat: "", jahr: "" };
+}
+
+function zuIso(p: DatumParts): string {
+  // Nur ISO zurückgeben wenn alle Teile vollständig + plausibel
+  if (p.jahr.length !== 4) return "";
+  if (p.monat.length === 0 || p.tag.length === 0) return "";
+  const j = parseInt(p.jahr, 10);
+  const mo = parseInt(p.monat, 10);
+  const t = parseInt(p.tag, 10);
+  if (!Number.isFinite(j) || j < 1900 || j > 2100) return "";
+  if (!Number.isFinite(mo) || mo < 1 || mo > 12) return "";
+  if (!Number.isFinite(t) || t < 1 || t > 31) return "";
+  return `${p.jahr}-${p.monat.padStart(2, "0")}-${p.tag.padStart(2, "0")}`;
+}
+
+/**
+ * Religion-Panel — wird in Block 1 unterhalb der Personen angezeigt.
+ *
+ * Wirkt auf die Steuer-Engine (Kirchensteuer pro Konfession). Im Store
+ * weiterhin unter `budget.religion` für Backwards-Compat.
+ */
+function ReligionPanel() {
+  const religion = usePlanStore((s) => s.budget.religion);
+  const setReligion = usePlanStore((s) => s.setReligion);
+
+  const optionen: { value: typeof religion; label: string }[] = [
+    { value: "keine", label: "Keine" },
+    { value: "katholisch", label: "Katholisch" },
+    { value: "reformiert", label: "Reformiert" },
+  ];
+
+  return (
+    <Section
+      title="Religion"
+      hint="für Kirchensteuer-Berechnung — wirkt auf Wohnsitz-Gemeinde"
+    >
+      <div className="flex gap-2">
+        {optionen.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setReligion(o.value)}
+            className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
+              religion === o.value
+                ? "border-blue-600 bg-blue-50 text-blue-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
     </Section>
   );

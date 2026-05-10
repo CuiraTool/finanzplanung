@@ -345,6 +345,12 @@ export function cashflowReihe(
         istVorPensionP2,
       ankerSteuernHeute: state.budget.steuernHeute,
       ankerEinkommenHeute: state.budget.einkommenHeute,
+      // User-Wunsch: Erwerbseinkommen wird als Netto interpretiert
+      // (Sozial+BVG bereits abgezogen). Engine zieht keine zusätzlichen
+      // Sozial-Abzüge mehr ab — nur Berufsauslagen + Versicherung +
+      // Kinder + 3a + DDV. Konsistent mit dem im Block 5 separat
+      // erfassten BVG-Beitrag.
+      einkommenIstNetto: true,
     });
     const ausgabenSteuern = steuern.total;
     const ausgabenSteuernEinkommen = steuern.einkommen;
