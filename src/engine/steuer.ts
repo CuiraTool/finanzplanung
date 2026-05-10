@@ -114,7 +114,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   const fallart: Fallart = input.fallart === "paar" ? "paar" : "einzel";
   const jahr = clampJahr(input.jahr);
   const kantonCode = asKantonCode(input.kanton);
-  const religion = input.religion;
+  const { religion } = input;
 
   // ─── Abzüge berechnen (DBG + Kanton getrennt) ────────────────────────
   // Wenn detailfelder vorhanden: echte Abzüge berechnen.

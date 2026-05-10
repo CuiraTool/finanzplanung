@@ -224,26 +224,21 @@ export function cashflowReihe(
     // sind pro Person zu rechnen)
     const erwerbP1Roh = erwerbseinkommenJahrPerson(state.budget.einkommen, jahr, 1);
     const erwerbP2Roh = erwerbseinkommenJahrPerson(state.budget.einkommen, jahr, 2);
-    // Plausibilisierung: wenn Block 3 keine Perioden hat, fallback auf
-    // ahv.einkommenP1/P2 (gilt für alle Jahre vor Pensionierung)
     const istVorPensionP1 =
       pkBezugsjahrP1 == null || jahr < pkBezugsjahrP1;
     const istVorPensionP2 =
       pkBezugsjahrP2 == null || jahr < pkBezugsjahrP2;
-    const bruttoErwerbP1 =
-      erwerbP1Roh > 0
-        ? erwerbP1Roh
-        : istVorPensionP1
-          ? state.ahv.einkommenP1 ?? 0
-          : 0;
-    const bruttoErwerbP2 =
-      state.fallart === "paar"
-        ? erwerbP2Roh > 0
-          ? erwerbP2Roh
-          : istVorPensionP2
-            ? state.ahv.einkommenP2 ?? 0
-            : 0
-        : 0;
+    // Fallback auf ahv.einkommenP1/P2 (Block 4) wenn Block 3 keine Perioden
+    // hat — gilt nur für Jahre vor Pensionierung.
+    let bruttoErwerbP1 = 0;
+    if (erwerbP1Roh > 0) bruttoErwerbP1 = erwerbP1Roh;
+    else if (istVorPensionP1) bruttoErwerbP1 = state.ahv.einkommenP1 ?? 0;
+
+    let bruttoErwerbP2 = 0;
+    if (state.fallart === "paar") {
+      if (erwerbP2Roh > 0) bruttoErwerbP2 = erwerbP2Roh;
+      else if (istVorPensionP2) bruttoErwerbP2 = state.ahv.einkommenP2 ?? 0;
+    }
     // Total 3a-Einzahlung im Jahr (alle Konten + Versicherungen, beide Personen,
     // wenn jahr in einzahlungAb..einzahlungBis liegt)
     const saeule3aEinzahlungJahr =
@@ -300,12 +295,11 @@ export function cashflowReihe(
       einnahmenErbschaft;
 
     // ─── Kapitalauszahlungen (einmalig im Jahr) ──────────────────
-    const kapZeile = kapitalauszahlungenJahr(
+    const kapAuszahlungen = kapitalauszahlungenJahr(
       state,
       jahr,
       bvgKapitalAuszahlungen
     );
-    const kapAuszahlungen = kapZeile;
     // WEF-Vorbezug: wird mit Kapitalauszahlungs-Sondertarif besteuert,
     // fliesst aber typisch direkt ins Eigenheim (nicht aufs Hauptkonto).
     // Daher zur Steuer-Bemessung dazu, aber NICHT zum Cashflow-Total.
@@ -368,13 +362,6 @@ export function cashflowReihe(
       einkommenIstNetto: true,
     });
     const ausgabenSteuern = steuern.total;
-    const ausgabenSteuernEinkommen = steuern.einkommen;
-    const ausgabenSteuernEinkommenBund = steuern.einkommenBund;
-    const ausgabenSteuernEinkommenKanton = steuern.einkommenKanton;
-    const ausgabenSteuernVermoegen = steuern.vermoegen;
-    const ausgabenSteuernKapital = steuern.kapital;
-    const ausgabenSteuernKapitalBund = steuern.kapitalBund;
-    const ausgabenSteuernKapitalKanton = steuern.kapitalKanton;
 
     // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
     // (nur in Erwerbsphase relevant — bei Pensionierung sind die 0)
@@ -462,13 +449,13 @@ export function cashflowReihe(
       einnahmenTotal: Math.round(einnahmenTotal),
       ausgabenHaushalt: Math.round(ausgabenHaushalt),
       ausgabenSteuern: Math.round(ausgabenSteuern),
-      ausgabenSteuernEinkommen: Math.round(ausgabenSteuernEinkommen),
-      ausgabenSteuernEinkommenBund: Math.round(ausgabenSteuernEinkommenBund),
-      ausgabenSteuernEinkommenKanton: Math.round(ausgabenSteuernEinkommenKanton),
-      ausgabenSteuernVermoegen: Math.round(ausgabenSteuernVermoegen),
-      ausgabenSteuernKapital: Math.round(ausgabenSteuernKapital),
-      ausgabenSteuernKapitalBund: Math.round(ausgabenSteuernKapitalBund),
-      ausgabenSteuernKapitalKanton: Math.round(ausgabenSteuernKapitalKanton),
+      ausgabenSteuernEinkommen: Math.round(steuern.einkommen),
+      ausgabenSteuernEinkommenBund: Math.round(steuern.einkommenBund),
+      ausgabenSteuernEinkommenKanton: Math.round(steuern.einkommenKanton),
+      ausgabenSteuernVermoegen: Math.round(steuern.vermoegen),
+      ausgabenSteuernKapital: Math.round(steuern.kapital),
+      ausgabenSteuernKapitalBund: Math.round(steuern.kapitalBund),
+      ausgabenSteuernKapitalKanton: Math.round(steuern.kapitalKanton),
       ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
       ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
       ausgabenHypozins: Math.round(ausgabenHypozins),

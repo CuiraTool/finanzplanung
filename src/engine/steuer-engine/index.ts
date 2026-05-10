@@ -126,30 +126,36 @@ export interface KantonSteuerInput {
   jahr: SteuerJahr;
 }
 
+const EMPTY_RESULT: KantonSteuerResult = {
+  einfache: 0,
+  kanton: 0,
+  gemeinde: 0,
+  kirche: 0,
+  total: 0,
+};
+
 /**
- * Berechnet die Einkommenssteuer Kanton + Gemeinde + Kirche für einen Kanton.
+ * Geteilter Kanton-/Gemeinde-/Kirchensteuer-Berechnungspfad für Einkommen
+ * und Vermögen — unterscheidet sich nur durch Steuerart, Faktor-Felder und
+ * Kirchen-Prefix.
  */
-export function einkommensteuerKanton(
-  steuerbaresEinkommen: number,
-  input: KantonSteuerInput
+function steuerKantonGenerisch(
+  bemessung: number,
+  input: KantonSteuerInput,
+  taxType: TaxType,
+  fussFelder: { kanton: keyof FactorRates; gemeinde: keyof FactorRates },
+  kirchenPrefix: "Income" | "Fortune"
 ): KantonSteuerResult {
-  const empty: KantonSteuerResult = {
-    einfache: 0,
-    kanton: 0,
-    gemeinde: 0,
-    kirche: 0,
-    total: 0,
-  };
-  if (steuerbaresEinkommen <= 0) return empty;
+  if (bemessung <= 0) return EMPTY_RESULT;
 
   const info = KANTON_INFO[input.kanton];
-  if (!info) return empty;
+  if (!info) return EMPTY_RESULT;
 
   const tarifs = getTarifs(info.cantonId, input.jahr);
-  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", input.fallart);
-  if (!tarif) return empty;
+  const tarif = findTarifFor(tarifs, taxType, input.fallart);
+  if (!tarif) return EMPTY_RESULT;
 
-  const split = applySplitting(steuerbaresEinkommen, tarif, input.fallart);
+  const split = applySplitting(bemessung, tarif, input.fallart);
   const rounded = round100Down(split, tarif);
   const taxes = calculateTaxes(rounded, tarif);
   const einfache = reverseSplitting(taxes, tarif, input.fallart);
@@ -160,15 +166,16 @@ export function einkommensteuerKanton(
     input.bfsId ?? info.bfsIdHauptort
   );
   if (!factor) {
-    return { ...empty, einfache };
+    return { ...EMPTY_RESULT, einfache };
   }
 
-  const kantonFuss = factor.IncomeRateCanton / 100;
-  const gemeindeFuss = factor.IncomeRateCity / 100;
+  const factorRates = factor as unknown as FactorRates;
+  const kantonFuss = (factorRates[fussFelder.kanton] as number) / 100;
+  const gemeindeFuss = (factorRates[fussFelder.gemeinde] as number) / 100;
   const kircheFuss =
     getKirchensatz(
       factor as unknown as Record<string, unknown>,
-      "Income",
+      kirchenPrefix,
       input.religion
     ) / 100;
 
@@ -184,6 +191,25 @@ export function einkommensteuerKanton(
   };
 }
 
+/** Helfer-Type um Faktor-Felder typsicher zuzugreifen. */
+type FactorRates = Record<string, number>;
+
+/**
+ * Berechnet die Einkommenssteuer Kanton + Gemeinde + Kirche für einen Kanton.
+ */
+export function einkommensteuerKanton(
+  steuerbaresEinkommen: number,
+  input: KantonSteuerInput
+): KantonSteuerResult {
+  return steuerKantonGenerisch(
+    steuerbaresEinkommen,
+    input,
+    "EINKOMMENSSTEUER",
+    { kanton: "IncomeRateCanton", gemeinde: "IncomeRateCity" },
+    "Income"
+  );
+}
+
 /**
  * Berechnet die Vermögenssteuer Kanton + Gemeinde + Kirche für einen Kanton.
  */
@@ -191,55 +217,13 @@ export function vermoegensteuerKanton(
   vermoegen: number,
   input: KantonSteuerInput
 ): KantonSteuerResult {
-  const empty: KantonSteuerResult = {
-    einfache: 0,
-    kanton: 0,
-    gemeinde: 0,
-    kirche: 0,
-    total: 0,
-  };
-  if (vermoegen <= 0) return empty;
-
-  const info = KANTON_INFO[input.kanton];
-  if (!info) return empty;
-
-  const tarifs = getTarifs(info.cantonId, input.jahr);
-  const tarif = findTarifFor(tarifs, "VERMOEGENSSTEUER", input.fallart);
-  if (!tarif) return empty;
-
-  const split = applySplitting(vermoegen, tarif, input.fallart);
-  const rounded = round100Down(split, tarif);
-  const taxes = calculateTaxes(rounded, tarif);
-  const einfache = reverseSplitting(taxes, tarif, input.fallart);
-
-  const factor = findFactor(
-    info.cantonId,
-    input.jahr,
-    input.bfsId ?? info.bfsIdHauptort
+  return steuerKantonGenerisch(
+    vermoegen,
+    input,
+    "VERMOEGENSSTEUER",
+    { kanton: "FortuneRateCanton", gemeinde: "FortuneRateCity" },
+    "Fortune"
   );
-  if (!factor) {
-    return { ...empty, einfache };
-  }
-
-  const kantonFuss = factor.FortuneRateCanton / 100;
-  const gemeindeFuss = factor.FortuneRateCity / 100;
-  const kircheFuss =
-    getKirchensatz(
-      factor as unknown as Record<string, unknown>,
-      "Fortune",
-      input.religion
-    ) / 100;
-
-  const kanton = einfache * kantonFuss;
-  const gemeinde = einfache * gemeindeFuss;
-  const kirche = einfache * kircheFuss;
-  return {
-    einfache,
-    kanton,
-    gemeinde,
-    kirche,
-    total: kanton + gemeinde + kirche,
-  };
 }
 
 /**

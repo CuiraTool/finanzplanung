@@ -347,10 +347,29 @@ function nettolohn(input: {
 }
 
 /**
- * Hauptfunktion DBG: berechnet alle Abzüge + steuerbares Einkommen für
- * die Bundessteuer.
+ * Konfiguration der ebenen-spezifischen Pauschalen (DBG vs. Kanton).
+ * DBG hat eigene fixe Werte, Kanton hat pro-Kanton-Pauschalen.
  */
-export function abzuegeDbg(input: AbzugInput): AbzugDetail {
+interface AbzugPauschalen {
+  berufsauslagenSatz: number;
+  berufsauslagenMin: number;
+  berufsauslagenMax: number;
+  versicherungSingle: number;
+  versicherungPaar: number;
+  versicherungKind: number;
+  doppelverdienerProzent: number;
+  doppelverdienerMin: number;
+  doppelverdienerMax: number;
+  kinderabzug: number;
+}
+
+/**
+ * Berechnet alle Abzüge + steuerbares Einkommen mit gegebenen Pauschalen.
+ * Wird von abzuegeDbg (DBG-Konstanten) und abzuegeKanton (Kanton-Pauschalen)
+ * aufgerufen — die Berechnungslogik ist identisch, nur die Pauschalen
+ * unterscheiden sich.
+ */
+function berechneAbzuege(input: AbzugInput, p: AbzugPauschalen): AbzugDetail {
   const p1 = nettolohn({
     brutto: input.bruttoErwerbP1,
     alter: input.alterP1,
@@ -366,23 +385,23 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
 
   const berufsauslagenP1 = berufsauslagen(
     p1.netto,
-    DBG_BERUFSAUSLAGEN_SATZ,
-    DBG_BERUFSAUSLAGEN_MIN,
-    DBG_BERUFSAUSLAGEN_MAX
+    p.berufsauslagenSatz,
+    p.berufsauslagenMin,
+    p.berufsauslagenMax
   );
   const berufsauslagenP2 =
     input.fallart === "paar"
       ? berufsauslagen(
           p2.netto,
-          DBG_BERUFSAUSLAGEN_SATZ,
-          DBG_BERUFSAUSLAGEN_MIN,
-          DBG_BERUFSAUSLAGEN_MAX
+          p.berufsauslagenSatz,
+          p.berufsauslagenMin,
+          p.berufsauslagenMax
         )
       : 0;
 
   const versicherungspraemien =
-    (input.fallart === "paar" ? DBG_VERSICHERUNG_PAAR : DBG_VERSICHERUNG_SINGLE) +
-    input.anzahlKinder * DBG_VERSICHERUNG_KIND;
+    (input.fallart === "paar" ? p.versicherungPaar : p.versicherungSingle) +
+    input.anzahlKinder * p.versicherungKind;
 
   // 3a: max-cap je Person, dann Summe — User darf nicht mehr als anerkannt abziehen
   const max3a =
@@ -397,23 +416,18 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
     input.bruttoErwerbP1,
     input.bruttoErwerbP2,
     input.fallart,
-    DBG_DOPPELVERDIENER_PROZENT,
-    DBG_DOPPELVERDIENER_MIN,
-    DBG_DOPPELVERDIENER_MAX
+    p.doppelverdienerProzent,
+    p.doppelverdienerMin,
+    p.doppelverdienerMax
   );
 
-  const kinderabzug = input.anzahlKinder * DBG_KINDERABZUG;
-
-  const sozialP1 = p1.sozial;
-  const sozialP2 = p2.sozial;
-  const bvgP1 = p1.bvg;
-  const bvgP2 = p2.bvg;
+  const kinderabzug = input.anzahlKinder * p.kinderabzug;
 
   const total =
-    sozialP1 +
-    sozialP2 +
-    bvgP1 +
-    bvgP2 +
+    p1.sozial +
+    p2.sozial +
+    p1.bvg +
+    p2.bvg +
     berufsauslagenP1 +
     berufsauslagenP2 +
     versicherungspraemien +
@@ -425,10 +439,10 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
   const bruttoTotal = input.bruttoErwerbP1 + input.bruttoErwerbP2;
 
   return {
-    sozialversicherungP1: sozialP1,
-    sozialversicherungP2: sozialP2,
-    bvgBeitragP1: bvgP1,
-    bvgBeitragP2: bvgP2,
+    sozialversicherungP1: p1.sozial,
+    sozialversicherungP2: p2.sozial,
+    bvgBeitragP1: p1.bvg,
+    bvgBeitragP2: p2.bvg,
     berufsauslagenP1,
     berufsauslagenP2,
     versicherungspraemien,
@@ -443,6 +457,25 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
 }
 
 /**
+ * Hauptfunktion DBG: berechnet alle Abzüge + steuerbares Einkommen für
+ * die Bundessteuer.
+ */
+export function abzuegeDbg(input: AbzugInput): AbzugDetail {
+  return berechneAbzuege(input, {
+    berufsauslagenSatz: DBG_BERUFSAUSLAGEN_SATZ,
+    berufsauslagenMin: DBG_BERUFSAUSLAGEN_MIN,
+    berufsauslagenMax: DBG_BERUFSAUSLAGEN_MAX,
+    versicherungSingle: DBG_VERSICHERUNG_SINGLE,
+    versicherungPaar: DBG_VERSICHERUNG_PAAR,
+    versicherungKind: DBG_VERSICHERUNG_KIND,
+    doppelverdienerProzent: DBG_DOPPELVERDIENER_PROZENT,
+    doppelverdienerMin: DBG_DOPPELVERDIENER_MIN,
+    doppelverdienerMax: DBG_DOPPELVERDIENER_MAX,
+    kinderabzug: DBG_KINDERABZUG,
+  });
+}
+
+/**
  * Hauptfunktion Kanton: kantons-spezifische Pauschalen für Versicherung,
  * Doppelverdiener und Kinderabzug.
  *
@@ -451,93 +484,16 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
  */
 export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetail {
   const kp = getKantonPauschalen(kantonCode);
-
-  const p1 = nettolohn({
-    brutto: input.bruttoErwerbP1,
-    alter: input.alterP1,
-    hatPkAnschluss: input.hatPkAnschlussP1,
-    istBereitsNetto: input.einkommenIstNetto,
+  return berechneAbzuege(input, {
+    berufsauslagenSatz: KT_BERUFSAUSLAGEN_SATZ,
+    berufsauslagenMin: KT_BERUFSAUSLAGEN_MIN,
+    berufsauslagenMax: KT_BERUFSAUSLAGEN_MAX,
+    versicherungSingle: kp.versicherungSingle,
+    versicherungPaar: kp.versicherungPaar,
+    versicherungKind: kp.versicherungKind,
+    doppelverdienerProzent: kp.doppelverdienerProzent,
+    doppelverdienerMin: kp.doppelverdienerMin,
+    doppelverdienerMax: kp.doppelverdienerMax,
+    kinderabzug: kp.kinderabzug,
   });
-  const p2 = nettolohn({
-    brutto: input.bruttoErwerbP2,
-    alter: input.alterP2,
-    hatPkAnschluss: input.hatPkAnschlussP2,
-    istBereitsNetto: input.einkommenIstNetto,
-  });
-
-  const berufsauslagenP1 = berufsauslagen(
-    p1.netto,
-    KT_BERUFSAUSLAGEN_SATZ,
-    KT_BERUFSAUSLAGEN_MIN,
-    KT_BERUFSAUSLAGEN_MAX
-  );
-  const berufsauslagenP2 =
-    input.fallart === "paar"
-      ? berufsauslagen(
-          p2.netto,
-          KT_BERUFSAUSLAGEN_SATZ,
-          KT_BERUFSAUSLAGEN_MIN,
-          KT_BERUFSAUSLAGEN_MAX
-        )
-      : 0;
-
-  const versicherungspraemien =
-    (input.fallart === "paar" ? kp.versicherungPaar : kp.versicherungSingle) +
-    input.anzahlKinder * kp.versicherungKind;
-
-  const max3a =
-    saeule3aMaxProPerson(input.bruttoErwerbP1, input.hatPkAnschlussP1) +
-    (input.fallart === "paar"
-      ? saeule3aMaxProPerson(input.bruttoErwerbP2, input.hatPkAnschlussP2)
-      : 0);
-  const saeule3aAbzug = Math.min(input.saeule3aEinzahlungJahr, max3a);
-  const pkEinkaufAbzug = Math.max(0, input.pkEinkaufJahr ?? 0);
-
-  const ddvAbzug = doppelverdienerabzug(
-    input.bruttoErwerbP1,
-    input.bruttoErwerbP2,
-    input.fallart,
-    kp.doppelverdienerProzent,
-    kp.doppelverdienerMin,
-    kp.doppelverdienerMax
-  );
-
-  const kinderabzug = input.anzahlKinder * kp.kinderabzug;
-
-  const sozialP1 = p1.sozial;
-  const sozialP2 = p2.sozial;
-  const bvgP1 = p1.bvg;
-  const bvgP2 = p2.bvg;
-
-  const total =
-    sozialP1 +
-    sozialP2 +
-    bvgP1 +
-    bvgP2 +
-    berufsauslagenP1 +
-    berufsauslagenP2 +
-    versicherungspraemien +
-    saeule3aAbzug +
-    pkEinkaufAbzug +
-    ddvAbzug +
-    kinderabzug;
-
-  const bruttoTotal = input.bruttoErwerbP1 + input.bruttoErwerbP2;
-
-  return {
-    sozialversicherungP1: sozialP1,
-    sozialversicherungP2: sozialP2,
-    bvgBeitragP1: bvgP1,
-    bvgBeitragP2: bvgP2,
-    berufsauslagenP1,
-    berufsauslagenP2,
-    versicherungspraemien,
-    saeule3aAbzug,
-    pkEinkaufAbzug,
-    doppelverdienerabzug: ddvAbzug,
-    kinderabzug,
-    total,
-    bruttoTotal,
-    steuerbar: Math.max(0, bruttoTotal - total),
-  };
 }
