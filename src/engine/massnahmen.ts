@@ -388,7 +388,7 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
     const aktuelleSteuer = steuerProJahr(baseInput).einkommen;
     const mitEinkaufSteuer = steuerProJahr({
       ...baseInput,
-      saeule3aEinzahlungJahr: aktuell3a + beispielEinkauf,
+      pkEinkaufJahr: beispielEinkauf,
     }).einkommen;
     const ersparnis = aktuelleSteuer - mitEinkaufSteuer;
     if (ersparnis > 1_000) {
