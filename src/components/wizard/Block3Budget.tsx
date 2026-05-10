@@ -1,14 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   usePlanStore,
   type AusgabenKategorien,
   type AusgabenModus,
+  type Einkommensperiode,
 } from "@/lib/store";
 import { indikativeSteuerHeute } from "@/engine/steuer";
 import { Field } from "@/components/ui/Field";
 import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
-import { inputClass, selectClass } from "@/components/ui/styles";
+import { inputClass } from "@/components/ui/styles";
 import { formatChf } from "@/lib/format";
 
 const KATEGORIEN: { key: keyof AusgabenKategorien; label: string; hint?: string }[] = [
@@ -67,105 +69,19 @@ export function Block3Budget() {
         <legend className="px-1 text-sm font-semibold text-slate-700">
           Einnahmen
           <span className="ml-2 text-xs font-normal text-slate-400">
-            brutto vor Steuer — mehrere Perioden möglich
+            netto pro Monat — mehrere Einkommen möglich (Hauptjob, Nebenjob,
+            Renten, Mieteinnahmen Privat usw.)
           </span>
         </legend>
 
-        {budget.einkommen.length === 0 && (
-          <p className="text-xs text-slate-400">Noch keine Einnahmen erfasst.</p>
-        )}
-
-        <ul className="space-y-2">
-          {budget.einkommen.map((e, idx) => (
-            <li
-              key={e.id}
-              className="space-y-2 rounded-md border border-slate-200 bg-white p-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">
-                  Periode {idx + 1}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeEink(e.id)}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Entfernen
-                </button>
-              </div>
-
-              <Field label="Beschreibung">
-                <input
-                  type="text"
-                  value={e.beschreibung}
-                  onChange={(ev) =>
-                    updateEink(e.id, { beschreibung: ev.target.value })
-                  }
-                  placeholder="z.B. Hauptjob, Teilzeit ab 60"
-                  className={inputClass}
-                />
-              </Field>
-
-              {fallart === "paar" && (
-                <Field label="Person">
-                  <select
-                    value={e.personIdx}
-                    onChange={(ev) =>
-                      updateEink(e.id, {
-                        personIdx: Number(ev.target.value) as 1 | 2,
-                      })
-                    }
-                    className={selectClass}
-                  >
-                    <option value={1}>{personOption(1)}</option>
-                    <option value={2}>{personOption(2)}</option>
-                  </select>
-                </Field>
-              )}
-
-              <Field
-                label="Betrag pro Monat (CHF, brutto)"
-                hint="vor Steuerabzug — Steuern werden separat berechnet (Block 3 unten)"
-              >
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={e.betragMonatlich ?? ""}
-                  onChange={(ev) =>
-                    updateEink(e.id, {
-                      betragMonatlich:
-                        ev.target.value === "" ? null : Number(ev.target.value),
-                    })
-                  }
-                  placeholder="z.B. 8'500"
-                  className={`${inputClass} tabular-nums`}
-                />
-              </Field>
-
-              <Field label="Von (Monat)">
-                <MonthYearPicker
-                  value={e.von}
-                  onChange={(v) => updateEink(e.id, { von: v })}
-                />
-              </Field>
-              <Field label="Bis (Monat)" hint="leer = bis Pensionierung / offen">
-                <MonthYearPicker
-                  value={e.bis}
-                  onChange={(v) => updateEink(e.id, { bis: v })}
-                  allowEmpty
-                />
-              </Field>
-            </li>
-          ))}
-        </ul>
-
-        <button
-          type="button"
-          onClick={addEink}
-          className="mt-2 w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
-        >
-          + Einnahme hinzufügen
-        </button>
+        <EinkommenInlineListe
+          items={budget.einkommen}
+          fallart={fallart}
+          personOption={personOption}
+          onAdd={addEink}
+          onUpdate={updateEink}
+          onRemove={removeEink}
+        />
       </fieldset>
 
       {/* Ausgaben */}
@@ -337,3 +253,173 @@ function ModusButton({
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Einnahmen — Inline-Liste mit Auto-First-Row
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function EinkommenInlineListe({
+  items,
+  fallart,
+  personOption,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  items: Einkommensperiode[];
+  fallart: "einzel" | "paar";
+  personOption: (idx: 1 | 2) => string;
+  onAdd: () => void;
+  onUpdate: (id: string, patch: Partial<Einkommensperiode>) => void;
+  onRemove: (id: string) => void;
+}) {
+  // Auto-First-Row: wenn die Liste leer ist, eine erste Zeile erzeugen
+  // damit der Berater direkt tippen kann. Lazy via useEffect.
+  useEffect(() => {
+    if (items.length === 0) onAdd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]);
+
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-2">
+        {items.map((e, idx) => (
+          <li
+            key={e.id}
+            className="rounded-md border border-slate-200 bg-white p-3"
+          >
+            <div className="grid grid-cols-12 gap-2">
+              {/* Beschreibung — 4 cols */}
+              <div className="col-span-12 sm:col-span-4">
+                <label
+                  className="mb-1 block text-[11px] font-medium"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  Beschreibung
+                </label>
+                <input
+                  type="text"
+                  value={e.beschreibung}
+                  onChange={(ev) =>
+                    onUpdate(e.id, { beschreibung: ev.target.value })
+                  }
+                  placeholder={
+                    idx === 0 ? "Hauptjob" : "z.B. Teilzeit, Rente, Miete"
+                  }
+                  className={inputClass}
+                />
+              </div>
+
+              {/* Betrag — 3 cols */}
+              <div className="col-span-6 sm:col-span-3">
+                <label
+                  className="mb-1 block text-[11px] font-medium"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  CHF / Monat (netto)
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={e.betragMonatlich ?? ""}
+                  onChange={(ev) =>
+                    onUpdate(e.id, {
+                      betragMonatlich:
+                        ev.target.value === "" ? null : Number(ev.target.value),
+                    })
+                  }
+                  placeholder="z.B. 7'500"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </div>
+
+              {/* Von — 2 cols */}
+              <div className="col-span-3 sm:col-span-2">
+                <label
+                  className="mb-1 block text-[11px] font-medium"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  Von
+                </label>
+                <MonthYearPicker
+                  value={e.von}
+                  onChange={(v) => onUpdate(e.id, { von: v })}
+                />
+              </div>
+
+              {/* Bis — 2 cols */}
+              <div className="col-span-3 sm:col-span-2">
+                <label
+                  className="mb-1 block text-[11px] font-medium"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  Bis
+                </label>
+                <MonthYearPicker
+                  value={e.bis}
+                  onChange={(v) => onUpdate(e.id, { bis: v })}
+                  allowEmpty
+                />
+              </div>
+
+              {/* Entfernen-Button — 1 col */}
+              <div className="col-span-12 flex justify-end sm:col-span-1 sm:items-end sm:justify-center">
+                <button
+                  type="button"
+                  onClick={() => onRemove(e.id)}
+                  className="text-[11px] text-red-600 hover:underline sm:mb-2"
+                  title="Einnahme entfernen"
+                  disabled={items.length === 1}
+                  style={{ opacity: items.length === 1 ? 0.4 : 1 }}
+                >
+                  ✕ Entfernen
+                </button>
+              </div>
+
+              {/* Person-Dropdown nur bei Paar */}
+              {fallart === "paar" && (
+                <div className="col-span-12">
+                  <label
+                    className="mb-1 block text-[11px] font-medium"
+                    style={{ color: "var(--ink-2)" }}
+                  >
+                    Person
+                  </label>
+                  <div className="flex gap-2">
+                    {([1, 2] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => onUpdate(e.id, { personIdx: p })}
+                        className={`rounded-md border px-3 py-1 text-xs transition ${
+                          e.personIdx === p
+                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        {personOption(p)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div
+              className="mt-1 text-[10px]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Bis-Feld leer = bis Pensionierung / offen
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-1 w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
+      >
+        + Weitere Einnahme hinzufügen
+      </button>
+    </div>
+  );
+}

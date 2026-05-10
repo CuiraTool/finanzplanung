@@ -463,10 +463,13 @@ function ReligionPanel() {
   const religion = usePlanStore((s) => s.budget.religion);
   const setReligion = usePlanStore((s) => s.setReligion);
 
+  // Nur die staatlich anerkannten Landeskirchen mit eigenem ESTV-Tarif
+  // werden hier angezeigt. Israelitisch + Andere → 'Andere/Keine'-Option,
+  // weil sie via Steuerveranlagung 0% sind (Kirchen erheben Beiträge separat).
   const optionen: {
     value: typeof religion;
     label: string;
-    sub?: string;
+    sub: string;
   }[] = [
     { value: "katholisch", label: "Katholisch", sub: "römisch-katholisch" },
     { value: "reformiert", label: "Reformiert", sub: "evangelisch-reformiert" },
@@ -475,38 +478,38 @@ function ReligionPanel() {
       label: "Christkatholisch",
       sub: "alt-katholisch",
     },
-    { value: "israelitisch", label: "Israelitisch", sub: "kantonal separat" },
-    { value: "andere", label: "Andere", sub: "z.B. orthodox, muslimisch" },
-    { value: "keine", label: "Keine", sub: "konfessionslos" },
+    { value: "keine", label: "Andere / Keine", sub: "0% Kirchensteuer" },
   ];
+
+  // Backwards-Compat: alte 'israelitisch'/'andere' Werte auf 'keine' mappen
+  const aktiv =
+    religion === "israelitisch" || religion === "andere" ? "keine" : religion;
 
   return (
     <Section
       title="Religion"
       hint="für Kirchensteuer — wirkt auf Wohnsitz-Gemeinde. Nur die anerkannten Landeskirchen erheben Steuer via Veranlagung."
     >
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {optionen.map((o) => (
           <button
             key={o.value}
             type="button"
             onClick={() => setReligion(o.value)}
             className={`flex flex-col items-start rounded-md border px-3 py-2 text-left text-sm transition ${
-              religion === o.value
+              aktiv === o.value
                 ? "border-blue-600 bg-blue-50 text-blue-700"
                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
             }`}
           >
             <span className="font-medium">{o.label}</span>
-            {o.sub && (
-              <span
-                className={`text-[10.5px] ${
-                  religion === o.value ? "text-blue-600/80" : "text-slate-400"
-                }`}
-              >
-                {o.sub}
-              </span>
-            )}
+            <span
+              className={`text-[10.5px] ${
+                aktiv === o.value ? "text-blue-600/80" : "text-slate-400"
+              }`}
+            >
+              {o.sub}
+            </span>
           </button>
         ))}
       </div>
