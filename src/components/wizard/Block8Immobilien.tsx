@@ -232,6 +232,31 @@ function ImmobilieCard({
         </Field>
       )}
 
+      <Field
+        label="Erwartete Wertsteigerung pro Jahr (%)"
+        hint="historischer CH-Mittelwert ~1.5 % p.a. — wird im Cashflow compounded"
+      >
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            step={0.1}
+            min={-5}
+            max={10}
+            value={item.wertsteigerungProzent ?? ""}
+            onChange={(e) =>
+              onUpdate({
+                wertsteigerungProzent:
+                  e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+            placeholder="1.5"
+            className={`${inputClass} w-24 tabular-nums`}
+          />
+          <span className="text-xs text-slate-500">%/Jahr</span>
+        </div>
+      </Field>
+
       <HypothekenListe
         hypotheken={item.hypotheken}
         onAdd={onAddHypothek}
@@ -362,9 +387,19 @@ function VerkaufsErloesPanel({
   }
 
   // Bei "verkaufen" → GGSt mit-rechnen
+  // Verkehrswert wird mit Wertsteigerung auf das Verkaufsjahr hochgerechnet
+  const heuteJahr = new Date().getFullYear();
+  const wachstumProzent = item.wertsteigerungProzent ?? 1.5;
+  const dauer = Math.max(0, item.verkaufsjahr - heuteJahr);
+  const verkehrswertHochgerechnet = item.verkehrswert
+    ? Math.round(
+        item.verkehrswert * Math.pow(1 + wachstumProzent / 100, dauer)
+      )
+    : 0;
+
   const auszahlung = immobilienVerkaufsAuszahlungNetto(
     {
-      verkehrswert: item.verkehrswert,
+      verkehrswert: verkehrswertHochgerechnet,
       hypothekenSumme: hypoSumme,
       plan: item.plan,
       verkaufsjahr: item.verkaufsjahr,
@@ -379,9 +414,15 @@ function VerkaufsErloesPanel({
   return (
     <div className="space-y-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-xs">
       <div className="flex justify-between">
-        <span className="text-slate-500">Verkehrswert {item.verkaufsjahr}:</span>
+        <span className="text-slate-500">
+          Verkehrswert {item.verkaufsjahr}{" "}
+          <span className="text-slate-400">
+            (+{wachstumProzent}%/J über {dauer}J)
+          </span>
+          :
+        </span>
         <span className="font-semibold tabular-nums text-slate-700">
-          {formatChf(item.verkehrswert)}
+          {formatChf(verkehrswertHochgerechnet)}
         </span>
       </div>
       <div className="flex justify-between">

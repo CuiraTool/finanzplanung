@@ -216,6 +216,13 @@ export interface Immobilie {
    * wird er hier eingegeben.
    */
   anlagekosten?: number | null;
+  /**
+   * Erwartete jährliche Wertsteigerung in % (default 1.5 — historischer
+   * CH-Mittelwert für Wohneigentum). Wirkt im Cashflow auf den Verkehrs-
+   * wert: Wert(jahr) = verkehrswert × (1 + p/100)^(jahr - heute).
+   * Bei null/undefined: Default 1.5%.
+   */
+  wertsteigerungProzent?: number | null;
 }
 
 export interface ImmobilienInput {
@@ -1235,7 +1242,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v27",
+      name: "cuira-plan-v28",
     }
   )
 );

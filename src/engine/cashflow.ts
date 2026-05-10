@@ -720,14 +720,17 @@ function kapitalauszahlungenJahr(
   // und vom Brutto-Erlös (Verkehrswert − Hypothek) abgezogen. Der
   // Kanton kommt aus state.adresse — bei unbekannten Kantonen fällt
   // die Engine auf "andere"-Tarif (≈ ZH-Median) zurück.
+  // Verkehrswert wird auf das Verkaufsjahr hochgerechnet (default 1.5 %/J).
+  const heuteJahr = new Date().getFullYear();
   for (const im of state.immobilien.items) {
     if (im.plan !== "verkaufen") continue;
     if (im.verkaufsjahr !== jahr) continue;
     if (im.verkehrswert == null) continue;
     const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+    const verkehrswertImVerkaufsjahr = immobilieWert(im, jahr, heuteJahr);
     const auszahlung = immobilienVerkaufsAuszahlungNetto(
       {
-        verkehrswert: im.verkehrswert,
+        verkehrswert: verkehrswertImVerkaufsjahr,
         hypothekenSumme: hypo,
         plan: im.plan,
         verkaufsjahr: im.verkaufsjahr,
@@ -923,12 +926,31 @@ function vorsorgeVermoegenAmJahresende(
   return total;
 }
 
+/**
+ * Immobilien-Verkehrswert mit Wertsteigerung.
+ *
+ * Approximation: jährlich um wertsteigerungProzent (default 1.5 % —
+ * historischer CH-Mittelwert für Wohneigentum) compound. Heute ist
+ * der eingegebene `verkehrswert` der Anker.
+ */
+function immobilieWert(
+  im: Immobilie,
+  jahr: number,
+  heute: number
+): number {
+  if (im.verkehrswert == null) return 0;
+  const p = (im.wertsteigerungProzent ?? 1.5) / 100;
+  const dauer = Math.max(0, jahr - heute);
+  return Math.round(im.verkehrswert * Math.pow(1 + p, dauer));
+}
+
 function immobilienWertAmJahresende(items: Immobilie[], jahr: number): number {
+  const heute = new Date().getFullYear();
   let total = 0;
   for (const im of items) {
     if (im.verkehrswert == null) continue;
     if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
-    total += im.verkehrswert;
+    total += immobilieWert(im, jahr, heute);
   }
   return total;
 }
