@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { usePlanStore } from "@/lib/store";
+import { usePlanStore, type PlanState } from "@/lib/store";
 import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
 import { cashflowReihe, applyOverrides } from "@/engine/cashflow";
 import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
@@ -119,8 +119,19 @@ export function Dashboard() {
     [cashflowBRaw, heutigesJahr, inflationRate, inflationEnabled]
   );
 
-  const fullState = usePlanStore();
-  const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
+  // massnahmenAusState braucht zusätzlich nachlass + zivilstand zum cashflowState.
+  // Wir selektieren granular statt usePlanStore() (würde bei jedem Wizard-
+  // Tastendruck einen kompletten Store-Snapshot triggern → useMemo nutzlos).
+  const nachlass = usePlanStore((s) => s.nachlass);
+  const zivilstand = usePlanStore((s) => s.zivilstand);
+  const massnahmenState = useMemo(
+    () => ({ ...cashflowState, nachlass, zivilstand }),
+    [cashflowState, nachlass, zivilstand]
+  );
+  const massnahmen = useMemo(
+    () => massnahmenAusState(massnahmenState as unknown as PlanState),
+    [massnahmenState]
+  );
 
   const ordPensionsjahr = useMemo(
     () => pensionsjahr(person1.geburtsdatum, ORDENTLICHES_AHV_ALTER),

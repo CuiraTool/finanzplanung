@@ -138,8 +138,51 @@ export const usePlanVersionenStore = create<VersionsState>()(
             )
           ) as SerialPlan,
         };
-        const next = [v, ...get().versionen].slice(0, MAX_VERSIONEN);
-        set({ versionen: next });
+
+        const fullList = [v, ...get().versionen].slice(0, MAX_VERSIONEN);
+
+        // Probe-Save gegen LocalStorage-Quota: starte mit voller Liste,
+        // droppe ältere Versionen bei QuotaExceededError und retry, bis
+        // die neue Version drin ist oder selbst sie zu gross ist.
+        if (typeof window !== "undefined" && window.localStorage) {
+          const PROBE_KEY = "__cuira-versionen-probe__";
+          let candidate = fullList;
+          let gedroppt = 0;
+
+          while (candidate.length > 0) {
+            const probe = JSON.stringify({
+              state: { versionen: candidate },
+              version: 0,
+            });
+            try {
+              window.localStorage.setItem(PROBE_KEY, probe);
+              window.localStorage.removeItem(PROBE_KEY);
+              set({ versionen: candidate });
+              if (gedroppt > 0) {
+                console.warn(
+                  `[plan-versionen] Browser-Speicher voll — ${gedroppt} älteste Version(en) verworfen, um neue Version zu sichern.`
+                );
+              }
+              return id;
+            } catch (err) {
+              const isQuota =
+                err instanceof Error &&
+                (err.name === "QuotaExceededError" ||
+                  err.name === "NS_ERROR_DOM_QUOTA_REACHED");
+              if (!isQuota || candidate.length <= 1) {
+                throw new Error(
+                  "Speicher voll: neue Version konnte nicht gesichert werden — bitte alte Versionen löschen.",
+                  { cause: err }
+                );
+              }
+              candidate = candidate.slice(0, -1);
+              gedroppt++;
+            }
+          }
+        }
+
+        // SSR-Fallback (kein localStorage): einfach in-memory speichern.
+        set({ versionen: fullList });
         return id;
       },
 
