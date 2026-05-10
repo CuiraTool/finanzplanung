@@ -6,6 +6,7 @@ import { block1MinimumErfuellt } from "@/lib/validation";
 import { formatChf } from "@/lib/format";
 import { useViewMode } from "@/lib/view-mode";
 import { Block1Personen } from "./Block1Personen";
+import { QuickStart } from "./QuickStart";
 import { DocUploadCenter } from "./DocUploadCenter";
 import { ImportPanel } from "./ImportPanel";
 import { SzenarioPanel } from "./SzenarioPanel";
@@ -228,6 +229,7 @@ export function Wizard() {
   const [viewMode] = useViewMode();
   const [docOpen, setDocOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [quickStartSkipped, setQuickStartSkipped] = useState(false);
 
   // Im "wizard-only"-View-Modus haben wir die volle Breite und können die
   // Block-Liste links / Eingabe rechts stellen. In Split bleibt's vertikal.
@@ -242,6 +244,45 @@ export function Wizard() {
       setAktiverBlock(1);
     }
   }, [validation.komplett, aktiverBlock, setAktiverBlock]);
+
+  // Quick-Start zeigen wenn der Plan komplett leer ist UND der User nicht
+  // explizit übersprungen hat. Sobald minimal ein Geburtsdatum + Einkommen
+  // erfasst sind (egal über Quick-Start oder Import), wird der normale
+  // Wizard angezeigt.
+  const planLeer =
+    !fullState.person1.geburtsdatum &&
+    !fullState.person1.vorname &&
+    (fullState.ahv.einkommenP1 ?? 0) === 0 &&
+    (fullState.budget.einkommenHeute ?? 0) === 0;
+
+  if (planLeer && !quickStartSkipped) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto">
+        <div className="flex items-center justify-between border-b px-4 py-2 text-xs"
+          style={{
+            borderColor: "var(--border)",
+            color: "var(--ink-3)",
+          }}
+        >
+          <span>Quick-Start · 5 Eckwerte für die erste Schätzung</span>
+          <button
+            type="button"
+            onClick={() => setQuickStartSkipped(true)}
+            className="rounded-md border px-2 py-1 text-[11px] transition-colors hover:bg-[var(--surface-hover)]"
+            style={{
+              borderColor: "var(--border)",
+              color: "var(--ink-2)",
+            }}
+          >
+            Direkt zum Wizard →
+          </button>
+        </div>
+        <div className="flex-1">
+          <QuickStart onContinue={() => setQuickStartSkipped(true)} />
+        </div>
+      </div>
+    );
+  }
 
   // Geführter-Flow-Modus: vollflächig, ohne Block-Liste
   if (mode === "flow") {
