@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePlanStore } from "@/lib/store";
+import { usePlanStore, type PlanState } from "@/lib/store";
 import { block1MinimumErfuellt } from "@/lib/validation";
+import { formatChf } from "@/lib/format";
 import { useViewMode } from "@/lib/view-mode";
 import { Block1Personen } from "./Block1Personen";
 import { DocUploadCenter } from "./DocUploadCenter";
@@ -49,6 +50,134 @@ const BLOCKS = [
   { id: 10, title: "Nachlass", implemented: true },
   { id: 11, title: "Variante B (Vergleich)", implemented: true },
 ] as const;
+
+/**
+ * Glance-Value pro Block — eine Zeile mit dem wichtigsten Eckwert,
+ * damit der Berater im Sidebar sofort sieht, was schon erfasst ist.
+ *
+ * Bewusst defensiv: bei null/undefined einen sanften Hinweis statt
+ * "—" oder leerer Zeile zeigen, weil das Sidebar-Polish Vertrauen
+ * vermitteln soll ("hier siehst du, was du schon hast").
+ */
+function blockGlance(blockId: number, s: PlanState): string {
+  switch (blockId) {
+    case 1: {
+      const isPaar = s.fallart === "paar";
+      if (!s.person1.vorname) return "noch nicht erfasst";
+      const name = isPaar
+        ? `${s.person1.vorname || "P1"} + ${s.person2.vorname || "P2"}`
+        : s.person1.vorname;
+      return s.adresse.kanton ? `${name} · ${s.adresse.kanton}` : name;
+    }
+    case 2: {
+      const a = s.ziele.bezugsalterP1 || 0;
+      if (!a) return "Pensionsalter offen";
+      const note = a < 65 ? "Frühpension" : a === 65 ? "ordentlich" : "aufgeschoben";
+      return `Pension ${a} · ${note}`;
+    }
+    case 3: {
+      const eink = s.budget.einkommenHeute;
+      const ausg = s.budget.ausgabenTotal;
+      if (!eink && !ausg) return "Budget offen";
+      if (eink && ausg)
+        return `${formatChf(eink)} / ${formatChf(ausg)}/Mt`;
+      if (eink) return `Einkommen ${formatChf(eink)}`;
+      return `Ausgaben ${formatChf(ausg)}/Mt`;
+    }
+    case 4: {
+      const eink = s.ahv.einkommenP1;
+      if (!eink) return "AHV-Einkommen offen";
+      return `Massg. Eink. ${formatChf(eink)}`;
+    }
+    case 5: {
+      const ag = s.bvg.p1.altersguthabenHeute;
+      if (!ag) return "PK-Guthaben offen";
+      return `PK-Saldo ${formatChf(ag)}`;
+    }
+    case 6: {
+      const total =
+        s.saeuleDrei.p1.reduce(
+          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+          0
+        ) +
+        s.saeuleDrei.p2.reduce(
+          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
+          0
+        );
+      const n = s.saeuleDrei.p1.length + s.saeuleDrei.p2.length;
+      if (n === 0) return "noch nichts erfasst";
+      return `${formatChf(total)} · ${n} Konto${n > 1 ? "s" : ""}`;
+    }
+    case 7: {
+      const total = s.vermoegen.items.reduce(
+        (a, it) => a + (it.saldoHeute ?? 0),
+        0
+      );
+      if (s.vermoegen.items.length === 0) return "noch nichts erfasst";
+      return `${formatChf(total)} · ${s.vermoegen.items.length} Position${
+        s.vermoegen.items.length > 1 ? "en" : ""
+      }`;
+    }
+    case 8: {
+      if (s.immobilien.items.length === 0) return "keine Immobilie";
+      const total = s.immobilien.items.reduce(
+        (a, im) => a + (im.verkehrswert ?? 0),
+        0
+      );
+      return `${s.immobilien.items.length} Liegenschaft · ${formatChf(total)}`;
+    }
+    case 9:
+      return s.firma.vorhanden
+        ? s.firma.firmenname || "Firma erfasst"
+        : "keine Firma";
+    case 10: {
+      const yes = (Object.values(s.nachlass) as boolean[]).filter(Boolean)
+        .length;
+      const total = Object.keys(s.nachlass).length;
+      return `${yes} / ${total} Dokumente`;
+    }
+    case 11:
+      return s.szenarioB.aktiv ? "Variante B aktiv" : "noch keine Variante B";
+    default:
+      return "";
+  }
+}
+
+/**
+ * Block ist "abgeschlossen" wenn ein Mindest-Eckwert da ist (Heuristik).
+ * Wird für die Progress-Bar oben in der Sidebar verwendet.
+ */
+function blockIstErledigt(blockId: number, s: PlanState): boolean {
+  switch (blockId) {
+    case 1:
+      return !!(s.person1.vorname && s.person1.geburtsdatum);
+    case 2:
+      return s.ziele.bezugsalterP1 > 0;
+    case 3:
+      return (
+        (s.budget.einkommenHeute ?? 0) > 0 ||
+        (s.budget.ausgabenTotal ?? 0) > 0
+      );
+    case 4:
+      return (s.ahv.einkommenP1 ?? 0) > 0;
+    case 5:
+      return (s.bvg.p1.altersguthabenHeute ?? 0) > 0;
+    case 6:
+      return s.saeuleDrei.p1.length + s.saeuleDrei.p2.length > 0;
+    case 7:
+      return s.vermoegen.items.length > 0;
+    case 8:
+      return true; // optional
+    case 9:
+      return !s.firma.vorhanden || !!s.firma.firmenname;
+    case 10:
+      return true; // optional
+    case 11:
+      return true; // optional
+    default:
+      return false;
+  }
+}
 
 type WizardMode = "klassisch" | "flow";
 
@@ -198,60 +327,119 @@ function BlockNavigation({
   validation,
   sticky,
 }: BlockNavProps) {
+  const fullState = usePlanStore();
+  const erledigt = useMemo(
+    () => blocks.filter((b) => blockIstErledigt(b.id, fullState)).length,
+    [blocks, fullState]
+  );
+  const pct = Math.round((erledigt / blocks.length) * 100);
+
   return (
-    <ol
-      className={`mb-6 space-y-1 ${
-        sticky ? "sticky top-2 self-start" : ""
-      }`}
+    <div
+      className={`mb-6 ${sticky ? "sticky top-2 self-start" : ""}`}
     >
-      {blocks.map((b) => {
-        const isActive = aktiverBlock === b.id;
-        const isLocked = b.id !== 1 && !validation.komplett;
-        const isClickable = b.implemented && !isLocked;
-        return (
-          <li key={b.id}>
-            <button
-              type="button"
-              onClick={() => isClickable && setAktiverBlock(b.id)}
-              disabled={!isClickable}
-              title={
-                isLocked ? "Erst Block 1 ausfüllen (Pflichtfelder)" : undefined
-              }
-              className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition ${
-                isActive
-                  ? "border-blue-600 bg-blue-50"
-                  : isClickable
-                    ? "border-slate-200 bg-slate-50 hover:border-slate-300"
-                    : "border-slate-200 bg-slate-50 text-slate-400"
-              }`}
-            >
-              <span
-                className={`flex size-6 items-center justify-center rounded-full text-xs font-medium tabular-nums ${
-                  isActive
-                    ? "bg-blue-600 text-white"
-                    : isLocked
-                      ? "bg-slate-200 text-slate-400"
-                      : "bg-slate-200 text-slate-700"
-                }`}
+      {/* Progress-Bar (Phase 6 Polish nach Handoff) */}
+      <div className="cui-rail-progress">
+        <div className="cui-rail-progress-bar">
+          <div
+            className="cui-rail-progress-fill"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="cui-rail-progress-text">
+          <span>
+            {erledigt} / {blocks.length} erledigt
+          </span>
+          <strong>{pct}%</strong>
+        </div>
+      </div>
+
+      <ol className="space-y-1">
+        {blocks.map((b) => {
+          const isActive = aktiverBlock === b.id;
+          const isLocked = b.id !== 1 && !validation.komplett;
+          const isClickable = b.implemented && !isLocked;
+          const isDone = blockIstErledigt(b.id, fullState);
+          const glance = blockGlance(b.id, fullState);
+          return (
+            <li key={b.id}>
+              <button
+                type="button"
+                onClick={() => isClickable && setAktiverBlock(b.id)}
+                disabled={!isClickable}
+                title={
+                  isLocked
+                    ? "Erst Block 1 ausfüllen (Pflichtfelder)"
+                    : undefined
+                }
+                className="flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left transition"
+                style={{
+                  background: isActive
+                    ? "var(--accent-soft)"
+                    : "var(--surface-2)",
+                  borderColor: isActive
+                    ? "var(--accent)"
+                    : "var(--border)",
+                  color: isActive
+                    ? "var(--accent-ink)"
+                    : isClickable
+                    ? "var(--ink-2)"
+                    : "var(--ink-4)",
+                  cursor: isClickable ? "pointer" : "not-allowed",
+                }}
               >
-                {b.id}
-              </span>
-              <span className="flex-1">{b.title}</span>
-              {isLocked && (
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                  🔒
+                <span
+                  className="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums"
+                  style={{
+                    background: isActive
+                      ? "var(--accent)"
+                      : isDone
+                      ? "var(--pos)"
+                      : "var(--surface-hover)",
+                    color: isActive || isDone ? "white" : "var(--ink-3)",
+                  }}
+                >
+                  {isDone && !isActive ? "✓" : b.id}
                 </span>
-              )}
-              {!b.implemented && (
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                  bald
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium leading-tight">
+                    {b.title}
+                  </span>
+                  <span className="cui-rail-glance">{glance}</span>
                 </span>
-              )}
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+                {isLocked && (
+                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-4)" }}>
+                    🔒
+                  </span>
+                )}
+                {!b.implemented && (
+                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-4)" }}>
+                    bald
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      {/* Footer mit Schema/Engine-Info (Phase 6 Polish) */}
+      <div
+        className="mt-3 border-t pt-2 text-[10px]"
+        style={{ borderColor: "var(--border)", color: "var(--ink-3)" }}
+      >
+        <div className="flex justify-between">
+          <span>Schema</span>
+          <strong style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>
+            v25
+          </strong>
+        </div>
+        <div className="flex justify-between">
+          <span>Engine</span>
+          <strong style={{ fontWeight: 500 }}>BSV 2025</strong>
+        </div>
+      </div>
+    </div>
   );
 }
 

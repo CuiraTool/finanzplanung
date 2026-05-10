@@ -2105,3 +2105,328 @@ input[type="number"] {
   background: var(--surface-hover);
   color: var(--ink);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Pro-Modus Topbar Polish (Phase 6 Migration)
+   Source: design_handoff_cuira_app/Cuira Pensionsplanung.html
+   Klassen: cui-topbar-* + cui-scenario-* + cui-cmd-* + cui-rail-*
+   Genutzt vom CuiraHeader und Wizard-Sidebar.
+   ════════════════════════════════════════════════════════════════════ */
+
+.cui-topbar-mandant {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.cui-topbar-mandant:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.cui-topbar-mandant-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--cuira-deep);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cui-topbar-mandant-name {
+  font-weight: 500;
+  color: var(--ink);
+}
+.cui-topbar-mandant-kanton {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* Scenario A/B Tabs */
+.cui-scenario-bar {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.cui-scenario-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 140ms ease;
+}
+.cui-scenario-tab:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+.cui-scenario-tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+.cui-scenario-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ink-4);
+}
+.cui-scenario-dot.a {
+  background: var(--accent);
+}
+.cui-scenario-dot.b {
+  background: oklch(0.65 0.16 30);
+}
+.cui-scenario-tab .cui-scenario-x {
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 2px;
+  padding: 0 3px;
+  color: var(--ink-3);
+  border-radius: 4px;
+}
+.cui-scenario-tab .cui-scenario-x:hover {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+/* ⌘K Command Button */
+.cui-topbar-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 140ms ease;
+}
+.cui-topbar-cmd:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--ink-2);
+}
+.cui-topbar-cmd-key {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+/* Topbar Avatar (Berater) */
+.cui-topbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--cuira-deep);
+  color: white;
+  font-size: 10.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.cui-topbar-avatar:hover {
+  background: var(--cuira-deep-soft);
+  transform: scale(1.05);
+}
+
+/* Topbar Icon-Button (PDF, Settings, etc.) */
+.cui-topbar-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms ease;
+}
+.cui-topbar-icon-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+/* Wizard Rail (Sidebar Polish) */
+.cui-rail-progress {
+  margin-bottom: 14px;
+}
+.cui-rail-progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cui-rail-progress-fill {
+  height: 100%;
+  background: var(--cuira-deep);
+  border-radius: 999px;
+  transition: width 320ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.cui-rail-progress-text {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.cui-rail-progress-text strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.cui-rail-glance {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ⌘K Command Palette */
+.cui-cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 37, 64, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: cui-cmdk-fade 180ms ease;
+}
+@keyframes cui-cmdk-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.cui-cmdk-panel {
+  width: 90%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: cui-cmdk-pop 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes cui-cmdk-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.cui-cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.cui-cmdk-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  background: transparent;
+  font-family: inherit;
+  color: var(--ink);
+}
+.cui-cmdk-search input::placeholder {
+  color: var(--ink-3);
+}
+.cui-cmdk-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.cui-cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  transition: background 100ms ease;
+}
+.cui-cmdk-item:hover,
+.cui-cmdk-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.cui-cmdk-item-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  min-width: 22px;
+}
+.cui-cmdk-item.is-active .cui-cmdk-item-num {
+  color: var(--accent-ink);
+}
+.cui-cmdk-item-meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.cui-cmdk-foot {
+  padding: 8px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px;
+  color: var(--ink-3);
+  display: flex;
+  justify-content: space-between;
+}
+.cui-cmdk-empty {
+  padding: 30px 18px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
