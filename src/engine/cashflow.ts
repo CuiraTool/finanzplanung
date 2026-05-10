@@ -58,7 +58,10 @@ export type CashflowInput = Pick<
   | "budget"
   | "adresse"
   | "einmaligeAusgaben"
->;
+> & {
+  /** Optional — wird für Erbschaft/Schenkung-Engine verwendet wenn vorhanden. */
+  erbschaft?: PlanState["erbschaft"];
+};
 
 /**
  * Wendet Szenario-B-Overrides auf einen CashflowInput an. Felder im Overlay
@@ -144,6 +147,7 @@ export interface CashflowZeile {
   einnahmenAhv: number;
   einnahmenBvgRente: number;
   einnahmenMieten: number;
+  einnahmenErbschaft: number; // einmalige Erbschaft (im Jahr; nur wenn Toggle aktiv)
   einnahmenTotal: number;
   ausgabenHaushalt: number;
   ausgabenSteuern: number;
@@ -157,6 +161,7 @@ export interface CashflowZeile {
   ausgabenSozialBvg: number; // AHV/IV/EO + ALV + NBU + BVG-AN-Beitrag (Erwerbsphase)
   ausgabenVorsorge3a: number; // jährliche Einzahlungen Säule 3a/3b
   ausgabenHypozins: number; // jährliche Hypothek-Zinsen (Σ über alle laufenden Tranchen)
+  ausgabenSchenkung: number; // einmalige Schenkung / Erbvorbezug (im Jahr; nur wenn Toggle aktiv)
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -284,8 +289,15 @@ export function cashflowReihe(
 
     const einnahmenMieten = mieteinnahmenJahr(state.immobilien.items, jahr);
 
+    // Erbschaft als einmaliger Eingang im erwartetJahr (nur wenn Toggle aktiv)
+    const einnahmenErbschaft = erbschaftEinnahmeJahr(state, jahr);
+
     const einnahmenTotal =
-      einnahmenErwerb + einnahmenAhv + einnahmenBvgRente + einnahmenMieten;
+      einnahmenErwerb +
+      einnahmenAhv +
+      einnahmenBvgRente +
+      einnahmenMieten +
+      einnahmenErbschaft;
 
     // ─── Kapitalauszahlungen (einmalig im Jahr) ──────────────────
     const kapZeile = kapitalauszahlungenJahr(
@@ -306,6 +318,7 @@ export function cashflowReihe(
     const ausgabenHaushalt = haushaltsausgabenJahr(state.budget, istPensioniert);
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
     const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
+    const ausgabenSchenkung = schenkungAusgabeJahr(state, jahr);
 
     // Vermögen vor Steuern (Stand Jahresanfang) — vereinfacht: Block-7-Saldi
     // VOR der Cashflow-Buchung in diesem Jahr, plus Immobilien minus Hypotheken.
@@ -382,7 +395,8 @@ export function cashflowReihe(
       ausgabenEinmalig +
       ausgabenSozialBvg +
       ausgabenVorsorge3a +
-      ausgabenHypozins;
+      ausgabenHypozins +
+      ausgabenSchenkung;
 
     // ─── Saldo ───────────────────────────────────────────────────
     const saldo = einnahmenTotal - ausgabenTotal;
@@ -444,6 +458,7 @@ export function cashflowReihe(
       einnahmenAhv: Math.round(einnahmenAhv),
       einnahmenBvgRente: Math.round(einnahmenBvgRente),
       einnahmenMieten: Math.round(einnahmenMieten),
+      einnahmenErbschaft: Math.round(einnahmenErbschaft),
       einnahmenTotal: Math.round(einnahmenTotal),
       ausgabenHaushalt: Math.round(ausgabenHaushalt),
       ausgabenSteuern: Math.round(ausgabenSteuern),
@@ -457,6 +472,7 @@ export function cashflowReihe(
       ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
       ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
       ausgabenHypozins: Math.round(ausgabenHypozins),
+      ausgabenSchenkung: Math.round(ausgabenSchenkung),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
@@ -1116,4 +1132,38 @@ function firmaWertAmJahresende(
   if (firma.moeglicherVerkaufserloes == null) return 0;
   if (firma.plan === "verkaufen" && jahr >= firma.verkaufsjahr) return 0;
   return firma.moeglicherVerkaufserloes;
+}
+
+/**
+ * Erbschaft als Einmal-Eingang im erwarteten Jahr.
+ * Wirkt nur, wenn:
+ *  - User hat 'Ja absehbar' oder 'Möglich' gewählt
+ *  - Toggle 'erwartetBeruecksichtigen' ist aktiv
+ *  - Betrag und Jahr sind gefüllt
+ *  - Das aktuelle Jahr === erwartetes Jahr
+ */
+function erbschaftEinnahmeJahr(state: CashflowInput, jahr: number): number {
+  const e = state.erbschaft;
+  if (!e) return 0;
+  if (!e.erwartetBeruecksichtigen) return 0;
+  if (e.erwartet === "nein" || e.erwartet === "keine_angabe") return 0;
+  if (e.erwartetJahr !== jahr) return 0;
+  return Math.max(0, e.erwartetBetrag ?? 0);
+}
+
+/**
+ * Schenkung / Erbvorbezug als Einmal-Ausgang im angegebenen Jahr.
+ * Wirkt nur, wenn:
+ *  - User hat 'getätigt' oder 'geplant' gewählt
+ *  - Toggle 'schenkungenBeruecksichtigen' ist aktiv
+ *  - Betrag und Jahr sind gefüllt
+ *  - Das aktuelle Jahr === Schenkungs-Jahr
+ */
+function schenkungAusgabeJahr(state: CashflowInput, jahr: number): number {
+  const e = state.erbschaft;
+  if (!e) return 0;
+  if (!e.schenkungenBeruecksichtigen) return 0;
+  if (e.schenkungenStatus === "nein" || e.schenkungenStatus == null) return 0;
+  if (e.schenkungenJahr !== jahr) return 0;
+  return Math.max(0, e.schenkungenBetrag ?? 0);
 }

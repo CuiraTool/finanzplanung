@@ -34,6 +34,7 @@ export function Dashboard() {
   const adresse = usePlanStore((s) => s.adresse);
   const einmaligeAusgaben = usePlanStore((s) => s.einmaligeAusgaben);
   const szenarioB = usePlanStore((s) => s.szenarioB);
+  const erbschaft = usePlanStore((s) => s.erbschaft);
 
   const heutigesJahr = new Date().getFullYear();
 
@@ -53,6 +54,7 @@ export function Dashboard() {
       budget,
       adresse,
       einmaligeAusgaben,
+      erbschaft,
     }),
     [
       fallart,
@@ -69,6 +71,7 @@ export function Dashboard() {
       budget,
       adresse,
       einmaligeAusgaben,
+      erbschaft,
     ]
   );
 

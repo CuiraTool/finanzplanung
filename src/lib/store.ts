@@ -355,9 +355,30 @@ export type SchenkungenStatus = "getaetigt" | "geplant" | "nein";
 /** Block N — Erbschaft, Schenkung, Güterrecht. */
 export interface ErbschaftInput {
   erwartet: ErbschaftStatus | null;
+  /** @deprecated Stattdessen `erwartetBetrag` + `erwartetJahr` nutzen. */
   groessenordnung: ErbschaftGroesse | null;
+  /** Erwarteter Erbschafts-Betrag (CHF) — wenn erwartet ja/möglich. */
+  erwartetBetrag: number | null;
+  /** Erwartetes Jahr der Erbschaft. */
+  erwartetJahr: number | null;
+  /**
+   * Soll die Erbschaft im Cashflow / Vermögensverlauf berücksichtigt werden?
+   * Default: false (vorsichtige Annahme — nur einrechnen wenn der Berater
+   * explizit will).
+   */
+  erwartetBeruecksichtigen: boolean;
   /** Schenkungen / Erbvorbezüge: bereits getätigt, geplant oder nein. */
   schenkungenStatus: SchenkungenStatus | null;
+  /** Schenkungs-Betrag (CHF) — wenn getätigt oder geplant. */
+  schenkungenBetrag: number | null;
+  /** Jahr der Schenkung. */
+  schenkungenJahr: number | null;
+  /**
+   * Soll die Schenkung im Cashflow / Vermögensverlauf als Minus
+   * berücksichtigt werden? Default true für getätigt (rückwirkend),
+   * false für geplant (Berater entscheidet aktiv).
+   */
+  schenkungenBeruecksichtigen: boolean;
   schenkungenDetails: string;
   gueterstand: Gueterstand | null;
 }
@@ -736,7 +757,13 @@ export const usePlanStore = create<PlanState>()(
       erbschaft: {
         erwartet: null,
         groessenordnung: null,
+        erwartetBetrag: null,
+        erwartetJahr: null,
+        erwartetBeruecksichtigen: false,
         schenkungenStatus: null,
+        schenkungenBetrag: null,
+        schenkungenJahr: null,
+        schenkungenBeruecksichtigen: false,
         schenkungenDetails: "",
         gueterstand: null,
       },
@@ -1297,7 +1324,13 @@ export const usePlanStore = create<PlanState>()(
           erbschaft: {
             erwartet: null,
             groessenordnung: null,
+            erwartetBetrag: null,
+            erwartetJahr: null,
+            erwartetBeruecksichtigen: false,
             schenkungenStatus: null,
+            schenkungenBetrag: null,
+            schenkungenJahr: null,
+            schenkungenBeruecksichtigen: false,
             schenkungenDetails: "",
             gueterstand: null,
           },
@@ -1336,7 +1369,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v30",
+      name: "cuira-plan-v31",
     }
   )
 );

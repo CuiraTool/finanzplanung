@@ -3,10 +3,9 @@
 import {
   usePlanStore,
   type NachlassThemaKey,
-  type ErbschaftGroesse,
 } from "@/lib/store";
 import { Field } from "@/components/ui/Field";
-import { selectClass, inputClass } from "@/components/ui/styles";
+import { inputClass } from "@/components/ui/styles";
 
 const THEMEN: { key: NachlassThemaKey; titel: string; erklaerung: string }[] = [
   {
@@ -97,27 +96,47 @@ export function Block10Nachlass() {
 
         {(erbschaft.erwartet === "ja_absehbar" ||
           erbschaft.erwartet === "moeglich") && (
-          <Field
-            label="Grössenordnung (grobe Schätzung)"
-            hint="optional — keine fixe Zahl nötig, dient der Pensions-Hochrechnung"
-          >
-            <select
-              value={erbschaft.groessenordnung ?? ""}
-              onChange={(e) =>
-                setErbschaft({
-                  groessenordnung:
-                    (e.target.value as ErbschaftGroesse | "") || null,
-                })
-              }
-              className={selectClass}
-            >
-              <option value="">— wählen —</option>
-              <option value="lt200k">unter CHF 200'000</option>
-              <option value="200k_1m">CHF 200'000 – 1 Mio</option>
-              <option value="1m_5m">CHF 1 – 5 Mio</option>
-              <option value="gt5m">über CHF 5 Mio</option>
-            </select>
-          </Field>
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Erwarteter Betrag (CHF)">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={erbschaft.erwartetBetrag ?? ""}
+                  onChange={(e) =>
+                    setErbschaft({
+                      erwartetBetrag:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="z.B. 350'000"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Erwartetes Jahr">
+                <input
+                  type="number"
+                  min={2024}
+                  max={2080}
+                  value={erbschaft.erwartetJahr ?? ""}
+                  onChange={(e) =>
+                    setErbschaft({
+                      erwartetJahr:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="z.B. 2032"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+            </div>
+            <ToggleRow
+              label="Im Vermögensverlauf berücksichtigen"
+              hint="Wenn aktiv: Erbschaft fliesst im Erwartungs-Jahr als Einmaleingang ins Hauptkonto"
+              checked={erbschaft.erwartetBeruecksichtigen}
+              onChange={(v) => setErbschaft({ erwartetBeruecksichtigen: v })}
+            />
+          </>
         )}
 
         <Field
@@ -150,20 +169,69 @@ export function Block10Nachlass() {
 
         {(erbschaft.schenkungenStatus === "getaetigt" ||
           erbschaft.schenkungenStatus === "geplant") && (
-          <Field
-            label="Details (optional)"
-            hint="Beträge, Zeitpunkt, Begünstigte — frei in Worten"
-          >
-            <textarea
-              value={erbschaft.schenkungenDetails}
-              onChange={(e) =>
-                setErbschaft({ schenkungenDetails: e.target.value })
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Betrag (CHF)">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={erbschaft.schenkungenBetrag ?? ""}
+                  onChange={(e) =>
+                    setErbschaft({
+                      schenkungenBetrag:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="z.B. 100'000"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Jahr">
+                <input
+                  type="number"
+                  min={1990}
+                  max={2080}
+                  value={erbschaft.schenkungenJahr ?? ""}
+                  onChange={(e) =>
+                    setErbschaft({
+                      schenkungenJahr:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder={
+                    erbschaft.schenkungenStatus === "getaetigt"
+                      ? "z.B. 2023"
+                      : "z.B. 2027"
+                  }
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+            </div>
+            <ToggleRow
+              label="Als Minus im Vermögensverlauf berücksichtigen"
+              hint={
+                erbschaft.schenkungenStatus === "getaetigt"
+                  ? "Bei 'getätigt': falls die Schenkung schon im aktuellen Vermögen abgebildet ist, lassen Sie den Toggle aus"
+                  : "Bei 'geplant': im Schenkungsjahr fliesst der Betrag als Einmal-Ausgang aus dem Hauptkonto"
               }
-              rows={2}
-              placeholder="z.B. 100k an Tochter 2024 als Erbvorbezug; 50k an Sohn 2027 geplant"
-              className={`${inputClass} resize-none`}
+              checked={erbschaft.schenkungenBeruecksichtigen}
+              onChange={(v) => setErbschaft({ schenkungenBeruecksichtigen: v })}
             />
-          </Field>
+            <Field
+              label="Details (optional)"
+              hint="Begünstigte und Hintergrund — frei in Worten"
+            >
+              <textarea
+                value={erbschaft.schenkungenDetails}
+                onChange={(e) =>
+                  setErbschaft({ schenkungenDetails: e.target.value })
+                }
+                rows={2}
+                placeholder="z.B. Erbvorbezug an Tochter Sarah, später als Anzahlung Eigentumswohnung"
+                className={`${inputClass} resize-none`}
+              />
+            </Field>
+          </>
         )}
       </fieldset>
 
@@ -199,6 +267,39 @@ export function Block10Nachlass() {
   );
 }
 
+
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition ${
+        checked
+          ? "border-blue-300 bg-blue-50/40"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 size-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+      />
+      <div className="flex-1">
+        <div className="text-sm font-medium text-slate-700">{label}</div>
+        {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
+      </div>
+    </label>
+  );
+}
 
 function ThemaCard({
   titel,
