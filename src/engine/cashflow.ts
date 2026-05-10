@@ -246,16 +246,27 @@ export function cashflowReihe(
         ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr)
         : 0);
 
+    // AHV-Einnahmen je nach Pensionierungsstatus:
+    //  • beide pensioniert → Ehepaarrente (Splitting + Plafond)
+    //  • nur einer pensioniert → seine eigene Einzelrente (kein Plafond,
+    //    kein Splitting — beides erst ab gemeinsamer Pensionierung)
     let einnahmenAhv = 0;
-    if (ahvBezugsjahrP1 != null && jahr >= ahvBezugsjahrP1) {
-      einnahmenAhv += ahvRenteHaushalt.haushalt;
-    } else if (
+    const p1AhvBezieht =
+      ahvBezugsjahrP1 != null && jahr >= ahvBezugsjahrP1;
+    const p2AhvBezieht =
       state.fallart === "paar" &&
       ahvBezugsjahrP2 != null &&
-      jahr >= ahvBezugsjahrP2
-    ) {
-      // Nur P2 ist pensioniert — vereinfacht: gleiche Rente wenn beide pensioniert wären, halbiert
-      einnahmenAhv += ahvRenteHaushalt.haushalt / 2;
+      jahr >= ahvBezugsjahrP2;
+    if (state.fallart === "paar") {
+      if (p1AhvBezieht && p2AhvBezieht) {
+        einnahmenAhv = ahvRenteHaushalt.haushalt;
+      } else if (p1AhvBezieht) {
+        einnahmenAhv = ahvRenteHaushalt.p1Einzel;
+      } else if (p2AhvBezieht) {
+        einnahmenAhv = ahvRenteHaushalt.p2Einzel;
+      }
+    } else if (p1AhvBezieht) {
+      einnahmenAhv = ahvRenteHaushalt.haushalt;
     }
 
     let einnahmenBvgRente = 0;
@@ -558,26 +569,37 @@ function computeAhvRente(
   state: CashflowInput,
   bezugsjahrP1: number | null,
   bezugsjahrP2: number | null
-): { haushalt: number } {
+): { haushalt: number; p1Einzel: number; p2Einzel: number } {
   const e1 = state.ahv.einkommenP1;
-  if (e1 == null) return { haushalt: 0 };
+  if (e1 == null) return { haushalt: 0, p1Einzel: 0, p2Einzel: 0 };
   const fehljahreP1 = state.ahv.hatFehljahreP1 ? state.ahv.fehljahreAnzahlP1 : 0;
   const bezugsalterP1 = clampAhvAlter(state.ahv.ahvBezugsalterP1);
 
+  const p1Einzel = ahvJahresrenteEinzel({
+    massgebendesEinkommen: e1,
+    fehljahre: fehljahreP1,
+    bezugsalter: bezugsalterP1,
+    bezugsjahr: bezugsjahrP1 ?? new Date().getFullYear(),
+  }).jahresrente;
+
   if (state.fallart === "einzel") {
-    const r = ahvJahresrenteEinzel({
-      massgebendesEinkommen: e1,
-      fehljahre: fehljahreP1,
-      bezugsalter: bezugsalterP1,
-      bezugsjahr: bezugsjahrP1 ?? new Date().getFullYear(),
-    });
-    return { haushalt: r.jahresrente };
+    return { haushalt: p1Einzel, p1Einzel, p2Einzel: 0 };
   }
 
   const e2 = state.ahv.einkommenP2;
-  if (e2 == null) return { haushalt: 0 };
+  if (e2 == null) return { haushalt: 0, p1Einzel, p2Einzel: 0 };
   const fehljahreP2 = state.ahv.hatFehljahreP2 ? state.ahv.fehljahreAnzahlP2 : 0;
   const bezugsalterP2 = clampAhvAlter(state.ahv.ahvBezugsalterP2);
+
+  // Einzelrente P2 ohne Splitting — gilt, wenn P2 vor P1 oder allein bezieht.
+  const p2Einzel = ahvJahresrenteEinzel({
+    massgebendesEinkommen: e2,
+    fehljahre: fehljahreP2,
+    bezugsalter: bezugsalterP2,
+    bezugsjahr: bezugsjahrP2 ?? new Date().getFullYear(),
+  }).jahresrente;
+
+  // Ehepaar-Rente (mit Splitting + Plafond) — gilt, wenn beide pensioniert.
   const refJahr = Math.max(
     bezugsjahrP1 ?? new Date().getFullYear(),
     bezugsjahrP2 ?? new Date().getFullYear()
@@ -591,7 +613,7 @@ function computeAhvRente(
     bezugsalterP2,
     bezugsjahr: refJahr,
   });
-  return { haushalt: out.haushaltsRente };
+  return { haushalt: out.haushaltsRente, p1Einzel, p2Einzel };
 }
 
 function computeBvgRenteHaushalt(state: CashflowInput): { p1: number; p2: number } {
