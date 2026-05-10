@@ -7,7 +7,11 @@ import {
   type ImmobilienPlan,
   type Hypothek,
 } from "@/lib/store";
-import { immobilienAufteilung, immobilieNettoHeute } from "@/engine/immobilien";
+import {
+  immobilienAufteilung,
+  immobilieNettoHeute,
+  immobilienVerkaufsAuszahlungNetto,
+} from "@/engine/immobilien";
 import { formatChf } from "@/lib/format";
 import { Field } from "@/components/ui/Field";
 import { KpiPill } from "@/components/ui/KpiPill";
@@ -259,34 +263,156 @@ function ImmobilieCard({
       </div>
 
       {item.plan === "verkaufen" && (
-        <Field label="Verkaufsjahr">
-          <input
-            type="number"
-            min={2024}
-            max={2080}
-            value={item.verkaufsjahr}
-            onChange={(e) => onUpdate({ verkaufsjahr: Number(e.target.value) })}
-            className={`${inputClass} w-32 tabular-nums`}
-          />
-        </Field>
-      )}
-
-      {netto != null && (
-        <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
-          <span className="text-slate-500">
-            {item.plan === "verkaufen"
-              ? `Voraussichtliche Auszahlung im Jahr ${item.verkaufsjahr}:`
-              : "Netto-Wert heute:"}
-          </span>{" "}
-          <span className="font-semibold tabular-nums text-slate-700">
-            {formatChf(netto)}
-          </span>
-          <div className="mt-1 text-slate-400">
-            Verkehrswert {formatChf(item.verkehrswert)} − Hypotheken {formatChf(hypoSumme)}
+        <div className="space-y-3 rounded-md border border-amber-100 bg-amber-50/50 p-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-amber-800">
+            Verkaufs-Daten · GGSt-Berechnung
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Verkaufsjahr">
+              <input
+                type="number"
+                min={2024}
+                max={2080}
+                value={item.verkaufsjahr}
+                onChange={(e) =>
+                  onUpdate({ verkaufsjahr: Number(e.target.value) })
+                }
+                className={`${inputClass} tabular-nums`}
+              />
+            </Field>
+            <Field
+              label="Kaufjahr"
+              hint="Für Besitzdauer-Rabatt — leer = 15 J. Annahme"
+            >
+              <input
+                type="number"
+                min={1950}
+                max={2030}
+                value={item.kaufjahr ?? ""}
+                placeholder="z.B. 2010"
+                onChange={(e) =>
+                  onUpdate({
+                    kaufjahr: e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                className={`${inputClass} tabular-nums`}
+              />
+            </Field>
+            <Field
+              label="Anlagekosten"
+              hint="Kaufpreis + Investitionen + Nebenkosten"
+            >
+              <input
+                type="number"
+                min={0}
+                value={item.anlagekosten ?? ""}
+                placeholder="leer = Default"
+                onChange={(e) =>
+                  onUpdate({
+                    anlagekosten:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                className={`${inputClass} tabular-nums`}
+              />
+            </Field>
           </div>
         </div>
       )}
+
+      <VerkaufsErloesPanel
+        item={item}
+        netto={netto}
+        hypoSumme={hypoSumme}
+      />
     </li>
+  );
+}
+
+/**
+ * Zeigt den Verkaufs-Erlös vor und nach Grundstückgewinnsteuer.
+ * Bei Plan "behalten" einfach den Netto-Wert heute.
+ */
+function VerkaufsErloesPanel({
+  item,
+  netto,
+  hypoSumme,
+}: {
+  item: Immobilie;
+  netto: number | null;
+  hypoSumme: number;
+}) {
+  const kantonCode = usePlanStore((s) => s.adresse.kanton);
+  if (netto == null) return null;
+
+  // Bei "behalten" einfach Netto-Wert heute
+  if (item.plan !== "verkaufen") {
+    return (
+      <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
+        <span className="text-slate-500">Netto-Wert heute:</span>{" "}
+        <span className="font-semibold tabular-nums text-slate-700">
+          {formatChf(netto)}
+        </span>
+        <div className="mt-1 text-slate-400">
+          Verkehrswert {formatChf(item.verkehrswert)} − Hypotheken{" "}
+          {formatChf(hypoSumme)}
+        </div>
+      </div>
+    );
+  }
+
+  // Bei "verkaufen" → GGSt mit-rechnen
+  const auszahlung = immobilienVerkaufsAuszahlungNetto(
+    {
+      verkehrswert: item.verkehrswert,
+      hypothekenSumme: hypoSumme,
+      plan: item.plan,
+      verkaufsjahr: item.verkaufsjahr,
+      kaufjahr: item.kaufjahr,
+      anlagekosten: item.anlagekosten,
+    },
+    kantonCode ?? ""
+  );
+
+  if (!auszahlung) return null;
+
+  return (
+    <div className="space-y-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-xs">
+      <div className="flex justify-between">
+        <span className="text-slate-500">Verkehrswert {item.verkaufsjahr}:</span>
+        <span className="font-semibold tabular-nums text-slate-700">
+          {formatChf(item.verkehrswert)}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-500">− Hypotheken:</span>
+        <span className="font-mono tabular-nums text-slate-600">
+          −{formatChf(hypoSumme)}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-500">
+          − Grundstückgewinnsteuer ({kantonCode || "—"},{" "}
+          {auszahlung.ggst.effektiverProzent}% auf{" "}
+          {formatChf(auszahlung.ggst.reingewinn)} Reingewinn):
+        </span>
+        <span className="font-mono tabular-nums text-amber-700">
+          −{formatChf(auszahlung.ggst.steuer)}
+        </span>
+      </div>
+      <div className="border-t border-emerald-200 pt-1.5 flex justify-between">
+        <span className="font-medium text-slate-700">Auszahlung netto:</span>
+        <span className="font-bold tabular-nums text-emerald-800">
+          {formatChf(auszahlung.netto)}
+        </span>
+      </div>
+      {item.kaufjahr == null && (
+        <div className="pt-1 text-slate-400">
+          ⚠ Kaufjahr leer — GGSt rechnet mit 15 J. Besitzdauer-Annahme. Genauer
+          mit echtem Kaufjahr.
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -7,12 +7,20 @@
  *   - Plan: behalten oder verkaufen (mit Verkaufsjahr)
  *   - Netto-Wert heute = Verkehrswert minus Summe aller Hypotheken
  *
- * Bei "verkaufen": im Verkaufsjahr fliesst (Verkehrswert - Hypothek-Total)
- * ins freie Vermögen. Grundstückgewinnsteuer (GGSt) — kantonal — wird in
- * Etappe 2 (Steuer-Engine) abgezogen.
+ * Bei "verkaufen": im Verkaufsjahr fliesst (Verkehrswert - Hypothek-Total
+ * − Grundstückgewinnsteuer) ins freie Vermögen. GGSt-Berechnung in
+ * `engine/grundstueckgewinn.ts` (kantonal, ZH/ZG/SZ/BE/LU/AG/SG/TI/VD).
  *
- * Eigenmietwert für selbstbewohnt + Schuldzinsabzug folgen ebenfalls in Etappe 2.
+ * Eigenmietwert für selbstbewohnt + Schuldzinsabzug folgen mit Etappe 2028
+ * Reform-Implementation (oder gar nicht, weil dann abgeschafft — siehe
+ * docs/Block8Immobilien.tsx).
  */
+
+import {
+  berechneGgst,
+  ggstKantonFromCode,
+  type GgstOutput,
+} from "./grundstueckgewinn";
 
 export type ImmobilienTyp = "selbstbewohnt" | "rendite";
 export type ImmobilienPlan = "behalten" | "verkaufen";
@@ -22,6 +30,10 @@ export interface ImmobilieFuerEngine {
   hypothekenSumme: number;
   plan: ImmobilienPlan;
   verkaufsjahr: number;
+  /** Optional: Kaufjahr für GGSt-Besitzdauer. Default = Verkaufsjahr - 15. */
+  kaufjahr?: number | null;
+  /** Optional: Anlagekosten (Kaufpreis + Investitionen) für GGSt. */
+  anlagekosten?: number | null;
 }
 
 /**
@@ -58,8 +70,13 @@ export function immobilienAufteilung(items: ImmobilieFuerEngine[]): {
 }
 
 /**
- * Liefert für eine Immobilie mit Plan "verkaufen" den Netto-Erlös im Verkaufsjahr.
+ * Liefert für eine Immobilie mit Plan "verkaufen" den Brutto-Erlös im Verkaufsjahr.
  * Liefert null bei Plan "behalten" oder fehlendem Verkehrswert.
+ *
+ * **Brutto** = Verkehrswert − Hypothek-Summe (vor GGSt). Die GGSt wird in
+ * `immobilienVerkaufsAuszahlungNetto` separat berechnet, weil sie den Kanton
+ * braucht — und der Kanton kommt aus dem Plan-State (Adresse), nicht aus
+ * der Immobilie selbst.
  */
 export function immobilienVerkaufsAuszahlung(
   im: ImmobilieFuerEngine
@@ -67,4 +84,52 @@ export function immobilienVerkaufsAuszahlung(
   if (im.plan !== "verkaufen" || im.verkehrswert == null) return null;
   const netto = im.verkehrswert - im.hypothekenSumme;
   return { jahr: im.verkaufsjahr, betrag: Math.round(netto) };
+}
+
+/**
+ * Netto-Auszahlung beim Verkauf inkl. Grundstückgewinnsteuer-Abzug.
+ *
+ * Auszahlung = Verkehrswert − Hypothek − GGSt
+ *
+ * Die GGSt wird auf den Reingewinn berechnet (Verkehrswert − Anlagekosten),
+ * nicht auf den Auszahlungs-Netto. Das ist der Standard-Steuermechanismus
+ * (CHE: Grundstückgewinn = Veräusserungspreis minus Anlagekosten).
+ *
+ * @param kantonCode Kanton aus dem Plan-Store (Adresse). Bei unbekanntem
+ *                   Code wird "andere"-Tarif (≈ ZH) verwendet.
+ */
+export function immobilienVerkaufsAuszahlungNetto(
+  im: ImmobilieFuerEngine,
+  kantonCode: string
+): {
+  jahr: number;
+  bruttoErloes: number;
+  ggst: GgstOutput;
+  netto: number;
+} | null {
+  if (im.plan !== "verkaufen" || im.verkehrswert == null) return null;
+
+  const bruttoErloes = im.verkehrswert - im.hypothekenSumme;
+
+  // Besitzdauer aus Kaufjahr ableiten, oder Default 15 J.
+  const besitzdauerJahre =
+    im.kaufjahr != null && im.kaufjahr > 0
+      ? Math.max(0, im.verkaufsjahr - im.kaufjahr)
+      : 15;
+
+  const ggst = berechneGgst({
+    verkaufspreis: im.verkehrswert,
+    anlagekosten: im.anlagekosten ?? null,
+    besitzdauerJahre,
+    kanton: ggstKantonFromCode(kantonCode),
+  });
+
+  const netto = bruttoErloes - ggst.steuer;
+
+  return {
+    jahr: im.verkaufsjahr,
+    bruttoErloes: Math.round(bruttoErloes),
+    ggst,
+    netto: Math.round(netto),
+  };
 }

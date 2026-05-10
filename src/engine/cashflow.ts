@@ -42,6 +42,7 @@ import {
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
 import { saeuleDreiAuszahlung } from "./saeule3";
 import { steuerProJahr } from "./steuer";
+import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
 
 export type CashflowInput = Pick<
@@ -714,13 +715,28 @@ function kapitalauszahlungenJahr(
     total += a.betrag;
   }
 
-  // Immobilien-Verkauf
+  // Immobilien-Verkauf — netto nach Grundstückgewinnsteuer
+  // GGSt wird auf den Reingewinn (Verkehrswert − Anlagekosten) berechnet
+  // und vom Brutto-Erlös (Verkehrswert − Hypothek) abgezogen. Der
+  // Kanton kommt aus state.adresse — bei unbekannten Kantonen fällt
+  // die Engine auf "andere"-Tarif (≈ ZH-Median) zurück.
   for (const im of state.immobilien.items) {
     if (im.plan !== "verkaufen") continue;
     if (im.verkaufsjahr !== jahr) continue;
     if (im.verkehrswert == null) continue;
     const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
-    total += im.verkehrswert - hypo;
+    const auszahlung = immobilienVerkaufsAuszahlungNetto(
+      {
+        verkehrswert: im.verkehrswert,
+        hypothekenSumme: hypo,
+        plan: im.plan,
+        verkaufsjahr: im.verkaufsjahr,
+        kaufjahr: im.kaufjahr,
+        anlagekosten: im.anlagekosten,
+      },
+      state.adresse.kanton ?? ""
+    );
+    if (auszahlung) total += auszahlung.netto;
   }
 
   // Firma-Verkauf

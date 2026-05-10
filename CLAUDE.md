@@ -28,7 +28,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 | Bereich | Entscheidung |
 |---|---|
 | Frontend | Next.js 15 + React 19 + TypeScript strict + Tailwind v4 |
-| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v17) |
+| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v26) |
 | Forms | controlled inputs gegen Zustand-Store, kein React Hook Form |
 | Charts (geplant) | Recharts |
 | **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |
@@ -53,7 +53,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 
 **Kontextsensitivität:** Sektion-Titel wechseln je Fallart (Einzelperson → "Personendaten", Paar → "Person 1 — Vorname"). Zivilstand-Optionen abhängig von Fallart.
 
-## Engine-Module (Stand 73 Tests grün)
+## Engine-Module (Stand 161 Tests grün)
 
 ```
 src/engine/
@@ -86,7 +86,7 @@ src/engine/
   Die Auslegeordnung ist damit für den Zustand nach 2028 realistisch.
   Kurzfristig kann das die Steuerschätzung der nächsten 1-3 Jahre leicht
   überzeichnen. Dokumentiert in `Block8Immobilien.tsx`.
-- 🟡 Grundstückgewinnsteuer beim Verkauf noch offen
+- ✅ Grundstückgewinnsteuer beim Verkauf (engine/grundstueckgewinn.ts) — 9 Kantone ZH/ZG/SZ/BE/LU/AG/SG/TI/VD + Median-Fallback, Besitzdauer-Faktor (Spekulationszuschlag bis +50%, Langhalter-Rabatt bis −60%), optional Kaufjahr+Anlagekosten pro Immobilie
 - 🟡 BVG-Sparphase Saldo-Hochlauf (springt heute auf altersguthabenBeiBezug)
 
 ## Etappenplan
@@ -124,7 +124,7 @@ src/engine/
 ```bash
 pnpm install               # Dependencies
 pnpm dev                   # Dev-Server localhost:3000
-pnpm test                  # Vitest single-run (73 Tests aktuell)
+pnpm test                  # Vitest single-run (161 Tests aktuell)
 pnpm test:watch            # Vitest watch mode
 pnpm typecheck             # TS strict check (tsc --noEmit)
 pnpm build                 # Production build

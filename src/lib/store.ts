@@ -203,6 +203,19 @@ export interface Immobilie {
   verkaufsjahr: number;
   /** Nur bei Typ "rendite" relevant — jährliche Bruttomieteinnahmen. */
   jaehrlicheMieteinnahmen: number | null;
+  /**
+   * Kaufjahr (für Besitzdauer-Berechnung bei Grundstückgewinnsteuer).
+   * Wenn null/undefined: Default = Kaufjahr unbekannt → Engine nimmt
+   * eine pessimistische Annahme von 15 J. Besitzdauer.
+   */
+  kaufjahr?: number | null;
+  /**
+   * Anlagekosten = Kaufpreis + wertvermehrende Investitionen + Kaufnebenkosten.
+   * Wenn null/undefined: Engine nimmt 75% des Verkaufspreises bei 15 J. Besitz
+   * (Default-Annahme aus berechneGgst). Wenn der User einen genauen Wert hat,
+   * wird er hier eingegeben.
+   */
+  anlagekosten?: number | null;
 }
 
 export interface ImmobilienInput {
@@ -1223,7 +1236,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v25",
+      name: "cuira-plan-v26",
     }
   )
 );
