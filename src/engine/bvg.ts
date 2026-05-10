@@ -181,3 +181,99 @@ export function bvgBezug(input: BvgBezugInput): BvgBezugOutput {
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
+
+// ─── WEF-Vorbezug Validierung (BVG Art. 30a–g) ──────────────────────
+
+export const WEF_MINDESTBETRAG = 20_000;
+export const WEF_INTERVALL_JAHRE = 5;
+export const WEF_SPERRFRIST_VOR_BEZUG_JAHRE = 3;
+export const WEF_HALBIERUNGSALTER = 50;
+
+export interface WefWarnung {
+  entryId: string;
+  schwere: "fehler" | "warnung";
+  text: string;
+}
+
+export interface WefValidiereInput {
+  vorbezuege: { id: string; jahr: number; betrag: number | null }[];
+  altersguthabenHeute: number | null;
+  geburtsjahr: number;
+  pkBezugsjahr: number | null;
+}
+
+/**
+ * Prüft die gesetzlichen Limiten für WEF-Vorbezüge:
+ *  • Mindestbetrag CHF 20'000 (BVG Art. 30c Abs. 1)
+ *  • 5-Jahres-Intervall zwischen Bezügen (BVG Art. 30c Abs. 4)
+ *  • Sperrfrist 3 Jahre vor PK-Kapitalbezug (Art. 30d Abs. 3 lit. a)
+ *  • Ab Alter 50: max 50 % des Altersguthabens (Art. 30c Abs. 2)
+ *    Vereinfachung: aktueller Saldo statt Saldo mit 50.
+ *
+ * Liefert Warnungen pro Eintrag — blockiert nichts, der User wird
+ * im UI auf den Verstoss hingewiesen.
+ */
+export function wefValidiere(input: WefValidiereInput): WefWarnung[] {
+  const out: WefWarnung[] = [];
+  const sorted = input.vorbezuege
+    .filter((e) => e.betrag != null && e.betrag > 0 && e.jahr > 0)
+    .slice()
+    .sort((a, b) => a.jahr - b.jahr);
+
+  for (let i = 0; i < sorted.length; i++) {
+    const e = sorted[i]!;
+    const betrag = e.betrag as number;
+
+    if (betrag < WEF_MINDESTBETRAG) {
+      out.push({
+        entryId: e.id,
+        schwere: "fehler",
+        text: `Mindestbetrag CHF ${WEF_MINDESTBETRAG.toLocaleString(
+          "de-CH"
+        )} nicht erreicht (BVG Art. 30c Abs. 1).`,
+      });
+    }
+
+    if (i > 0) {
+      const vorher = sorted[i - 1]!;
+      if (e.jahr - vorher.jahr < WEF_INTERVALL_JAHRE) {
+        out.push({
+          entryId: e.id,
+          schwere: "fehler",
+          text: `Mind. ${WEF_INTERVALL_JAHRE} Jahre Abstand zum vorherigen Bezug (${vorher.jahr}) verlangt.`,
+        });
+      }
+    }
+
+    if (
+      input.pkBezugsjahr != null &&
+      input.pkBezugsjahr - e.jahr < WEF_SPERRFRIST_VOR_BEZUG_JAHRE
+    ) {
+      out.push({
+        entryId: e.id,
+        schwere: "warnung",
+        text: `Liegt < ${WEF_SPERRFRIST_VOR_BEZUG_JAHRE} Jahre vor PK-Bezug (${input.pkBezugsjahr}) — Rückzahlungsfrist verletzt.`,
+      });
+    }
+
+    const alterImBezugsjahr = e.jahr - input.geburtsjahr;
+    if (
+      alterImBezugsjahr >= WEF_HALBIERUNGSALTER &&
+      input.altersguthabenHeute != null &&
+      input.altersguthabenHeute > 0
+    ) {
+      const maxBetrag = Math.round(input.altersguthabenHeute / 2);
+      if (betrag > maxBetrag) {
+        out.push({
+          entryId: e.id,
+          schwere: "warnung",
+          text: `Ab Alter 50 max ~50 % des Altersguthabens (≈ CHF ${maxBetrag.toLocaleString(
+            "de-CH"
+          )}) — Vereinfachung: aktueller Saldo statt Stand mit 50.`,
+        });
+      }
+    }
+  }
+
+  return out;
+}
