@@ -9,11 +9,18 @@ interface Props {
 
 /**
  * Drei-Knopf-Toggle im Header für die Hauptansicht-Modi.
- * Icons aus Unicode (kein extra Lucide-Dependency).
+ * Cuira-Tokens auf der light Topbar — segmented control style (analog
+ * .cui-seg in globals.css, hier inline für Topbar-Höhe).
  */
 export function ViewModeToggle({ mode, onChange }: Props) {
   return (
-    <div className="flex items-center gap-0.5 rounded-md border border-white/15 bg-white/5 p-0.5">
+    <div
+      className="flex items-center gap-0.5 rounded-md border p-0.5"
+      style={{
+        background: "var(--surface-2)",
+        borderColor: "var(--border)",
+      }}
+    >
       <ModeButton
         active={mode === "wizard"}
         onClick={() => onChange("wizard")}
@@ -58,11 +65,18 @@ function ModeButton({
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition ${
-        active
-          ? "bg-white text-[var(--color-cuira-deep)]"
-          : "text-white/80 hover:bg-white/10"
-      }`}
+      className="flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors"
+      style={{
+        background: active ? "var(--surface)" : "transparent",
+        color: active ? "var(--cuira-deep)" : "var(--ink-2)",
+        boxShadow: active ? "var(--shadow-card)" : undefined,
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.color = "var(--ink)";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.color = "var(--ink-2)";
+      }}
     >
       <span className="size-3.5">{icon}</span>
       <span className="hidden md:inline">{label}</span>

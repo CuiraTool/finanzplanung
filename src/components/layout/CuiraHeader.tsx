@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   ChevronDown,
@@ -8,11 +7,9 @@ import {
   FileText,
   Users,
   Heart,
-  Search,
   Download,
 } from "lucide-react";
 import { ViewModeToggle } from "./ViewModeToggle";
-import { CmdK } from "./CmdK";
 import { usePlanStore } from "@/lib/store";
 import type { ViewMode } from "@/lib/view-mode";
 
@@ -25,12 +22,11 @@ import type { ViewMode } from "@/lib/view-mode";
  *   2. Tag-Label "Pensionsplanung · Pro"
  *   3. Mandant-Pill (Avatar + Name + Kanton) — dynamisch aus PlanStore
  *   4. Plan A/B Scenario-Tabs — synchron zu szenarioB.aktiv
- *   5. ⌘K-Spring-zu-Frage-Button (öffnet CmdK-Palette)
- *   6. Autosave-Indikator
- *   7. PDF-Export-Button (→ /print)
- *   8. Mode-Switcher (Erfassung / Kunde / Print)
- *   9. View-Mode-Toggle (Split/Wizard/Dashboard)
- *  10. Berater-Avatar (KM)
+ *   5. Autosave-Indikator
+ *   6. PDF-Export-Button (→ /print)
+ *   7. Mode-Switcher (Erfassung / Kunde / Cockpit)
+ *   8. View-Mode-Toggle (Split/Wizard/Dashboard)
+ *   9. Berater-Avatar (KM)
  */
 interface Props {
   viewMode: ViewMode;
@@ -38,7 +34,6 @@ interface Props {
 }
 
 export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
-  const [cmdkOpen, setCmdkOpen] = useState(false);
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
@@ -52,8 +47,6 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
     ? `${(person1.vorname || "?")[0]}${(person2.vorname || "?")[0]}`
     : `${(person1.vorname || "?")[0]}${(person1.nachname || "?")[0]}`;
 
-  // Globaler ⌘K-Shortcut (Mac + Windows)
-  useGlobalCmdK(() => setCmdkOpen(true));
   const mandantName = isPaar
     ? `Familie ${person1.nachname || "—"}`
     : person1.vorname || person1.nachname
@@ -61,175 +54,136 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
     : "Neuer Mandant";
 
   return (
-    <>
-      <header
-        className="flex h-14 items-center gap-3 border-b px-4"
+    <header
+      className="flex h-14 items-center gap-3 border-b px-4"
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border)",
+      }}
+    >
+      {/* Logo-Chip */}
+      <div
+        className="inline-flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-[13px] font-semibold tracking-wide text-white"
+        style={{ background: "var(--cuira-deep)" }}
+      >
+        <Image
+          src="/cuira-logo.png"
+          alt="Cuira"
+          width={88}
+          height={22}
+          priority
+          className="h-5 w-auto"
+        />
+      </div>
+
+      {/* Tag-Label */}
+      <span
+        className="hidden border-l pl-3 text-[10px] font-medium uppercase tracking-[0.12em] md:block"
         style={{
-          background: "var(--surface)",
           borderColor: "var(--border)",
+          color: "var(--ink-3)",
         }}
       >
-        {/* Logo-Chip */}
-        <div
-          className="inline-flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-[13px] font-semibold tracking-wide text-white"
-          style={{ background: "var(--cuira-deep)" }}
-        >
-          <Image
-            src="/cuira-logo.png"
-            alt="Cuira"
-            width={88}
-            height={22}
-            priority
-            className="h-5 w-auto"
-          />
-        </div>
+        Pensionsplanung · Pro
+      </span>
 
-        {/* Tag-Label */}
-        <span
-          className="hidden border-l pl-3 text-[10px] font-medium uppercase tracking-[0.12em] md:block"
-          style={{
-            borderColor: "var(--border)",
-            color: "var(--ink-3)",
-          }}
-        >
-          Pensionsplanung · Pro
+      {/* Mandant-Pill */}
+      <button type="button" className="cui-topbar-mandant hidden md:inline-flex">
+        <span className="cui-topbar-mandant-avatar">
+          {initials.toUpperCase()}
         </span>
-
-        {/* Mandant-Pill */}
-        <button type="button" className="cui-topbar-mandant hidden md:inline-flex">
-          <span className="cui-topbar-mandant-avatar">
-            {initials.toUpperCase()}
+        <span className="cui-topbar-mandant-name">{mandantName}</span>
+        {adresse.kanton && (
+          <span className="cui-topbar-mandant-kanton">
+            · {adresse.kanton}
           </span>
-          <span className="cui-topbar-mandant-name">{mandantName}</span>
-          {adresse.kanton && (
-            <span className="cui-topbar-mandant-kanton">
-              · {adresse.kanton}
-            </span>
-          )}
-        </button>
+        )}
+      </button>
 
-        {/* Plan A/B-Scenario-Tabs */}
-        <div className="cui-scenario-bar hidden md:inline-flex">
-          <button
-            type="button"
-            className={`cui-scenario-tab ${!szenarioBAktiv ? "is-active" : "is-active"}`}
-            onClick={() => setSzenarioBAktiv(false)}
-            title="Plan A — Hauptszenario"
-          >
-            <span className="cui-scenario-dot a"></span>
-            Plan A
-          </button>
-          {szenarioBAktiv ? (
-            <button
-              type="button"
-              className="cui-scenario-tab is-active"
-              onClick={() => setAktiverBlock(11)}
-              title="Plan B — Vergleichsszenario (Block 11)"
-            >
-              <span className="cui-scenario-dot b"></span>
-              Plan B
-              <span
-                className="cui-scenario-x"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSzenarioBAktiv(false);
-                }}
-                title="Plan B deaktivieren"
-              >
-                ×
-              </span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="cui-scenario-tab"
-              onClick={() => {
-                setSzenarioBAktiv(true);
-                setAktiverBlock(11);
-              }}
-              title="Plan B aktivieren"
-            >
-              <span className="cui-scenario-dot b"></span>
-              + Plan B
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* ⌘K Spring-zu-Block */}
+      {/* Plan A/B-Scenario-Tabs */}
+      <div className="cui-scenario-bar hidden md:inline-flex">
         <button
           type="button"
-          className="cui-topbar-cmd hidden sm:inline-flex"
-          onClick={() => setCmdkOpen(true)}
-          title="Schnell-Sprung (⌘K / Strg+K)"
+          className={`cui-scenario-tab ${!szenarioBAktiv ? "is-active" : ""}`}
+          onClick={() => setSzenarioBAktiv(false)}
+          title="Plan A — Hauptszenario"
         >
-          <Search className="h-3.5 w-3.5" />
-          <span>Sprung zu Block…</span>
-          <span className="cui-topbar-cmd-key">⌘K</span>
+          <span className="cui-scenario-dot a"></span>
+          Plan A
         </button>
+        {szenarioBAktiv ? (
+          <button
+            type="button"
+            className="cui-scenario-tab is-active"
+            onClick={() => setAktiverBlock(11)}
+            title="Plan B — Vergleichsszenario (Block 11)"
+          >
+            <span className="cui-scenario-dot b"></span>
+            Plan B
+            <span
+              className="cui-scenario-x"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSzenarioBAktiv(false);
+              }}
+              title="Plan B deaktivieren"
+            >
+              ×
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="cui-scenario-tab"
+            onClick={() => {
+              setSzenarioBAktiv(true);
+              setAktiverBlock(11);
+            }}
+            title="Plan B aktivieren"
+          >
+            <span className="cui-scenario-dot b"></span>
+            + Plan B
+          </button>
+        )}
+      </div>
 
-        {/* Autosave */}
-        <span
-          className="hidden items-center gap-2 text-[11px] sm:inline-flex"
-          style={{ color: "var(--ink-3)" }}
-        >
-          <span className="cui-autosave-dot" />
-          <span>Auto-Save</span>
-        </span>
+      <div className="flex-1" />
 
-        {/* PDF-Export */}
-        <a
-          href="/print"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cui-topbar-icon-btn"
-          title="PDF-Export der Auswertung"
-        >
-          <Download className="h-4 w-4" />
-        </a>
+      {/* Autosave */}
+      <span
+        className="hidden items-center gap-2 text-[11px] sm:inline-flex"
+        style={{ color: "var(--ink-3)" }}
+      >
+        <span className="cui-autosave-dot" />
+        <span>Auto-Save</span>
+      </span>
 
-        {/* Mode-Switcher */}
-        <ModeLinks />
+      {/* PDF-Export */}
+      <a
+        href="/print"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="cui-topbar-icon-btn"
+        title="PDF-Export der Auswertung"
+      >
+        <Download className="h-4 w-4" />
+      </a>
 
-        {/* View-Mode-Toggle */}
-        <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
+      {/* Mode-Switcher */}
+      <ModeLinks />
 
-        {/* Berater-Avatar */}
-        <div
-          className="cui-topbar-avatar"
-          title="Berater · Kathir Muthukumar"
-        >
-          KM
-        </div>
-      </header>
+      {/* View-Mode-Toggle */}
+      <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
 
-      <CmdK
-        open={cmdkOpen}
-        onClose={() => setCmdkOpen(false)}
-        onJump={(blockId) => {
-          setAktiverBlock(blockId);
-          setCmdkOpen(false);
-        }}
-      />
-    </>
+      {/* Berater-Avatar */}
+      <div
+        className="cui-topbar-avatar"
+        title="Berater · Kathir Muthukumar"
+      >
+        KM
+      </div>
+    </header>
   );
-}
-
-/**
- * Globaler ⌘K / Strg+K Shortcut zum Öffnen der Command-Palette.
- */
-function useGlobalCmdK(onOpen: () => void) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        onOpen();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onOpen]);
 }
 
 /**
