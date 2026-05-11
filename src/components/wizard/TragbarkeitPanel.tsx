@@ -42,7 +42,18 @@ export function TragbarkeitPanel() {
     return null; // Tragbarkeit nur relevant bei Eigenheim
   }
 
-  const einkommenHeute = fullState.budget.einkommenHeute ?? 0;
+  // Brutto-Approximation aus den Netto-Einnahmen (Block 3) aller Personen
+  // mal 12 mal 1.15 (≈ Netto → Brutto-Hochrechnung für Bankenstandard).
+  // Fallback: Anker-Bruttoeinkommen aus Steuer-Veranlagung wenn explizit gesetzt.
+  const nettoMonatlichSumme = fullState.budget.einkommen.reduce(
+    (sum, e) => sum + (e.betragMonatlich ?? 0),
+    0
+  );
+  const bruttoApproxAusNetto = Math.round(nettoMonatlichSumme * 12 * 1.15);
+  const einkommenHeute =
+    fullState.budget.einkommenHeute && fullState.budget.einkommenHeute > 0
+      ? fullState.budget.einkommenHeute
+      : bruttoApproxAusNetto;
   const pensEinkommen = pensionseinkommenJahr(fullState, pensionsalter);
 
   // Pro Immobilie: heute + bei Pension
@@ -107,10 +118,14 @@ export function TragbarkeitPanel() {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <TragbarkeitsKarte
           label="Tragbarkeit heute"
-          subLabel={`Brutto-Einkommen ${einkommenHeute > 0 ? formatChf(einkommenHeute) : "—"}`}
+          subLabel={
+            einkommenHeute > 0
+              ? `Brutto-Einkommen ${formatChf(einkommenHeute)} ≈ Netto × 1.15`
+              : "Brutto-Einkommen —"
+          }
           result={haushaltHeute}
           einkommenJahr={einkommenHeute}
-          einkommenLabel="Brutto-Haushaltseinkommen"
+          einkommenLabel="Brutto-Haushaltseinkommen (≈ Netto × 1.15)"
         />
         <TragbarkeitsKarte
           label={`Tragbarkeit bei Alter ${pensionsalter}`}
@@ -145,8 +160,9 @@ export function TragbarkeitPanel() {
 
       {einkommenHeute === 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          💡 Tipp: Brutto-Haushaltseinkommen in <strong>Block 3 (Budget)</strong>
-          {" "}eintragen für die Tragbarkeit-Berechnung heute.
+          💡 Tipp: Netto-Einnahmen in <strong>Block 3 (Budget)</strong>
+          {" "}eintragen — die Tragbarkeit-Berechnung rechnet automatisch auf
+          Brutto hoch (Netto × 1.15).
         </div>
       )}
     </fieldset>

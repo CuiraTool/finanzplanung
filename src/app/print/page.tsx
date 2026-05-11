@@ -230,7 +230,7 @@ export default function PrintPage() {
               style={{ filter: "invert(1) brightness(0.2)" }}
             />
             <div className="text-sm" style={{ color: "#4b566b" }}>
-              Cuira Partners GmbH · Pensionsplanung Schweiz
+              Cuira Partners GmbH — Pensionsplanung
             </div>
           </header>
 
@@ -311,7 +311,7 @@ export default function PrintPage() {
 
           <footer className="border-t pt-4 text-xs" style={{ borderColor: "#e7eaee", color: "#8390a3" }}>
             <div className="flex justify-between">
-              <span>Cuira Partners GmbH · Pensionsplanung Schweiz</span>
+              <span>Cuira Partners GmbH — Pensionsplanung</span>
               <span>Vertraulich — nur für den Mandanten</span>
             </div>
           </footer>
@@ -453,7 +453,7 @@ export default function PrintPage() {
         {cashflow.length > 0 && (
           <div className="page-break-before pt-4 chart-section">
             <Section titel="Steuerentwicklung">
-              <div className="chart-wrap">
+              <div className="chart-wrap chart-wrap--tall">
                 <SteuerChart
                   daten={cashflow}
                   pensionsjahr={ordPensionsjahr}
@@ -836,6 +836,10 @@ export default function PrintPage() {
           height: 380px;
           overflow: hidden;
         }
+        /* Steuer-Chart braucht mehr Höhe wegen Legende + Bar-Stack */
+        .chart-wrap--tall {
+          height: 560px;
+        }
 
         @media print {
           @page {
@@ -849,7 +853,7 @@ export default function PrintPage() {
               color: #8390a3;
             }
             @bottom-left {
-              content: "Cuira Partners GmbH · Pensionsplanung";
+              content: "Cuira Partners GmbH — Pensionsplanung";
               font-size: 8.5pt;
               color: #8390a3;
             }
@@ -883,6 +887,9 @@ export default function PrintPage() {
             height: 240px;
             page-break-inside: avoid;
             break-inside: avoid;
+          }
+          .chart-wrap--tall {
+            height: 420px;
           }
           .chart-section {
             page-break-inside: avoid;

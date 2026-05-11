@@ -223,10 +223,14 @@ function PersonBvgForm({
               step={0.1}
               min={0}
               max={10}
-              value={person.umwandlungssatzProzent}
+              value={person.umwandlungssatzProzent || ""}
               onChange={(e) =>
-                onPatch({ umwandlungssatzProzent: Number(e.target.value) })
+                onPatch({
+                  umwandlungssatzProzent:
+                    e.target.value === "" ? 0 : Number(e.target.value),
+                })
               }
+              placeholder="z.B. 6.0"
               className={`${inputClass} w-32 tabular-nums`}
             />
           </Field>

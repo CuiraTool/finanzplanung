@@ -63,7 +63,7 @@ export function MonthYearPicker({
   };
 
   return (
-    <div className="grid grid-cols-[1fr_100px] gap-2">
+    <div className="grid grid-cols-[1fr_78px] gap-1">
       <select
         value={month ?? ""}
         onChange={(e) =>

@@ -285,8 +285,20 @@ function EinkommenInlineListe({
         {items.map((e, idx) => (
           <li
             key={e.id}
-            className="rounded-md border border-slate-200 bg-white p-3"
+            className="relative rounded-md border border-slate-200 bg-white p-3 pt-7"
           >
+            {/* Entfernen-Button — absolut top-right, raus aus dem Grid */}
+            <button
+              type="button"
+              onClick={() => onRemove(e.id)}
+              className="absolute right-2 top-2 text-[11px] text-red-600 hover:underline"
+              title="Einnahme entfernen"
+              disabled={items.length === 1}
+              style={{ opacity: items.length === 1 ? 0.3 : 1 }}
+            >
+              ✕ Entfernen
+            </button>
+
             <div className="grid grid-cols-12 gap-2">
               {/* Beschreibung — 4 cols */}
               <div className="col-span-12 sm:col-span-4">
@@ -309,8 +321,8 @@ function EinkommenInlineListe({
                 />
               </div>
 
-              {/* Betrag — 3 cols */}
-              <div className="col-span-6 sm:col-span-3">
+              {/* Betrag — 2 cols */}
+              <div className="col-span-6 sm:col-span-2">
                 <label
                   className="mb-1 block text-[11px] font-medium"
                   style={{ color: "var(--ink-2)" }}
@@ -332,8 +344,8 @@ function EinkommenInlineListe({
                 />
               </div>
 
-              {/* Von — 2 cols */}
-              <div className="col-span-3 sm:col-span-2">
+              {/* Von — 3 cols (Picker braucht ~200px für Monat+Jahr) */}
+              <div className="col-span-6 sm:col-span-3">
                 <label
                   className="mb-1 block text-[11px] font-medium"
                   style={{ color: "var(--ink-2)" }}
@@ -346,8 +358,8 @@ function EinkommenInlineListe({
                 />
               </div>
 
-              {/* Bis — 2 cols */}
-              <div className="col-span-3 sm:col-span-2">
+              {/* Bis — 3 cols */}
+              <div className="col-span-12 sm:col-span-3">
                 <label
                   className="mb-1 block text-[11px] font-medium"
                   style={{ color: "var(--ink-2)" }}
@@ -359,20 +371,6 @@ function EinkommenInlineListe({
                   onChange={(v) => onUpdate(e.id, { bis: v })}
                   allowEmpty
                 />
-              </div>
-
-              {/* Entfernen-Button — 1 col */}
-              <div className="col-span-12 flex justify-end sm:col-span-1 sm:items-end sm:justify-center">
-                <button
-                  type="button"
-                  onClick={() => onRemove(e.id)}
-                  className="text-[11px] text-red-600 hover:underline sm:mb-2"
-                  title="Einnahme entfernen"
-                  disabled={items.length === 1}
-                  style={{ opacity: items.length === 1 ? 0.4 : 1 }}
-                >
-                  ✕ Entfernen
-                </button>
               </div>
 
               {/* Person-Dropdown nur bei Paar */}
