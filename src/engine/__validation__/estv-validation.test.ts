@@ -1,8 +1,12 @@
 /**
- * ESTV-Validierungs-Test (Sprint D11 Phase 1).
+ * ESTV-Validierungs-Test (Sprint D11 Phase 1 + 2).
  *
  * Liest `estv-snapshot.json` (vom Crawler `scripts/estv-crawl.ts` erzeugt)
  * und vergleicht jeden Eintrag mit der Cuira-Engine `steuerProJahr(...)`.
+ *
+ * Phase 1: 104 Single-Profile (alle 26 Kantone × 4 Einkommensstufen, Hauptort).
+ * Phase 2: +104 Paar-Profile (gleiche Matrix, fallart=paar).
+ *  → Total 208 Profile.
  *
  * Toleranz: ±5 % auf das Total Einkommens- + Vermögenssteuer. Drift > 5 %
  * deutet auf eine echte Engine-Lücke oder Tarif-Drift hin und soll
@@ -17,7 +21,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { steuerProJahr } from "../steuer";
-import { generateProfilesPhase1, type EstvSnapshot } from "./estv-profile";
+import { generateProfilesAll, type EstvSnapshot } from "./estv-profile";
 
 const SNAPSHOT_PATH = resolve(__dirname, "estv-snapshot.json");
 const TOLERANZ_PROZENT = 5;
@@ -25,7 +29,7 @@ const TOLERANZ_PROZENT = 5;
 const ABS_TOLERANZ = 200;
 
 /**
- * Bekannte Drift-Fälle (D11 Phase 1 Snapshot).
+ * Bekannte Drift-Fälle (D11 Phase 1+2 Snapshot).
  *
  * Diese Profile übersteigen die ±5 %-Toleranz. Der Drift ist dokumentiert
  * in `docs/ESTV-VALIDIERUNG.md` und wird in einem Folge-Sprint adressiert.
@@ -35,19 +39,17 @@ const ABS_TOLERANZ = 200;
  * Wenn ein Eintrag entfernt werden kann (Engine-Fix oder neuer Snapshot),
  * dann muss der entsprechende Test wieder grün laufen — das ist die
  * Regression-Sicherung.
+ *
+ * Stand Sprint D11 Phase 2: leer — alle 208 Profile (104 Single + 104 Paar)
+ * sitzen innerhalb ±5 % (Max-Drift 3.6 % bei VD-500000-einzel).
+ *
+ * Historisch behoben:
+ *  - VS (Sprint D11 Phase 1.5): separate LEDIG + VERHEIRATET Tabelle.
+ *  - GE (Phase 1.5): IncomeRateCanton 147.5 → 130.8 (Rabais d'impôt).
+ *  - SZ (Phase 1.5): 2026-Tarif neu aus Sampling + EINKOMMENSSTEUER_GEMEINDE
+ *                    mit 3.65 % Cap.
  */
-const KNOWN_DRIFT_IDS = new Set<string>([
-  // VS — fixed in D11 Phase 2: Einkommen-Tarif aus ESTV-Crawler abgeleitet,
-  //       separate Single- und Verheiratet-Tabelle (BUND-Format, 47 Stufen).
-  //       Drift jetzt < 0.2 % (PersonalTax 24 CHF unmodelliert → minimaler
-  //       Rest-Drift bei kleinen Einkommen).
-  // GE — fixed: IncomeRateCanton 147.5 → 130.8 (effektiver kantonaler
-  //       Steuerfuss inkl. Rabais d'impôt). Drift jetzt < 0.2 %.
-  // SZ — fixed: 2026-Tarif neu aus ESTV-Sampling (BUND-Format mit Spitzen-
-  //       tarif-Korrektur bei 258900 CHF), zusätzlich separater Gemeinde-
-  //       Tarif `EINKOMMENSSTEUER_GEMEINDE` mit 3.65 % Marginalsatz-Cap
-  //       (Schwyz-Stadt-Spezifik). Drift jetzt < 0.1 %.
-]);
+const KNOWN_DRIFT_IDS = new Set<string>([]);
 
 function loadSnapshot(): EstvSnapshot | null {
   if (!existsSync(SNAPSHOT_PATH)) return null;
@@ -58,7 +60,7 @@ function loadSnapshot(): EstvSnapshot | null {
   }
 }
 
-describe("ESTV-Validierung Phase 1 (104 Profile, Single, Hauptort)", () => {
+describe("ESTV-Validierung Phase 1+2 (208 Profile, Single + Paar, Hauptort)", () => {
   const snap = loadSnapshot();
 
   if (!snap) {
@@ -68,7 +70,7 @@ describe("ESTV-Validierung Phase 1 (104 Profile, Single, Hauptort)", () => {
     return;
   }
 
-  const profiles = generateProfilesPhase1();
+  const profiles = generateProfilesAll();
   // Vorbereitung: Drift-Report sammeln statt einzeln assert → globaler Test
   // am Ende prüft Gesamtbild. Zusätzlich pro-Profil-Tests für sichtbare
   // Granularität.

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { steuerProJahr } from "../src/engine/steuer";
 import { ALLE_KANTONE } from "../src/engine/steuer-engine";
 import {
-  generateProfilesPhase1,
+  generateProfilesAll,
   type EstvProfile,
   type EstvSnapshot,
 } from "../src/engine/__validation__/estv-profile";
@@ -86,7 +86,7 @@ function main(): void {
     process.exit(1);
   }
 
-  const profiles = generateProfilesPhase1();
+  const profiles = generateProfilesAll();
   const rows: DriftRow[] = [];
 
   for (const p of profiles) {
@@ -102,30 +102,56 @@ function main(): void {
   rows.sort(
     (a, b) =>
       a.profile.kanton.localeCompare(b.profile.kanton) ||
+      a.profile.fallart.localeCompare(b.profile.fallart) ||
       a.profile.einkommen - b.profile.einkommen
   );
 
-  // Aggregat
+  // Aggregat (alle Profile)
   const allPct = rows.map((r) => Math.abs(r.diffPct)).sort((a, b) => a - b);
   const median =
     allPct.length > 0 ? (allPct[Math.floor(allPct.length / 2)] ?? 0) : 0;
   const max = allPct.length > 0 ? (allPct[allPct.length - 1] ?? 0) : 0;
   const mean = allPct.reduce((s, x) => s + x, 0) / Math.max(1, allPct.length);
+  const above5 = allPct.filter((p) => p > 5).length;
 
-  // Pro Kanton: max |Δ|, Mittelwert
-  const kantonStats = ALLE_KANTONE.map((k) => {
-    const krows = rows.filter((r) => r.profile.kanton === k);
-    const pcts = krows.map((r) => Math.abs(r.diffPct));
-    const kmean = pcts.reduce((s, x) => s + x, 0) / Math.max(1, pcts.length);
-    const kmax = pcts.length > 0 ? Math.max(...pcts) : 0;
-    const signedMean =
-      krows.reduce((s, r) => s + r.diffPct, 0) / Math.max(1, krows.length);
-    return { kanton: k, mean: kmean, max: kmax, signedMean, n: krows.length };
-  })
-    .filter((k) => k.n > 0)
-    .sort((a, b) => b.mean - a.mean);
+  // Aggregat pro Fallart
+  function aggFor(fallart: "einzel" | "paar") {
+    const r = rows.filter((x) => x.profile.fallart === fallart);
+    const pcts = r.map((x) => Math.abs(x.diffPct)).sort((a, b) => a - b);
+    const med = pcts.length > 0 ? (pcts[Math.floor(pcts.length / 2)] ?? 0) : 0;
+    const mx = pcts.length > 0 ? (pcts[pcts.length - 1] ?? 0) : 0;
+    const mn = pcts.reduce((s, x) => s + x, 0) / Math.max(1, pcts.length);
+    const ab5 = pcts.filter((p) => p > 5).length;
+    return { count: r.length, median: med, max: mx, mean: mn, above5: ab5 };
+  }
+  const aggEinzel = aggFor("einzel");
+  const aggPaar = aggFor("paar");
+
+  // Pro Kanton + Fallart: max |Δ|, Mittelwert
+  function kantonStatsFor(fallart: "einzel" | "paar" | "alle") {
+    return ALLE_KANTONE.map((k) => {
+      const krows = rows.filter(
+        (r) =>
+          r.profile.kanton === k &&
+          (fallart === "alle" ? true : r.profile.fallart === fallart)
+      );
+      const pcts = krows.map((r) => Math.abs(r.diffPct));
+      const kmean = pcts.reduce((s, x) => s + x, 0) / Math.max(1, pcts.length);
+      const kmax = pcts.length > 0 ? Math.max(...pcts) : 0;
+      const signedMean =
+        krows.reduce((s, r) => s + r.diffPct, 0) / Math.max(1, krows.length);
+      return { kanton: k, mean: kmean, max: kmax, signedMean, n: krows.length };
+    })
+      .filter((k) => k.n > 0)
+      .sort((a, b) => b.mean - a.mean);
+  }
+  const kantonStats = kantonStatsFor("alle");
+  const kantonStatsEinzel = kantonStatsFor("einzel");
+  const kantonStatsPaar = kantonStatsFor("paar");
 
   const worst5 = kantonStats.slice(0, 5);
+  const worst5Paar = kantonStatsPaar.slice(0, 5);
+  const worst5Einzel = kantonStatsEinzel.slice(0, 5);
 
   // Markdown bauen
   const lines: string[] = [];
@@ -146,22 +172,49 @@ function main(): void {
   lines.push("");
   lines.push("## Zusammenfassung");
   lines.push("");
-  lines.push(`- **Median |Δ|:** ${median.toFixed(1)} %`);
-  lines.push(`- **Mittelwert |Δ|:** ${mean.toFixed(1)} %`);
-  lines.push(`- **Max |Δ|:** ${max.toFixed(1)} %`);
-  lines.push(`- **Toleranz-Ziel:** ±5 % (Phase 1)`);
+  lines.push("**Gesamt (alle 208 Profile):**");
+  lines.push(`- Median |Δ|: ${median.toFixed(1)} %`);
+  lines.push(`- Mittelwert |Δ|: ${mean.toFixed(1)} %`);
+  lines.push(`- Max |Δ|: ${max.toFixed(1)} %`);
+  lines.push(`- Profile mit |Δ| > 5 %: ${above5} / ${rows.length}`);
+  lines.push("- Toleranz-Ziel: ±5 %");
   lines.push("");
-  lines.push("## Top 5 Kantone mit grösster Drift");
+  lines.push(`**Single (Phase 1, ${aggEinzel.count} Profile):**`);
+  lines.push(`- Median |Δ|: ${aggEinzel.median.toFixed(1)} %`);
+  lines.push(`- Mittelwert |Δ|: ${aggEinzel.mean.toFixed(1)} %`);
+  lines.push(`- Max |Δ|: ${aggEinzel.max.toFixed(1)} %`);
+  lines.push(`- Profile mit |Δ| > 5 %: ${aggEinzel.above5}`);
+  lines.push("");
+  lines.push(`**Paar (Phase 2, ${aggPaar.count} Profile):**`);
+  lines.push(`- Median |Δ|: ${aggPaar.median.toFixed(1)} %`);
+  lines.push(`- Mittelwert |Δ|: ${aggPaar.mean.toFixed(1)} %`);
+  lines.push(`- Max |Δ|: ${aggPaar.max.toFixed(1)} %`);
+  lines.push(`- Profile mit |Δ| > 5 %: ${aggPaar.above5}`);
+  lines.push("");
+
+  lines.push("## Top 5 Kantone mit grösster Drift — Single");
   lines.push("");
   lines.push("| # | Kanton | Mittel \\|Δ\\| | Max \\|Δ\\| | Tendenz (signed) |");
   lines.push("|---|--------|--------------|------------|------------------|");
-  worst5.forEach((k, i) => {
+  worst5Einzel.forEach((k, i) => {
     lines.push(
       `| ${i + 1} | ${k.kanton} | ${k.mean.toFixed(1)} % | ${k.max.toFixed(1)} % | ${fmtPct(k.signedMean)} |`
     );
   });
   lines.push("");
-  lines.push("## Drift pro Kanton (alle Einkommensstufen)");
+
+  lines.push("## Top 5 Kantone mit grösster Drift — Paar");
+  lines.push("");
+  lines.push("| # | Kanton | Mittel \\|Δ\\| | Max \\|Δ\\| | Tendenz (signed) |");
+  lines.push("|---|--------|--------------|------------|------------------|");
+  worst5Paar.forEach((k, i) => {
+    lines.push(
+      `| ${i + 1} | ${k.kanton} | ${k.mean.toFixed(1)} % | ${k.max.toFixed(1)} % | ${fmtPct(k.signedMean)} |`
+    );
+  });
+  lines.push("");
+
+  lines.push("## Drift pro Kanton (alle Einkommensstufen, Single + Paar)");
   lines.push("");
 
   for (const k of ALLE_KANTONE) {
@@ -170,10 +223,10 @@ function main(): void {
     lines.push(`### ${k} (Hauptort)`);
     lines.push("");
     lines.push(
-      "| Einkommen | Cuira | ESTV | Δ CHF | Δ % | Bewertung |"
+      "| Fall | Einkommen | Cuira | ESTV | Δ CHF | Δ % | Bewertung |"
     );
     lines.push(
-      "|-----------|------:|-----:|------:|----:|:---------:|"
+      "|------|-----------|------:|-----:|------:|----:|:---------:|"
     );
     for (const r of krows) {
       const bewertung =
@@ -182,8 +235,9 @@ function main(): void {
           : Math.abs(r.diffPct) <= 10
             ? "WARN"
             : "DRIFT";
+      const fall = r.profile.fallart === "paar" ? "Paar" : "Single";
       lines.push(
-        `| ${fmtChf(r.profile.einkommen)} | ${fmtChf(r.cuira)} | ${fmtChf(r.estv)} | ${fmtChf(r.diff)} | ${fmtPct(r.diffPct)} | ${bewertung} |`
+        `| ${fall} | ${fmtChf(r.profile.einkommen)} | ${fmtChf(r.cuira)} | ${fmtChf(r.estv)} | ${fmtChf(r.diff)} | ${fmtPct(r.diffPct)} | ${bewertung} |`
       );
     }
     lines.push("");
@@ -210,9 +264,12 @@ function main(): void {
       `- Median ${median.toFixed(1)} % deutet auf systematischen Bias hin — Abzüge-Logik (z.B. Versicherungsprämienpauschale) im Pensionierten-Fall (bruttoErwerb=0) prüfen.`
     );
   }
-  if (median <= 5 && max < 10) {
+  if (median <= 5 && max < 10 && above5 === 0) {
     lines.push(
-      "- Engine sitzt sauber im Toleranzband. Phase 2 (Paare, Kapitalauszahlung) kann starten."
+      `- Engine sitzt sauber im Toleranzband: **${rows.length} / ${rows.length} Profile** innerhalb ±5 %, Max-Drift ${max.toFixed(1)} %.`
+    );
+    lines.push(
+      `- Single + Paar validiert über alle 26 Kantone × 4 Einkommensstufen. Phase 3 (Kapitalauszahlung) und Phase 4 (Mehrgemeinden / Vermögen) sind die nächsten Stufen.`
     );
   }
   lines.push("");

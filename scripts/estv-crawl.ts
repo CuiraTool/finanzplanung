@@ -51,7 +51,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  generateProfilesPhase1,
+  generateProfilesAll,
   type EstvProfile,
   type EstvSnapshot,
   type EstvSnapshotEntry,
@@ -257,10 +257,10 @@ function emptyEntry(id: string): EstvSnapshotEntry {
 
 async function main(): Promise<void> {
   const flags = parseFlags(process.argv.slice(2));
-  const allProfiles = generateProfilesPhase1();
+  const allProfiles = generateProfilesAll();
   const profiles = flags.limit ? allProfiles.slice(0, flags.limit) : allProfiles;
 
-  console.log(`ESTV-Crawl Phase 1 — ${profiles.length}/${allProfiles.length} Profile`);
+  console.log(`ESTV-Crawl Phase 1+2 — ${profiles.length}/${allProfiles.length} Profile`);
   console.log(`Force-Modus: ${flags.force}`);
   console.log(`Snapshot: ${SNAPSHOT_PATH}\n`);
 
