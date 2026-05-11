@@ -48,6 +48,7 @@ interface KiMassnahmePrint {
 import { VermoegensChart } from "@/components/dashboard/VermoegensChart";
 import { EinnahmenAusgabenChart } from "@/components/dashboard/EinnahmenAusgabenChart";
 import { SteuerChart } from "@/components/dashboard/SteuerChart";
+import { SteuerDetailCard } from "@/components/dashboard/SteuerDetailCard";
 
 const PROJEKTIONS_END_ALTER = 85;
 
@@ -418,7 +419,7 @@ export default function PrintPage() {
         {/* ── Vermögensentwicklung-Chart (eigene Seite) ───────── */}
         <div className="page-break-before pt-4 chart-section">
           <Section titel="Vermögensentwicklung">
-            <div className="chart-wrap">
+            <div className="chart-wrap chart-wrap--tall">
               {cashflow.length > 0 && (
                 <VermoegensChart
                   daten={cashflow}
@@ -435,7 +436,7 @@ export default function PrintPage() {
         {/* ── Cashflow-Chart (eigene Seite) ───────────────────── */}
         <div className="page-break-before pt-4 chart-section">
           <Section titel="Cashflow Jahr für Jahr">
-            <div className="chart-wrap">
+            <div className="chart-wrap chart-wrap--tall">
               {cashflow.length > 0 && (
                 <EinnahmenAusgabenChart
                   daten={cashflow}
@@ -449,7 +450,7 @@ export default function PrintPage() {
           </Section>
         </div>
 
-        {/* ── Steuerentwicklung-Chart (eigene Seite) ──────────── */}
+        {/* ── Steuerentwicklung-Chart + Detail-Card (eigene Seite) ──── */}
         {cashflow.length > 0 && (
           <div className="page-break-before pt-4 chart-section">
             <Section titel="Steuerentwicklung">
@@ -460,6 +461,9 @@ export default function PrintPage() {
                   wunschPensionsjahr={null}
                   fallart={fullState.fallart}
                 />
+              </div>
+              <div className="mt-4 print-steuer-detail">
+                <SteuerDetailCard cashflow={cashflow} />
               </div>
             </Section>
           </div>
@@ -810,19 +814,53 @@ export default function PrintPage() {
 
         {/* ── Footer / Disclaimer ─────────────────────────────── */}
         <footer
-          className="mt-12 border-t pt-6 text-xs"
+          className="mt-12 border-t pt-6 text-xs leading-relaxed"
           style={{ borderColor: "#e7eaee", color: "#8390a3" }}
         >
           <p className="mb-2">
-            <strong>Disclaimer:</strong> Diese Auslegeordnung basiert auf den
-            von Ihnen eingegebenen Daten und Standard-Annahmen (Inflation
-            1.5 % p.a., kalk. Hypozins 5 %, ESTV-Tarife 2025/26, BSV-Skala 44).
-            Sie ersetzt keine individuelle Steuer- oder Vorsorgeberatung
-            i.S.v. Art. 2 RAG. Werte sind Schätzungen, abhängig von zukünftigen
-            Gesetzes-, Markt- und Lebenslagen.
+            <strong>Grundlage und Datenquellen.</strong> Diese Auslegeordnung
+            basiert auf den durch den Mandanten erfassten Angaben sowie auf
+            öffentlich zugänglichen Daten der Eidgenössischen Steuerverwaltung
+            (ESTV-Tarife 2025/26), des Bundesamtes für Sozialversicherungen
+            (BSV-Skala 44, Stand AHV21) und der kantonalen Steuerverwaltungen.
+            Standard-Annahmen: Inflation 1.5 % p.a., kalkulatorischer Hypozins
+            5 %, Verkehrswertsteigerung 1.5 % p.a. (anpassbar).
+          </p>
+          <p className="mb-2">
+            <strong>Keine Beratung im engeren Sinn.</strong> Diese
+            Planungsgrundlage ist eine indikative Auslegeordnung und ersetzt
+            keine individuelle, persönlich erteilte Steuer-, Vorsorge-,
+            Rechts- oder Anlageberatung. Sie stellt insbesondere keine
+            Anlageberatung oder Vermögensverwaltung im Sinne des
+            Finanzdienstleistungsgesetzes (FIDLEG) dar. Veränderungen der
+            Gesetzgebung, der Markt- oder Lebenssituation können die
+            Resultate beeinflussen. Für die konkrete Umsetzung — insbesondere
+            PK-Einkäufe, Bezugsstrategien, Liegenschaftstransaktionen und
+            Steueroptimierungen — ist eine individuelle Beratung durch den
+            Cuira-Berater zwingend.
+          </p>
+          <p className="mb-2">
+            <strong>Haftungsausschluss (Art. 100 OR).</strong> Soweit
+            gesetzlich zulässig (Art. 100 Abs. 1 OR) wird jede Haftung der
+            Cuira Partners GmbH und ihrer Mitarbeitenden für Schäden aus
+            leichter Fahrlässigkeit ausgeschlossen. Für rechtswidrige Absicht
+            und grobe Fahrlässigkeit bleibt die Haftung gemäss Art. 100
+            Abs. 1 OR (zwingende Norm) unverändert bestehen. Die Cuira Partners
+            GmbH übernimmt insbesondere keine Gewähr für die Vollständigkeit
+            und Richtigkeit der vom Mandanten gelieferten Daten sowie für
+            Entscheide, die der Mandant gestützt auf diese Auslegeordnung ohne
+            individuelle Beratung trifft.
+          </p>
+          <p className="mb-2">
+            <strong>Datenschutz.</strong> Die im Tool erfassten Daten werden
+            gemäss dem revidierten Bundesgesetz über den Datenschutz (DSG,
+            Stand 1.9.2023) verarbeitet. Server-Standort: Schweiz oder
+            EU (Frankfurt). Keine Weitergabe an Dritte ohne ausdrückliche
+            Einwilligung. Aufbewahrungsfrist: 10 Jahre (OR Art. 958f
+            Geschäftsbücher).
           </p>
           <p>
-            Cuira Partners GmbH · CH-Schweiz · Stand: {heuteFormatiert}
+            Cuira Partners GmbH · Bahnhofstrasse 1, 6340 Baar · CH-Schweiz · Stand: {heuteFormatiert}
           </p>
         </footer>
       </article>
@@ -834,11 +872,17 @@ export default function PrintPage() {
         .chart-wrap {
           width: 100%;
           height: 380px;
-          overflow: hidden;
+          overflow: visible;
         }
-        /* Steuer-Chart braucht mehr Höhe wegen Legende + Bar-Stack */
+        /* Alle Charts mit "tall" — Bar-Stacks + Legende + Achsen brauchen
+           mind. 560px sonst werden Bars zu kurz, Beschriftungen schneiden ab. */
         .chart-wrap--tall {
           height: 560px;
+        }
+        /* Recharts-Container füllt chart-wrap komplett aus */
+        .chart-wrap .recharts-responsive-container {
+          height: 100% !important;
+          width: 100% !important;
         }
 
         @media print {
@@ -882,14 +926,22 @@ export default function PrintPage() {
             break-after: page;
             min-height: 240mm;
           }
-          /* Chart-Wrapper im Print: feste Höhe, nicht über Seiten brechen */
+          /* Chart-Wrapper im Print: feste Höhe, nicht über Seiten brechen.
+             Vermögens-/Cashflow-Chart brauchen Platz für Bar-Stack + Legende,
+             daher tall = 480px (passt zusammen mit Section-Titel auf eine
+             A4-Seite minus Margin = ca. 235mm Nutzhöhe). */
           .chart-wrap {
-            height: 240px;
+            height: 380px;
             page-break-inside: avoid;
             break-inside: avoid;
           }
           .chart-wrap--tall {
-            height: 420px;
+            height: 480px;
+          }
+          /* SteuerDetailCard im Print: nicht in 2 Seiten brechen */
+          .print-steuer-detail {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .chart-section {
             page-break-inside: avoid;
@@ -912,11 +964,20 @@ export default function PrintPage() {
             page-break-after: avoid;
             break-after: avoid;
           }
-          /* Recharts auf Bildschirm-Layout zwingen — sonst kollabiert das SVG */
-          .recharts-responsive-container,
-          .recharts-wrapper,
-          .recharts-surface {
+          /* Recharts MUSS volle chart-wrap-Höhe einnehmen — Recharts setzt
+             intern auf das passed-in height-Prop (460px), aber für PDF wollen
+             wir dass das SVG die Wrap-Höhe füllt. */
+          .chart-wrap .recharts-responsive-container,
+          .chart-wrap .recharts-wrapper,
+          .chart-wrap .recharts-surface {
+            height: 100% !important;
             max-height: 100% !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .chart-wrap svg {
+            height: 100% !important;
+            width: 100% !important;
           }
         }
       `}</style>
