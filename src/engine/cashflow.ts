@@ -1068,12 +1068,12 @@ function pkSaldoSparphase(
 
   // Sparbeitrag S rückwärts aus FV / PV / n / r ableiten
   const pvAufgezinst = heute * Math.pow(1 + r, n);
-  const annuitaetsFaktor = r === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
+  const annuitaetsFaktor = (r as number) === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
   const sparBeitrag = (beiBezug - pvAufgezinst) / annuitaetsFaktor;
 
   // Saldo nach k Jahren
   const compoundedPv = heute * Math.pow(1 + r, k);
-  const kompoFaktorK = r === 0 ? k : (Math.pow(1 + r, k) - 1) / r;
+  const kompoFaktorK = (r as number) === 0 ? k : (Math.pow(1 + r, k) - 1) / r;
   const saldoOhneWef = Math.round(compoundedPv + sparBeitrag * kompoFaktorK);
   return Math.max(0, saldoOhneWef - wefSumme);
 }

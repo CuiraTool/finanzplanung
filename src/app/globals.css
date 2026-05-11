@@ -2194,7 +2194,10 @@ input[type="number"] {
   background: var(--accent);
 }
 .cui-scenario-dot.b {
-  background: oklch(0.65 0.16 30);
+  background: oklch(0.55 0.24 295); /* violett */
+}
+.cui-scenario-dot.c {
+  background: oklch(0.7 0.18 65); /* amber */
 }
 .cui-scenario-tab .cui-scenario-x {
   font-size: 14px;

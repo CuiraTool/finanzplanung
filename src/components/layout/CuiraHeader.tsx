@@ -45,8 +45,11 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
   const adresse = usePlanStore((s) => s.adresse);
-  const szenarioBAktiv = usePlanStore((s) => s.szenarioB.aktiv);
-  const setSzenarioBAktiv = usePlanStore((s) => s.setSzenarioBAktiv);
+  const aktiverPlan = usePlanStore((s) => s.aktiverPlan);
+  const plaene = usePlanStore((s) => s.plaene);
+  const erstellePlan = usePlanStore((s) => s.erstellePlan);
+  const wechsleZuPlan = usePlanStore((s) => s.wechsleZuPlan);
+  const loeschePlan = usePlanStore((s) => s.loeschePlan);
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
   const reset = usePlanStore((s) => s.reset);
 
@@ -145,23 +148,24 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
         )}
       </button>
 
-      {/* Plan A/B-Scenario-Tabs */}
+      {/* Plan A/B/C — Vollvarianten (V35) */}
       <div className="cui-scenario-bar hidden md:inline-flex">
         <button
           type="button"
-          className={`cui-scenario-tab ${!szenarioBAktiv ? "is-active" : ""}`}
-          onClick={() => setSzenarioBAktiv(false)}
-          title="Plan A — Hauptszenario"
+          className={`cui-scenario-tab ${aktiverPlan === "a" ? "is-active" : ""}`}
+          onClick={() => wechsleZuPlan("a")}
+          title="Plan A — Basis"
         >
           <span className="cui-scenario-dot a"></span>
           Plan A
         </button>
-        {szenarioBAktiv ? (
+
+        {plaene.b ? (
           <button
             type="button"
-            className="cui-scenario-tab is-active"
-            onClick={() => setAktiverBlock(11)}
-            title="Plan B — Vergleichsszenario (Block 11)"
+            className={`cui-scenario-tab ${aktiverPlan === "b" ? "is-active" : ""}`}
+            onClick={() => wechsleZuPlan("b")}
+            title="Plan B — Variante"
           >
             <span className="cui-scenario-dot b"></span>
             Plan B
@@ -169,9 +173,9 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
               className="cui-scenario-x"
               onClick={(e) => {
                 e.stopPropagation();
-                setSzenarioBAktiv(false);
+                if (confirm("Plan B wirklich löschen?")) loeschePlan("b");
               }}
-              title="Plan B deaktivieren"
+              title="Plan B löschen"
             >
               ×
             </span>
@@ -180,16 +184,52 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
           <button
             type="button"
             className="cui-scenario-tab"
-            onClick={() => {
-              setSzenarioBAktiv(true);
-              setAktiverBlock(11);
-            }}
-            title="Plan B aktivieren"
+            onClick={() => erstellePlan("b", "a")}
+            title="Plan B erstellen — klont aktuellen Plan A"
           >
             <span className="cui-scenario-dot b"></span>
             + Plan B
           </button>
         )}
+
+        {plaene.c ? (
+          <button
+            type="button"
+            className={`cui-scenario-tab ${aktiverPlan === "c" ? "is-active" : ""}`}
+            onClick={() => wechsleZuPlan("c")}
+            title="Plan C — Variante"
+          >
+            <span className="cui-scenario-dot c"></span>
+            Plan C
+            <span
+              className="cui-scenario-x"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Plan C wirklich löschen?")) loeschePlan("c");
+              }}
+              title="Plan C löschen"
+            >
+              ×
+            </span>
+          </button>
+        ) : plaene.b ? (
+          <button
+            type="button"
+            className="cui-scenario-tab"
+            onClick={() => {
+              const basis = confirm(
+                "Plan C basiert auf:\n\nOK = Plan A\nAbbrechen = Plan B"
+              )
+                ? "a"
+                : "b";
+              erstellePlan("c", basis);
+            }}
+            title="Plan C erstellen — Basis A oder B wählbar"
+          >
+            <span className="cui-scenario-dot c"></span>
+            + Plan C
+          </button>
+        ) : null}
       </div>
 
       <div className="flex-1" />

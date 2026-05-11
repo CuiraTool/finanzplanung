@@ -332,6 +332,47 @@ export interface SzenarioB {
   overrides: SzenarioBOverrides;
 }
 
+// ───────────────────────────────────────────────────────────────────
+// Plan-Verwaltung (V35): A/B/C-Variantenrechnung mit Snapshot-Modell
+// ───────────────────────────────────────────────────────────────────
+//
+// Stammdaten (Personalien, Adresse, Kinder, fallart, zivilstand) bleiben
+// am Top-Level des State — geteilt zwischen allen Varianten. Beim Plan-
+// Wechsel werden NUR die plan-spezifischen Felder (Variant-Slice) ge-
+// tauscht.
+
+export type PlanSlot = "a" | "b" | "c";
+
+/**
+ * Variant-Slice — alle Felder die pro Plan unterschiedlich sind.
+ * Stammdaten (fallart, zivilstand, adresse, person1/2, kinder) sind NICHT
+ * Teil davon: sie bleiben am Top-Level und werden geteilt.
+ */
+export interface PlanVariantData {
+  ziele: ZieleWuensche;
+  einmaligeAusgaben: EinmaligAusgabe[];
+  budget: Budget;
+  ahv: AhvInput;
+  bvg: BvgInput;
+  saeuleDrei: SaeuleDreiInput;
+  vermoegen: VermoegenInput;
+  immobilien: ImmobilienInput;
+  firma: FirmaInput;
+  nachlass: NachlassInput;
+  anlagen: AnlagenInput;
+  erbschaft: ErbschaftInput;
+  wohnortPlan: WohnortPlanInput;
+  versicherungen: VersicherungenInput;
+  prioritaeten: PrioritaetenInput;
+  erweitert: ErweitertInput;
+}
+
+export interface PlaeneRegister {
+  a: PlanVariantData;
+  b: PlanVariantData | null;
+  c: PlanVariantData | null;
+}
+
 /** Nachlass — Block 10. Status pro Vorsorge-/Nachlassdokument. */
 export type NachlassThemaKey =
   | "vorsorgeauftrag"
@@ -568,6 +609,9 @@ export interface PlanState {
   erweitert: ErweitertInput;
   szenarioB: SzenarioB;
   aktiverBlock: number;
+  /** Plan-Verwaltung (V35): Snapshot-basierte A/B/C-Varianten. */
+  aktiverPlan: PlanSlot;
+  plaene: PlaeneRegister;
 
   setFallart: (v: Fallart) => void;
   setZivilstand: (v: Zivilstand) => void;
@@ -664,6 +708,15 @@ export interface PlanState {
   setSzenarioBAktiv: (aktiv: boolean) => void;
   setSzenarioBOverride: (patch: Partial<SzenarioBOverrides>) => void;
   setAktiverBlock: (id: number) => void;
+  // Plan-Setter (V35):
+  /** Plan b oder c neu erstellen — klont basis-Plan in den Slot. */
+  erstellePlan: (slot: "b" | "c", basis: PlanSlot) => void;
+  /** Aktiven Plan wechseln (a/b/c). */
+  wechsleZuPlan: (slot: PlanSlot) => void;
+  /** Plan b oder c löschen. Aktivierung springt auf a zurück wenn nötig. */
+  loeschePlan: (slot: "b" | "c") => void;
+  /** Plan b oder c neu von a klonen (Reset). */
+  resetPlanZuA: (slot: "b" | "c") => void;
   reset: () => void;
   /** Vollen State aus einem Import-Object (V2-Submission) übernehmen. */
   importState: (snapshot: Partial<PlanState>) => void;
@@ -763,6 +816,39 @@ function isZivilstandEinzel(z: Zivilstand): z is ZivilstandEinzel {
   return ZIVILSTAND_EINZEL.some((e) => e.value === z);
 }
 
+/**
+ * Extrahiert die Variant-Felder aus einem PlanState — verwendet beim
+ * Snapshot-Speichern (vor Plan-Switch / vor Plan-Erstellung).
+ */
+function extractVariant(state: PlanState): PlanVariantData {
+  return {
+    ziele: state.ziele,
+    einmaligeAusgaben: state.einmaligeAusgaben,
+    budget: state.budget,
+    ahv: state.ahv,
+    bvg: state.bvg,
+    saeuleDrei: state.saeuleDrei,
+    vermoegen: state.vermoegen,
+    immobilien: state.immobilien,
+    firma: state.firma,
+    nachlass: state.nachlass,
+    anlagen: state.anlagen,
+    erbschaft: state.erbschaft,
+    wohnortPlan: state.wohnortPlan,
+    versicherungen: state.versicherungen,
+    prioritaeten: state.prioritaeten,
+    erweitert: state.erweitert,
+  };
+}
+
+/**
+ * Tiefer Klon einer Variant — JSON-basiert (Plan-Daten sind reine Daten,
+ * keine Funktionen, keine Date-Objekte → JSON-safe).
+ */
+function cloneVariant(v: PlanVariantData): PlanVariantData {
+  return JSON.parse(JSON.stringify(v));
+}
+
 export const usePlanStore = create<PlanState>()(
   persist(
     (set) => ({
@@ -847,6 +933,96 @@ export const usePlanStore = create<PlanState>()(
         overrides: {},
       },
       aktiverBlock: 1,
+      // V35: Plan-Verwaltung. Plan A wird beim ersten Setter implizit
+      // initialisiert (Top-Level = Plan A solange aktiverPlan === "a").
+      aktiverPlan: "a",
+      plaene: {
+        // Plan A bekommt einen Initial-Snapshot der Default-Werte. Das
+        // ist nicht strikt nötig (Top-Level ist Source of Truth bei
+        // aktiverPlan === "a") — aber konsistent fürs Mental-Model.
+        a: {
+          ziele: initialZiele,
+          einmaligeAusgaben: [],
+          budget: initialBudget,
+          ahv: {
+            einkommenP1: null,
+            einkommenP2: null,
+            hatIkAuszugP1: false,
+            hatIkAuszugP2: false,
+            hatFehljahreP1: false,
+            hatFehljahreP2: false,
+            fehljahreAnzahlP1: 0,
+            fehljahreAnzahlP2: 0,
+            ahvBezugsalterP1: 65,
+            ahvBezugsalterP2: 65,
+          },
+          bvg: initialBvg,
+          saeuleDrei: { p1: [], p2: [] },
+          vermoegen: makeInitialVermoegen(),
+          immobilien: { items: [] },
+          firma: {
+            vorhanden: false,
+            firmenname: "",
+            moeglicherVerkaufserloes: null,
+            plan: "behalten",
+            verkaufsjahr: new Date().getFullYear() + 10,
+          },
+          nachlass: {
+            vorsorgeauftrag: false,
+            patientenverfuegung: false,
+            generalvollmacht: false,
+            testament: false,
+            erbvertrag: false,
+            ehevertrag: false,
+          },
+          anlagen: {
+            erfahrung: null,
+            risikobereitschaft: null,
+            horizont: null,
+            formen: [],
+            vermoegenAusland: false,
+          },
+          erbschaft: {
+            erwartet: null,
+            groessenordnung: null,
+            erwartetBetrag: null,
+            erwartetJahr: null,
+            erwartetBeruecksichtigen: false,
+            schenkungenStatus: null,
+            schenkungenDetails: "",
+            schenkungenBetrag: null,
+            schenkungenJahr: null,
+            schenkungenBeruecksichtigen: false,
+            gueterstand: null,
+          },
+          wohnortPlan: { umzugStatus: null, umzugZiel: "" },
+          versicherungen: {
+            vvgVorhanden: false,
+            lebensversicherungVorhanden: false,
+            lebensversicherungDetails: "",
+            gesundheitsthemen: "",
+          },
+          prioritaeten: {
+            ausgewaehlt: [],
+            andereBeschreibung: "",
+            zusaetzlicheAnliegen: "",
+          },
+          erweitert: {
+            zivilstandSeitJahr: null,
+            unterhaltspflichten: false,
+            unterhaltspflichtenDetails: "",
+            pensionsvision: "",
+            andereVermoegenswerte: "",
+            verbindlichkeitenAnderes: false,
+            verbindlichkeitenDetails: "",
+            firmaNachfolgeloesungEingeleitet: false,
+            firmaBezug: null,
+            dsgEinwilligung: false,
+          },
+        },
+        b: null,
+        c: null,
+      },
 
       setFallart: (fallart) =>
         set((s) => {
@@ -1339,6 +1515,75 @@ export const usePlanStore = create<PlanState>()(
           },
         })),
       setAktiverBlock: (aktiverBlock) => set({ aktiverBlock }),
+
+      // ── Plan-Setter (V35) ──────────────────────────────────────────
+      erstellePlan: (slot, basis) =>
+        set((s) => {
+          // 1. Aktuellen Top-Level-Variant als Snapshot in plaene[aktiv]
+          //    speichern (sonst gehen aktuelle Edits verloren bei Switch).
+          const aktuellerSnapshot = extractVariant(s);
+          const plaeneMitAktuellem = {
+            ...s.plaene,
+            [s.aktiverPlan]: aktuellerSnapshot,
+          };
+          // 2. Basis-Slot lesen (kann selber aktueller Plan sein).
+          const basisVariant =
+            basis === s.aktiverPlan
+              ? aktuellerSnapshot
+              : plaeneMitAktuellem[basis];
+          if (!basisVariant) return s;
+          // 3. Klonen → neuer Slot
+          const klon = cloneVariant(basisVariant);
+          // 4. Top-Level auf neuen Plan setzen
+          return {
+            plaene: {
+              ...plaeneMitAktuellem,
+              [slot]: klon,
+            },
+            aktiverPlan: slot,
+            ...klon,
+          };
+        }),
+      wechsleZuPlan: (slot) =>
+        set((s) => {
+          if (slot === s.aktiverPlan) return s;
+          if (slot !== "a" && !s.plaene[slot]) return s;
+          const aktuellerSnapshot = extractVariant(s);
+          const zielVariant = s.plaene[slot];
+          if (!zielVariant) return s;
+          return {
+            plaene: {
+              ...s.plaene,
+              [s.aktiverPlan]: aktuellerSnapshot,
+            },
+            aktiverPlan: slot,
+            ...zielVariant,
+          };
+        }),
+      loeschePlan: (slot) =>
+        set((s) => {
+          const next: PlaeneRegister = { ...s.plaene, [slot]: null };
+          // Wenn der gelöschte Plan gerade aktiv war → zu Plan A wechseln
+          if (s.aktiverPlan === slot) {
+            const variantA = next.a;
+            return { plaene: next, aktiverPlan: "a", ...variantA };
+          }
+          return { plaene: next };
+        }),
+      resetPlanZuA: (slot) =>
+        set((s) => {
+          // Plan A immer lesefrisch (Top-Level wenn aktiv, sonst plaene.a).
+          const planA =
+            s.aktiverPlan === "a" ? extractVariant(s) : s.plaene.a;
+          const klon = cloneVariant(planA);
+          const next: PlaeneRegister = { ...s.plaene, [slot]: klon };
+          // Wenn der zurückgesetzte Plan aktuell aktiv → Top-Level updaten
+          if (s.aktiverPlan === slot) {
+            return { plaene: next, ...klon };
+          }
+          return { plaene: next };
+        }),
+
       reset: () =>
         set({
           fallart: "einzel",
@@ -1422,10 +1667,118 @@ export const usePlanStore = create<PlanState>()(
             overrides: {},
           },
           aktiverBlock: 1,
+          aktiverPlan: "a",
+          plaene: {
+            a: extractVariant({
+              fallart: "einzel",
+              zivilstand: "ledig",
+              adresse: { ...initialAdresse },
+              person1: { ...initialPerson },
+              person2: { ...initialPerson },
+              kinder: [],
+              ziele: { ...initialZiele },
+              einmaligeAusgaben: [],
+              budget: { ...initialBudget },
+              ahv: { ...initialAhv },
+              bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
+              saeuleDrei: { p1: [], p2: [] },
+              vermoegen: makeInitialVermoegen(),
+              immobilien: { items: [] },
+              firma: {
+                vorhanden: false,
+                firmenname: "",
+                moeglicherVerkaufserloes: null,
+                plan: "behalten",
+                verkaufsjahr: new Date().getFullYear() + 10,
+              },
+              nachlass: {
+                vorsorgeauftrag: false,
+                patientenverfuegung: false,
+                generalvollmacht: false,
+                testament: false,
+                erbvertrag: false,
+                ehevertrag: false,
+              },
+              anlagen: {
+                erfahrung: null,
+                risikobereitschaft: null,
+                horizont: null,
+                formen: [],
+                vermoegenAusland: false,
+              },
+              erbschaft: {
+                erwartet: null,
+                groessenordnung: null,
+                erwartetBetrag: null,
+                erwartetJahr: null,
+                erwartetBeruecksichtigen: false,
+                schenkungenStatus: null,
+                schenkungenDetails: "",
+                schenkungenBetrag: null,
+                schenkungenJahr: null,
+                schenkungenBeruecksichtigen: false,
+                gueterstand: null,
+              },
+              wohnortPlan: { umzugStatus: null, umzugZiel: "" },
+              versicherungen: {
+                vvgVorhanden: false,
+                lebensversicherungVorhanden: false,
+                lebensversicherungDetails: "",
+                gesundheitsthemen: "",
+              },
+              prioritaeten: {
+                ausgewaehlt: [],
+                andereBeschreibung: "",
+                zusaetzlicheAnliegen: "",
+              },
+              erweitert: {
+                zivilstandSeitJahr: null,
+                unterhaltspflichten: false,
+                unterhaltspflichtenDetails: "",
+                pensionsvision: "",
+                andereVermoegenswerte: "",
+                verbindlichkeitenAnderes: false,
+                verbindlichkeitenDetails: "",
+                firmaNachfolgeloesungEingeleitet: false,
+                firmaBezug: null,
+                dsgEinwilligung: false,
+              },
+            } as unknown as PlanState),
+            b: null,
+            c: null,
+          },
         }),
     }),
     {
-      name: "cuira-plan-v34",
+      name: "cuira-plan-v35",
+      version: 35,
+      migrate: (persistedState: unknown, fromVersion: number): unknown => {
+        if (fromVersion >= 35) return persistedState;
+        const old = persistedState as Record<string, unknown> & {
+          szenarioB?: { aktiv: boolean };
+        };
+        const planA = extractVariant(old as unknown as PlanState);
+        const planB =
+          old.szenarioB?.aktiv === true ? cloneVariant(planA) : null;
+        return {
+          ...old,
+          aktiverPlan: "a",
+          plaene: { a: planA, b: planB, c: null },
+        };
+      },
+      // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
+      // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
+      // Plan-Slot existiert.
+      partialize: (state) => {
+        const aktuellerSnapshot = extractVariant(state);
+        return {
+          ...state,
+          plaene: {
+            ...state.plaene,
+            [state.aktiverPlan]: aktuellerSnapshot,
+          },
+        };
+      },
     }
   )
 );

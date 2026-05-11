@@ -9,7 +9,6 @@ import { Block1Personen } from "./Block1Personen";
 import { QuickStart } from "./QuickStart";
 import { DocUploadCenter } from "./DocUploadCenter";
 import { ImportPanel } from "./ImportPanel";
-import { SzenarioPanel } from "./SzenarioPanel";
 import { ActionPill } from "./ActionPill";
 import { ResizableNav } from "./ResizableNav";
 import { FlowRenderer } from "@/flow/FlowRenderer";
@@ -49,7 +48,6 @@ const BLOCKS = [
   { id: 8, title: "Immobilien", implemented: true },
   { id: 9, title: "Firma / Selbständigkeit", implemented: true },
   { id: 10, title: "Nachlass", implemented: true },
-  { id: 11, title: "Variante B (Vergleich)", implemented: true },
 ] as const;
 
 /**
@@ -148,8 +146,6 @@ function blockGlance(blockId: number, s: PlanState): string {
       const total = Object.keys(s.nachlass).length;
       return `${yes} / ${total} Dokumente`;
     }
-    case 11:
-      return s.szenarioB.aktiv ? "aktiv" : "—";
     default:
       return "—";
   }
@@ -211,9 +207,6 @@ function blockIstErledigt(blockId: number, s: PlanState): boolean {
     case 10:
       // Mindestens ein Nachlass-Dokument mit Häkchen.
       return (Object.values(s.nachlass) as boolean[]).some(Boolean);
-    case 11:
-      // Nur wenn Variante B aktiviert wurde.
-      return s.szenarioB.aktiv;
     default:
       return false;
   }
@@ -372,7 +365,6 @@ export function Wizard() {
           right={
             <div className="space-y-6">
               <ActiveBlock aktiverBlock={aktiverBlock} />
-              {aktiverBlock === 11 && <SzenarioPanel />}
             </div>
           }
         />
@@ -385,7 +377,6 @@ export function Wizard() {
             validation={validation}
           />
           <ActiveBlock aktiverBlock={aktiverBlock} />
-          {aktiverBlock === 11 && <SzenarioPanel />}
         </>
       )}
     </div>
@@ -524,10 +515,50 @@ function BlockNavigation({
 }
 
 function ActiveBlock({ aktiverBlock }: { aktiverBlock: number }) {
+  const aktiverPlan = usePlanStore((s) => s.aktiverPlan);
   // Re-mount mit `key` triggert die fade-in-Animation (cui-block-fade)
   // bei jedem Block-Wechsel.
   return (
-    <div key={aktiverBlock} className="cui-block-fade">
+    <div
+      key={`${aktiverPlan}-${aktiverBlock}`}
+      className="cui-block-fade"
+      data-aktiver-plan={aktiverPlan}
+      style={{
+        borderLeft: `4px solid ${
+          aktiverPlan === "a"
+            ? "var(--accent)"
+            : aktiverPlan === "b"
+              ? "oklch(0.55 0.24 295)"
+              : "oklch(0.7 0.18 65)"
+        }`,
+        paddingLeft: "12px",
+        marginLeft: "-16px",
+      }}
+    >
+      {aktiverPlan !== "a" && (
+        <div
+          className="mb-3 rounded-md border px-3 py-2 text-xs"
+          style={{
+            borderColor:
+              aktiverPlan === "b"
+                ? "oklch(0.75 0.14 295 / 0.4)"
+                : "oklch(0.8 0.12 65 / 0.4)",
+            background:
+              aktiverPlan === "b"
+                ? "oklch(0.97 0.03 295 / 0.4)"
+                : "oklch(0.97 0.04 65 / 0.4)",
+            color:
+              aktiverPlan === "b"
+                ? "oklch(0.4 0.18 295)"
+                : "oklch(0.45 0.13 65)",
+          }}
+        >
+          ▸ Sie bearbeiten <strong>Plan {aktiverPlan.toUpperCase()}</strong>
+          {aktiverBlock === 1 && (
+            <span> — Block 1 (Personen) ist mit Plan A geteilt. Änderungen wirken auf alle Varianten.</span>
+          )}
+        </div>
+      )}
       {aktiverBlock === 1 && <Block1Personen />}
       {aktiverBlock === 2 && <Block2Wuensche />}
       {aktiverBlock === 3 && <Block3Budget />}
