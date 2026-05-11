@@ -203,6 +203,20 @@ export function cashflowReihe(
   const bvgRenteHaushalt = computeBvgRenteHaushalt(state);
   const bvgKapitalAuszahlungen = computeBvgKapitalAuszahlungen(state);
 
+  // Anker-Einkommen: User hat im Budget aktuelle Jahressteuer (steuernHeute)
+  // erfasst — diese soll im aktuellen Jahr exakt als Steuer-Ausgabe
+  // erscheinen und in Folgejahren proportional zum Einkommen skaliert
+  // werden. Da das frühere Brutto-Feld weg ist, leiten wir das
+  // Anker-Einkommen aus dem heutigen Erwerbseinkommen (Block 3 netto) ab.
+  const heuteJahr = new Date().getFullYear();
+  const erwerbHeute = erwerbseinkommenJahr(state.budget.einkommen, heuteJahr);
+  const ankerEinkommenImplizit =
+    state.budget.einkommenHeute && state.budget.einkommenHeute > 0
+      ? state.budget.einkommenHeute
+      : erwerbHeute > 0
+        ? erwerbHeute
+        : null;
+
   // Per-Item Tracker für Block 7 — jedes Item hat seine eigene Rendite und
   // wird Jahr für Jahr fortgeschrieben. Hauptkonto bekommt zusätzlich den
   // Cashflow-Saldo + Kapitalauszahlungen.
@@ -353,7 +367,7 @@ export function cashflowReihe(
         state.bvg.p2.aktiverAnschluss &&
         istVorPensionP2,
       ankerSteuernHeute: state.budget.steuernHeute,
-      ankerEinkommenHeute: state.budget.einkommenHeute,
+      ankerEinkommenHeute: ankerEinkommenImplizit,
       // User-Wunsch: Erwerbseinkommen wird als Netto interpretiert
       // (Sozial+BVG bereits abgezogen). Engine zieht keine zusätzlichen
       // Sozial-Abzüge mehr ab — nur Berufsauslagen + Versicherung +
