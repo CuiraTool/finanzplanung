@@ -39,6 +39,7 @@ import {
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
 import { saeuleDreiAuszahlung } from "./saeule3";
 import { steuerProJahr, steuerProJahrIK, type FremdKantonAnteil } from "./steuer";
+import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
 
@@ -161,6 +162,7 @@ export interface CashflowZeile {
   ausgabenSozialBvg: number; // AHV/IV/EO + ALV + NBU + BVG-AN-Beitrag (Erwerbsphase)
   ausgabenVorsorge3a: number; // jährliche Einzahlungen Säule 3a/3b
   ausgabenPkEinkauf: number; // freiwilliger PK-Einkauf im Jahr (Σ p1+p2)
+  ausgabenAhvNe: number; // AHV-NE-Beiträge bei Frühpension (vor AHV-Alter, nicht-erwerbstätig)
   ausgabenHypozins: number; // jährliche Hypothek-Zinsen (Σ über alle laufenden Tranchen)
   ausgabenSchenkung: number; // einmalige Schenkung / Erbvorbezug (im Jahr; nur wenn Toggle aktiv)
   ausgabenEinmalig: number;
@@ -430,6 +432,42 @@ export function cashflowReihe(
     // bvgGesamtkapitalBeiBezug → wird im Bezugsjahr addiert + verzinst).
     const ausgabenPkEinkauf = pkEinkaufJahr;
 
+    // AHV-NE-Beiträge bei Frühpension: pro Person separat, ab Erwerbsende
+    // bis ordentliches AHV-Bezugsalter. Bemessung = Vermögen × 20 + Renten × 20.
+    // Vermögen wird bei Ehepaar hälftig zugerechnet.
+    const ahvNeBeitragsbasisVermoegen =
+      state.fallart === "paar"
+        ? vermoegenJahresanfang / 2
+        : vermoegenJahresanfang;
+    let ausgabenAhvNe = 0;
+    if (
+      alterP1 != null &&
+      istNichterwerbstaetig({
+        alter: alterP1,
+        ahvBezugsalter: state.ahv.ahvBezugsalterP1,
+        erwerbsEinkommenJahr: erwerbP1Roh,
+      })
+    ) {
+      ausgabenAhvNe += ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegen,
+        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+      });
+    }
+    if (
+      state.fallart === "paar" &&
+      alterP2 != null &&
+      istNichterwerbstaetig({
+        alter: alterP2,
+        ahvBezugsalter: state.ahv.ahvBezugsalterP2,
+        erwerbsEinkommenJahr: erwerbP2Roh,
+      })
+    ) {
+      ausgabenAhvNe += ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegen,
+        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+      });
+    }
+
     const ausgabenTotal =
       ausgabenHaushalt +
       ausgabenSteuern +
@@ -437,6 +475,7 @@ export function cashflowReihe(
       ausgabenSozialBvg +
       ausgabenVorsorge3a +
       ausgabenPkEinkauf +
+      ausgabenAhvNe +
       ausgabenHypozins +
       ausgabenSchenkung;
 
@@ -514,6 +553,7 @@ export function cashflowReihe(
       ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
       ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
       ausgabenPkEinkauf: Math.round(ausgabenPkEinkauf),
+      ausgabenAhvNe: Math.round(ausgabenAhvNe),
       ausgabenHypozins: Math.round(ausgabenHypozins),
       ausgabenSchenkung: Math.round(ausgabenSchenkung),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),

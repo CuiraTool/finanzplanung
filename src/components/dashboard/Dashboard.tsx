@@ -10,6 +10,8 @@ import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { SteuerDetailCard } from "./SteuerDetailCard";
+import { DreiSaeulenKpi } from "./DreiSaeulenKpi";
+import { PlausibilityPanel } from "./PlausibilityPanel";
 import { MassnahmenListe } from "./MassnahmenListe";
 import { KiMassnahmen } from "./KiMassnahmen";
 import { StressTests } from "./StressTests";
@@ -228,6 +230,10 @@ export function Dashboard() {
           diff={diff85}
         />
       </div>
+
+      <PlausibilityPanel />
+
+      <DreiSaeulenKpi />
 
       <div className="space-y-4">
         {cashflowA.length > 0 ? (
