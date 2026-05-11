@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "steuer-sync": "tsx scripts/steuer-sync.ts"
+    "steuer-sync": "tsx scripts/steuer-sync.ts",
+    "estv-crawl": "tsx scripts/estv-crawl.ts",
+    "estv-report": "tsx scripts/estv-report.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
