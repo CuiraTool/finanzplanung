@@ -41,13 +41,12 @@ const KNOWN_DRIFT_IDS = new Set<string>([
   //       separate Single- und Verheiratet-Tabelle (BUND-Format, 47 Stufen).
   //       Drift jetzt < 0.2 % (PersonalTax 24 CHF unmodelliert → minimaler
   //       Rest-Drift bei kleinen Einkommen).
-  // GE — Drift 6-8 %, vermutlich Pauschal-Abzug oder Steuerfuss-Detail
-  "GE-80000-einzel-keine",
-  "GE-150000-einzel-keine",
-  "GE-250000-einzel-keine",
-  "GE-500000-einzel-keine",
-  // SZ-500000 — einzelner Spitzentarif-Drift, andere Stufen <5 %
-  "SZ-500000-einzel-keine",
+  // GE — fixed: IncomeRateCanton 147.5 → 130.8 (effektiver kantonaler
+  //       Steuerfuss inkl. Rabais d'impôt). Drift jetzt < 0.2 %.
+  // SZ — fixed: 2026-Tarif neu aus ESTV-Sampling (BUND-Format mit Spitzen-
+  //       tarif-Korrektur bei 258900 CHF), zusätzlich separater Gemeinde-
+  //       Tarif `EINKOMMENSSTEUER_GEMEINDE` mit 3.65 % Marginalsatz-Cap
+  //       (Schwyz-Stadt-Spezifik). Drift jetzt < 0.1 %.
 ]);
 
 function loadSnapshot(): EstvSnapshot | null {

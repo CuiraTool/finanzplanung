@@ -9,6 +9,14 @@ export type TableType = "BUND" | "ZUERICH" | "FLATTAX" | "FREIBURG" | "FORMEL";
 
 export type TaxType =
   | "EINKOMMENSSTEUER"
+  /**
+   * Optional: separate Einkommens-Steuer-Tabelle für die Gemeinde, wenn der
+   * Kanton einen abweichenden Bemessungs-Tarif für die Gemeinde-Steuer
+   * benutzt (z.B. SZ 2026: Gemeinde-Tarif cap't bei 3.65% Marginalsatz,
+   * während Kanton-Tarif bis 7% steigt). Fällt zurück auf
+   * EINKOMMENSSTEUER, wenn nicht vorhanden.
+   */
+  | "EINKOMMENSSTEUER_GEMEINDE"
   | "VERMOEGENSSTEUER"
   | "KAPITALSTEUER"
   | "GEWINNSTEUER"

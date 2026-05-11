@@ -138,13 +138,20 @@ const EMPTY_RESULT: KantonSteuerResult = {
  * Geteilter Kanton-/Gemeinde-/Kirchensteuer-Berechnungspfad für Einkommen
  * und Vermögen — unterscheidet sich nur durch Steuerart, Faktor-Felder und
  * Kirchen-Prefix.
+ *
+ * Sonderfall „separater Gemeinde-Tarif“: wenn `gemeindeTaxType` gesetzt ist
+ * und im Tarif-File eine Tabelle dieses Typs existiert, wird die Gemeinde-
+ * Steuer auf einer eigenen Bemessungsgrundlage berechnet (z.B. SZ 2026,
+ * Gemeinde-Tarif cap't bei 3.65 % Marginalsatz). Sonst Fallback auf die
+ * gleiche `einfache` wie der Kanton.
  */
 function steuerKantonGenerisch(
   bemessung: number,
   input: KantonSteuerInput,
   taxType: TaxType,
   fussFelder: { kanton: keyof FactorRates; gemeinde: keyof FactorRates },
-  kirchenPrefix: "Income" | "Fortune"
+  kirchenPrefix: "Income" | "Fortune",
+  gemeindeTaxType?: TaxType
 ): KantonSteuerResult {
   if (bemessung <= 0) return EMPTY_RESULT;
 
@@ -159,6 +166,22 @@ function steuerKantonGenerisch(
   const rounded = round100Down(split, tarif);
   const taxes = calculateTaxes(rounded, tarif);
   const einfache = reverseSplitting(taxes, tarif, input.fallart);
+
+  // Optional separater Gemeinde-Tarif (SZ 2026 Spitzentarif-Cap).
+  let einfacheGemeinde = einfache;
+  if (gemeindeTaxType) {
+    const tarifGemeinde = findTarifFor(tarifs, gemeindeTaxType, input.fallart);
+    if (tarifGemeinde) {
+      const splitG = applySplitting(bemessung, tarifGemeinde, input.fallart);
+      const roundedG = round100Down(splitG, tarifGemeinde);
+      const taxesG = calculateTaxes(roundedG, tarifGemeinde);
+      einfacheGemeinde = reverseSplitting(
+        taxesG,
+        tarifGemeinde,
+        input.fallart
+      );
+    }
+  }
 
   const factor = findFactor(
     info.cantonId,
@@ -180,8 +203,8 @@ function steuerKantonGenerisch(
     ) / 100;
 
   const kanton = einfache * kantonFuss;
-  const gemeinde = einfache * gemeindeFuss;
-  const kirche = einfache * kircheFuss;
+  const gemeinde = einfacheGemeinde * gemeindeFuss;
+  const kirche = einfacheGemeinde * kircheFuss;
   return {
     einfache,
     kanton,
@@ -196,6 +219,11 @@ type FactorRates = Record<string, number>;
 
 /**
  * Berechnet die Einkommenssteuer Kanton + Gemeinde + Kirche für einen Kanton.
+ *
+ * Wenn der Kanton einen separaten Gemeinde-Einkommens-Tarif kennt
+ * (`EINKOMMENSSTEUER_GEMEINDE`-Eintrag im Tarif-File), wird dieser für die
+ * Gemeinde-/Kirchen-Bemessung verwendet — sonst Standardpfad mit einer
+ * einzigen einfachen Steuer.
  */
 export function einkommensteuerKanton(
   steuerbaresEinkommen: number,
@@ -206,7 +234,8 @@ export function einkommensteuerKanton(
     input,
     "EINKOMMENSSTEUER",
     { kanton: "IncomeRateCanton", gemeinde: "IncomeRateCity" },
-    "Income"
+    "Income",
+    "EINKOMMENSSTEUER_GEMEINDE"
   );
 }
 
