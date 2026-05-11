@@ -95,7 +95,7 @@ src/engine/
 |---|---|---|
 | 0 | Repo + Wizard-Skelett + Engine v0 | ✅ |
 | 1 | Alle 10 Blöcke + Engines + Vermögensbilanz | ✅ |
-| 1.5 | BSV-Rententabellen statt Linear-Approx | offen |
+| 1.5 | BSV-Rententabellen statt Linear-Approx | ✅ |
 | 2 | Cashflow-Engine mit Jahres-Iteration + Charts (Recharts) | offen |
 | 2.5 | Steuer-Engine ZH/ZG (Eink./Verm./Kap./GGSt) | offen |
 | 3 | Multi-Kanton + PDF-Export (Puppeteer) | offen |

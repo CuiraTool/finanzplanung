@@ -49,6 +49,7 @@ import { VermoegensChart } from "@/components/dashboard/VermoegensChart";
 import { EinnahmenAusgabenChart } from "@/components/dashboard/EinnahmenAusgabenChart";
 import { SteuerChart } from "@/components/dashboard/SteuerChart";
 import { SteuerDetailCard } from "@/components/dashboard/SteuerDetailCard";
+import { SankeyChart } from "@/components/dashboard/SankeyChart";
 import { DreiSaeulenKpi } from "@/components/dashboard/DreiSaeulenKpi";
 import { HinterlassenenCard } from "@/components/dashboard/HinterlassenenCard";
 import {
@@ -562,6 +563,38 @@ export default function PrintPage() {
             </div>
           </Section>
         </div>
+
+        {/* ── Geldfluss-Diagramme (heute + Pension) ────────── */}
+        {cashflow.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Geldfluss-Diagramme">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Sankey-Visualisierung der Einnahme-Quellen, Ausgabe-Ziele
+                und Sparquote — Bandbreite proportional zum CHF-Betrag.
+              </p>
+              <div className="chart-sankey">
+                <SankeyChart
+                  cashflow={cashflow}
+                  jahrFix={heutigesJahr}
+                  hoehe={320}
+                  bare
+                />
+              </div>
+              {ordPensionsjahr &&
+                ordPensionsjahr !== heutigesJahr &&
+                cashflow.find((z) => z.jahr === ordPensionsjahr) && (
+                  <div className="chart-sankey mt-6">
+                    <SankeyChart
+                      cashflow={cashflow}
+                      jahrFix={ordPensionsjahr}
+                      hoehe={320}
+                      bare
+                    />
+                  </div>
+                )}
+            </Section>
+          </div>
+        )}
 
         {/* ── Steuerentwicklung-Chart + Detail-Card (eigene Seite) ──── */}
         {cashflow.length > 0 && (
@@ -1186,6 +1219,16 @@ export default function PrintPage() {
           .chart-section {
             page-break-inside: avoid;
             break-inside: avoid;
+          }
+          /* Sankey-Block: zwei Diagramme auf einer Seite. SVG = viewBox-skaliert,
+             daher ist die feste Höhe = 100mm pro Sankey. */
+          .chart-sankey {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .chart-sankey svg {
+            max-height: 100mm;
+            width: 100% !important;
           }
           /* Charts farbtreu drucken */
           * {

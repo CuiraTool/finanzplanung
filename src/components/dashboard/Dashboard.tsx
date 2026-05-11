@@ -10,6 +10,7 @@ import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
 import { SteuerDetailCard } from "./SteuerDetailCard";
+import { SankeyChart } from "./SankeyChart";
 import { DreiSaeulenKpi } from "./DreiSaeulenKpi";
 import { PlausibilityPanel } from "./PlausibilityPanel";
 import { HinterlassenenCard } from "./HinterlassenenCard";
@@ -283,6 +284,7 @@ export function Dashboard() {
               fallart={fallart}
             />
             <SteuerDetailCard cashflow={cashflowA} />
+            <SankeyChart cashflow={cashflowA} />
           </>
         ) : (
           <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
