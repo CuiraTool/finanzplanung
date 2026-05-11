@@ -230,7 +230,7 @@ function DeltaZeile({
   );
 }
 
-interface VariantKpis {
+export interface VariantKpis {
   vermoegenHeute: number;
   vermoegenPension: number;
   vermoegenMit85: number;
@@ -239,7 +239,7 @@ interface VariantKpis {
   effektivSatzProzent: number;
 }
 
-function extractVariantFromState(s: PlanState): PlanVariantData {
+export function extractVariantFromState(s: PlanState): PlanVariantData {
   return {
     ziele: s.ziele,
     einmaligeAusgaben: s.einmaligeAusgaben,
@@ -264,7 +264,7 @@ function extractVariantFromState(s: PlanState): PlanVariantData {
  * KPI-Berechnung für eine Variant — kombiniert Stammdaten vom Top-Level
  * State mit dem Variant-Slice. Cashflow läuft pro Variante separat.
  */
-function kpisFuerVariant(
+export function kpisFuerVariant(
   variant: PlanVariantData,
   stammState: PlanState,
   heutigesJahr: number,

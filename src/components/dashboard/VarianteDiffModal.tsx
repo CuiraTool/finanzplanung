@@ -130,7 +130,7 @@ export function VarianteDiffModal({
   );
 }
 
-function gruppiereNachBlock(diffs: DiffZeile[]): Record<string, DiffZeile[]> {
+export function gruppiereNachBlock(diffs: DiffZeile[]): Record<string, DiffZeile[]> {
   const out: Record<string, DiffZeile[]> = {};
   for (const d of diffs) {
     if (!out[d.block]) out[d.block] = [];
@@ -139,7 +139,9 @@ function gruppiereNachBlock(diffs: DiffZeile[]): Record<string, DiffZeile[]> {
   return out;
 }
 
-function sammleDiffs(
+export type { DiffZeile };
+
+export function sammleDiffs(
   a: PlanVariantData,
   b: PlanVariantData
 ): DiffZeile[] {

@@ -49,6 +49,18 @@ import { VermoegensChart } from "@/components/dashboard/VermoegensChart";
 import { EinnahmenAusgabenChart } from "@/components/dashboard/EinnahmenAusgabenChart";
 import { SteuerChart } from "@/components/dashboard/SteuerChart";
 import { SteuerDetailCard } from "@/components/dashboard/SteuerDetailCard";
+import { DreiSaeulenKpi } from "@/components/dashboard/DreiSaeulenKpi";
+import { HinterlassenenCard } from "@/components/dashboard/HinterlassenenCard";
+import {
+  extractVariantFromState,
+  kpisFuerVariant,
+} from "@/components/dashboard/VarianteDeltaPanel";
+import {
+  sammleDiffs,
+  gruppiereNachBlock,
+} from "@/components/dashboard/VarianteDiffModal";
+import { checkePlan } from "@/lib/plausibility";
+import type { PlanSlot } from "@/lib/store";
 
 const PROJEKTIONS_END_ALTER = 85;
 
@@ -187,6 +199,27 @@ export default function PrintPage() {
     return () => clearTimeout(t);
   }, [autoprint]);
 
+  // ── Δ-Vergleich Plan A/B/C — nur wenn ≥1 Vergleichs-Slot existiert ──
+  const vergleichsSlots = useMemo<PlanSlot[]>(() => {
+    const out: PlanSlot[] = [];
+    if (fullState.aktiverPlan !== "a") out.push("a");
+    if (fullState.aktiverPlan !== "b" && fullState.plaene.b) out.push("b");
+    if (fullState.aktiverPlan !== "c" && fullState.plaene.c) out.push("c");
+    return out;
+  }, [fullState.aktiverPlan, fullState.plaene.b, fullState.plaene.c]);
+
+  const aktiveVariant = useMemo(
+    () => extractVariantFromState(fullState),
+    [fullState]
+  );
+  const aktivKpisDelta = useMemo(
+    () => kpisFuerVariant(aktiveVariant, fullState, heutigesJahr, endJahr),
+    [aktiveVariant, fullState, heutigesJahr, endJahr]
+  );
+
+  // ── Plausibilitäts-Hinweise ──
+  const plausiHinweise = useMemo(() => checkePlan(fullState), [fullState]);
+
   const kundeName = `${fullState.person1.vorname} ${fullState.person1.nachname}`.trim();
   const kundeName2 =
     fullState.fallart === "paar"
@@ -318,6 +351,66 @@ export default function PrintPage() {
           </footer>
         </div>
 
+        {/* ── Plan-Varianten Δ-Vergleich (eigene Seite, nur wenn ≥1 Vergleich) ── */}
+        {vergleichsSlots.length > 0 && (
+          <div className="page-break-before pt-6">
+            <header
+              className="mb-5 flex items-start justify-between border-b pb-3"
+              style={{ borderColor: "#e7eaee" }}
+            >
+              <div>
+                <Image
+                  src="/cuira-logo.png"
+                  alt="Cuira Partners"
+                  width={100}
+                  height={40}
+                  className="h-7 w-auto"
+                  style={{ filter: "invert(1) brightness(0.2)" }}
+                />
+              </div>
+              <div
+                className="text-right text-[10px]"
+                style={{ color: "#8390a3" }}
+              >
+                <div>
+                  {kundeName}
+                  {kundeName2 && ` & ${kundeName2}`}
+                </div>
+                <div>Stand: {heuteFormatiert}</div>
+              </div>
+            </header>
+            <Section titel={`Plan-Varianten — Vergleich (aktiv: Plan ${fullState.aktiverPlan.toUpperCase()})`}>
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Gegenüberstellung des aktiven Plans mit den hinterlegten
+                Vergleichsvarianten. Δ zeigt den Unterschied zugunsten (grün)
+                oder zuungunsten (gelb) des aktiven Plans.
+              </p>
+              {vergleichsSlots.map((slot) => {
+                const variant = fullState.plaene[slot];
+                if (!variant) return null;
+                const vKpis = kpisFuerVariant(
+                  variant,
+                  fullState,
+                  heutigesJahr,
+                  endJahr
+                );
+                const diffs = sammleDiffs(aktiveVariant, variant);
+                const diffsGruppiert = gruppiereNachBlock(diffs);
+                return (
+                  <VarianteVergleichBlock
+                    key={slot}
+                    aktivSlot={fullState.aktiverPlan}
+                    vergleichSlot={slot}
+                    aktivKpis={aktivKpisDelta}
+                    vergleichKpis={vKpis}
+                    diffsGruppiert={diffsGruppiert}
+                  />
+                );
+              })}
+            </Section>
+          </div>
+        )}
+
         {/* ── Seite 2 Start: Header + KPIs + Eckdaten zusammen ── */}
         <div className="page-break-before pt-6">
           <header
@@ -415,6 +508,26 @@ export default function PrintPage() {
           </table>
         </Section>
         </div>
+
+        {/* ── 3-Säulen-Übersicht (eigene Seite) ────────────────── */}
+        <div className="page-break-before pt-4 print-drei-saeulen">
+          <Section titel="3-Säulen-Übersicht bei Pensionierung">
+            <DreiSaeulenKpi />
+          </Section>
+        </div>
+
+        {/* ── Hinterlassenen-Leistungen (eigene Seite, nur bei Paar) ── */}
+        {fullState.fallart === "paar" && (
+          <div className="page-break-before pt-4 print-hinterlassenen">
+            <Section titel="Hinterlassenen-Leistungen">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Was bekommt der überlebende Partner bei Tod der anderen Person —
+                AHV + BVG + Waisenrenten.
+              </p>
+              <HinterlassenenCard />
+            </Section>
+          </div>
+        )}
 
         {/* ── Vermögensentwicklung-Chart (eigene Seite) ───────── */}
         <div className="page-break-before pt-4 chart-section">
@@ -812,6 +925,73 @@ export default function PrintPage() {
           </Section>
         </div>
 
+        {/* ── Plausibilitäts-Hinweise (wenn vorhanden) ──────────── */}
+        {plausiHinweise.length > 0 && (
+          <div className="mt-8 print-plausi">
+            <div
+              className="rounded-md border p-3"
+              style={{
+                borderColor: "#fcd34d",
+                background: "#fffbeb",
+              }}
+            >
+              <div className="mb-2 flex items-baseline justify-between">
+                <strong className="text-sm" style={{ color: "#854d0e" }}>
+                  Plausibilitäts-Hinweise
+                </strong>
+                <span className="text-[10px]" style={{ color: "#854d0e" }}>
+                  {plausiHinweise.length} Hinweise · vor Versand prüfen
+                </span>
+              </div>
+              <ul className="space-y-1">
+                {plausiHinweise.map((h) => (
+                  <li
+                    key={h.id}
+                    className="flex items-start gap-2 text-[11px]"
+                    style={{
+                      color:
+                        h.schwere === "fehler"
+                          ? "#991b1b"
+                          : h.schwere === "warnung"
+                            ? "#854d0e"
+                            : "#475569",
+                    }}
+                  >
+                    <span
+                      className="mt-0.5 shrink-0 rounded-sm px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider"
+                      style={{
+                        background:
+                          h.schwere === "fehler"
+                            ? "#fee2e2"
+                            : h.schwere === "warnung"
+                              ? "#fef3c7"
+                              : "#e2e8f0",
+                        color:
+                          h.schwere === "fehler"
+                            ? "#991b1b"
+                            : h.schwere === "warnung"
+                              ? "#854d0e"
+                              : "#475569",
+                      }}
+                    >
+                      {h.schwere}
+                    </span>
+                    <span className="flex-1">
+                      <span
+                        className="font-medium"
+                        style={{ color: "#475569" }}
+                      >
+                        Block {h.block}:
+                      </span>{" "}
+                      {h.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {/* ── Footer / Disclaimer ─────────────────────────────── */}
         <footer
           className="mt-12 border-t pt-6 text-xs leading-relaxed"
@@ -940,6 +1120,36 @@ export default function PrintPage() {
           }
           /* SteuerDetailCard im Print: nicht in 2 Seiten brechen */
           .print-steuer-detail {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          /* 3-Säulen-Block: Header + 3-Spalten-Grid auf einer Seite halten */
+          .print-drei-saeulen {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .print-drei-saeulen .lg\\:grid-cols-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          /* Hinterlassenen-Block: zwei Karten auf einer Seite halten */
+          .print-hinterlassenen {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .print-hinterlassenen .lg\\:grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          /* Varianten-Vergleichsblock: pro Slot nicht über Seite brechen */
+          .print-variante-vergleich {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 12px;
+          }
+          .print-variante-vergleich .grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+          /* Plausibilitäts-Box: nicht über Seitenrand brechen */
+          .print-plausi {
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -1113,6 +1323,237 @@ function werLabel(
   if (wer === "p1") return state.person1.vorname || "Person 1";
   if (wer === "p2") return state.person2.vorname || "Person 2";
   return "";
+}
+
+/**
+ * Renderer für einen Plan-Vergleichs-Block (Δ-KPIs + Diff-Tabelle).
+ * Wird pro Vergleichs-Slot einmal aufgerufen.
+ */
+function VarianteVergleichBlock({
+  aktivSlot,
+  vergleichSlot,
+  aktivKpis,
+  vergleichKpis,
+  diffsGruppiert,
+}: {
+  aktivSlot: PlanSlot;
+  vergleichSlot: PlanSlot;
+  aktivKpis: {
+    vermoegenHeute: number;
+    vermoegenPension: number;
+    vermoegenMit85: number;
+    pensionEinkommen: number;
+    lebenszeitSteuern: number;
+    effektivSatzProzent: number;
+  };
+  vergleichKpis: {
+    vermoegenHeute: number;
+    vermoegenPension: number;
+    vermoegenMit85: number;
+    pensionEinkommen: number;
+    lebenszeitSteuern: number;
+    effektivSatzProzent: number;
+  };
+  diffsGruppiert: Record<
+    string,
+    Array<{ block: string; feld: string; aktiv: string; vergleich: string }>
+  >;
+}) {
+  const farben = {
+    a: { dot: "#3b82f6", text: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+    b: { dot: "#8b5cf6", text: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe" },
+    c: { dot: "#f59e0b", text: "#b45309", bg: "#fffbeb", border: "#fde68a" },
+  };
+  const vF = farben[vergleichSlot];
+  const aF = farben[aktivSlot];
+
+  const kpis: Array<{
+    label: string;
+    aktiv: number;
+    vergleich: number;
+    richtung: "hoch-gut" | "tief-gut";
+    formatProzent?: boolean;
+  }> = [
+    {
+      label: "Vermögen heute",
+      aktiv: aktivKpis.vermoegenHeute,
+      vergleich: vergleichKpis.vermoegenHeute,
+      richtung: "hoch-gut",
+    },
+    {
+      label: "Vermögen bei Pension",
+      aktiv: aktivKpis.vermoegenPension,
+      vergleich: vergleichKpis.vermoegenPension,
+      richtung: "hoch-gut",
+    },
+    {
+      label: "Vermögen bei 85",
+      aktiv: aktivKpis.vermoegenMit85,
+      vergleich: vergleichKpis.vermoegenMit85,
+      richtung: "hoch-gut",
+    },
+    {
+      label: "Pension-Einkommen p.a.",
+      aktiv: aktivKpis.pensionEinkommen,
+      vergleich: vergleichKpis.pensionEinkommen,
+      richtung: "hoch-gut",
+    },
+    {
+      label: "Lebenszeit-Steuern",
+      aktiv: aktivKpis.lebenszeitSteuern,
+      vergleich: vergleichKpis.lebenszeitSteuern,
+      richtung: "tief-gut",
+    },
+    {
+      label: "Effektivsteuersatz heute",
+      aktiv: aktivKpis.effektivSatzProzent,
+      vergleich: vergleichKpis.effektivSatzProzent,
+      richtung: "tief-gut",
+      formatProzent: true,
+    },
+  ];
+
+  const diffEntries = Object.entries(diffsGruppiert);
+
+  return (
+    <div
+      className="print-variante-vergleich rounded-md border p-3"
+      style={{ borderColor: vF.border, background: vF.bg }}
+    >
+      <div className="mb-2 flex items-baseline justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          <span
+            className="inline-block size-2 rounded-full"
+            style={{ background: aF.dot }}
+          />
+          <span className="font-semibold" style={{ color: aF.text }}>
+            Plan {aktivSlot.toUpperCase()} (aktiv)
+          </span>
+          <span className="text-xs text-slate-400">vs.</span>
+          <span
+            className="inline-block size-2 rounded-full"
+            style={{ background: vF.dot }}
+          />
+          <span className="font-semibold" style={{ color: vF.text }}>
+            Plan {vergleichSlot.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {kpis.map((k) => {
+          const delta = k.aktiv - k.vergleich;
+          const istBesser =
+            delta === 0
+              ? null
+              : k.richtung === "hoch-gut"
+                ? delta > 0
+                : delta < 0;
+          const pfeil = delta === 0 ? "—" : delta > 0 ? "↑" : "↓";
+          const farbeText =
+            istBesser === null
+              ? "#64748b"
+              : istBesser
+                ? "#047857"
+                : "#b45309";
+          const farbeBg =
+            istBesser === null
+              ? "#ffffff"
+              : istBesser
+                ? "#ecfdf5"
+                : "#fef3c7";
+          const fmt = (n: number) =>
+            k.formatProzent ? `${n.toFixed(1)} %` : formatChf(Math.round(n));
+          return (
+            <div
+              key={k.label}
+              className="rounded-md border px-2 py-1.5"
+              style={{ borderColor: "#e2e8f0", background: farbeBg }}
+            >
+              <div
+                className="text-[9px] uppercase tracking-wider"
+                style={{ color: "#64748b" }}
+              >
+                {k.label}
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between gap-1">
+                <span
+                  className="text-[11px] font-semibold tabular-nums"
+                  style={{ color: "#0f172a" }}
+                >
+                  {fmt(k.aktiv)}
+                </span>
+                <span
+                  className="text-[10px] font-medium tabular-nums"
+                  style={{ color: farbeText }}
+                >
+                  {pfeil} {delta !== 0 ? fmt(Math.abs(delta)) : "0"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {diffEntries.length > 0 && (
+        <div className="mt-3">
+          <div
+            className="mb-1 text-[10px] font-semibold uppercase tracking-wider"
+            style={{ color: "#475569" }}
+          >
+            Unterschiede im Detail
+          </div>
+          <div className="overflow-hidden rounded-md border" style={{ borderColor: "#e2e8f0" }}>
+            <table className="w-full text-[10px]">
+              <thead style={{ background: "#f8fafc" }}>
+                <tr style={{ color: "#64748b" }}>
+                  <th className="px-2 py-1 text-left font-medium">Block / Feld</th>
+                  <th className="px-2 py-1 text-left font-medium">
+                    Plan {aktivSlot.toUpperCase()}
+                  </th>
+                  <th className="px-2 py-1 text-left font-medium">
+                    Plan {vergleichSlot.toUpperCase()}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {diffEntries.flatMap(([block, zeilen]) =>
+                  zeilen.map((z, i) => (
+                    <tr
+                      key={`${block}-${i}`}
+                      style={{ borderTop: "1px solid #f1f5f9" }}
+                    >
+                      <td className="px-2 py-1" style={{ color: "#475569" }}>
+                        <span className="text-[9px] uppercase tracking-wider opacity-70">
+                          {block.replace(/^[\p{Emoji}\s]+/u, "")}
+                        </span>
+                        <br />
+                        <span className="font-medium" style={{ color: "#0f172a" }}>
+                          {z.feld}
+                        </span>
+                      </td>
+                      <td
+                        className="px-2 py-1 font-medium tabular-nums"
+                        style={{ color: "#0f172a" }}
+                      >
+                        {z.aktiv}
+                      </td>
+                      <td
+                        className="px-2 py-1 tabular-nums"
+                        style={{ color: "#334155" }}
+                      >
+                        {z.vergleich}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function chartEndJahr(geburtsdatum: string, alter: number): number | null {
