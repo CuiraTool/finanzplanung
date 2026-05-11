@@ -92,7 +92,8 @@ export function HinterlassenenCard() {
       <div className="mt-3 text-[10px] text-slate-400">
         Basis: hypothetische AHV-/BVG-Altersrenten beider Personen (Stand
         Pensionsalter). Witwen-Sätze: AHV 80 %, BVG 60 %. Waisen: AHV 40 %,
-        BVG 20 %. Plafond AHV-Witwen CHF 24'192/J (80 % Max-Einzelrente).
+        BVG 20 %. Bei eigener Altersrente: Art. 24b AHVG — nur die höhere
+        Rente wird ausbezahlt.
       </div>
     </div>
   );

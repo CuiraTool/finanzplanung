@@ -11,7 +11,7 @@ describe("Hinterlassenen-Leistungen", () => {
       halbwaisen: 0,
     });
     expect(r.ahvAnspruchsberechtigt).toBe(true);
-    // 80% × 30'240 = 24'192 (= Plafond)
+    // 80% × 30'240 = 24'192 (natürliches Max aus Skala 44, kein Cap)
     expect(r.ahvWitwenrente).toBe(24_192);
     // 60% × 24'000 = 14'400
     expect(r.bvgWitwenrente).toBe(14_400);
@@ -52,30 +52,42 @@ describe("Hinterlassenen-Leistungen", () => {
     expect(r.bvgWitwenrente).toBe(10_800);
   });
 
-  it("Plafond Witwen-Rente: max 80 % × 30'240 = 24'192", () => {
+  it("Hohe hypothetische Altersrente: Witwenrente = 80 % davon (kein Cap)", () => {
     const r = berechneHinterlassenen({
-      ahvAltersrenteVerstorbener: 50_000, // hypothetisch hoch
+      ahvAltersrenteVerstorbener: 50_000, // hypothetisch (Skala-44-Max wäre 30'240)
       bvgAltersrenteVerstorbener: 0,
       alterUeberlebender: 50,
       ehejahre: 20,
       halbwaisen: 0,
     });
-    expect(r.ahvWitwenrente).toBe(24_192);
+    expect(r.ahvWitwenrente).toBe(40_000); // 80 % × 50'000
   });
 
-  it("Kombination Witwen + eigene AHV-Rente: Plafond 30'240", () => {
+  it("Art. 24b: Witwenanspruch > eigene Altersrente → Differenz fliesst", () => {
     const r = berechneHinterlassenen({
-      ahvAltersrenteVerstorbener: 30_240,
+      ahvAltersrenteVerstorbener: 30_240, // Witwenanspruch 24'192
       bvgAltersrenteVerstorbener: 0,
       alterUeberlebender: 65,
       ehejahre: 20,
       halbwaisen: 0,
       eigeneAhvAltersrente: 18_000,
     });
-    // Witwen-Anteil + eigene Rente max 30'240
-    // → Witwen = 30'240 - 18'000 = 12'240
-    expect(r.ahvWitwenrente).toBe(12_240);
-    expect(r.hinweise.some((h) => h.includes("plafoniert"))).toBe(true);
+    // Witwenanspruch 24'192 > eigene 18'000 → Differenz 6'192 zusätzlich
+    expect(r.ahvWitwenrente).toBe(6_192);
+    expect(r.hinweise.some((h) => h.includes("24b"))).toBe(true);
+  });
+
+  it("Art. 24b: eigene Rente > Witwenanspruch → Witwen entfällt", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 20_000, // Witwenanspruch 16'000
+      bvgAltersrenteVerstorbener: 0,
+      alterUeberlebender: 65,
+      ehejahre: 20,
+      halbwaisen: 0,
+      eigeneAhvAltersrente: 22_000, // > 16'000
+    });
+    expect(r.ahvWitwenrente).toBe(0);
+    expect(r.hinweise.some((h) => h.includes("eigene Altersrente"))).toBe(true);
   });
 
   it("Konkubinat ohne Kind: Hinweis BVG abhängig vom Reglement", () => {

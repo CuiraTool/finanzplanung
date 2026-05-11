@@ -18,10 +18,15 @@
  *  - 45+ Jahre alt UND ≥5 Jahre Ehe
  *  Sonst: einmalige Kapitalabfindung 3 Jahresrenten (Reglement-abhängig).
  *
- * Plafonierung:
- *  - AHV-Witwen-Rente max 80 % × Maximalrente einzeln = CHF 24'192 (2025)
- *  - Kombiniert mit eigener Altersrente: Plafond 100 % × Maximalrente einzeln
- *    (sehr verbreiteter Härtefall; eigene Rente kürzt Witwenrente)
+ * Kein expliziter Plafond auf Witwenrente:
+ *  - Die hypothetische AHV-Altersrente des Verstorbenen ist bereits durch
+ *    Skala 44 plafoniert (Max-Einzelrente CHF 30'240). 80 % davon = CHF
+ *    24'192 ist das natürliche Maximum, aber kein zusätzlicher Cap nötig.
+ *  - Kombination mit eigener AHV-Altersrente: AHV zahlt NICHT beide
+ *    Renten parallel. Es wird der HÖHERE Betrag ausgerichtet (eigene
+ *    Altersrente ODER Witwenrente, je nachdem, was günstiger ist —
+ *    Art. 24b AHVG). Im Tool zeigen wir die Differenz als
+ *    "zusätzliches Einkommen vs. nur eigene Rente".
  *
  * Waisenrente:
  *  - AHV: 40 % der Altersrente pro Halbwaise, 60 % bei Vollwaise
@@ -36,9 +41,8 @@ const BVG_WITWEN_PROZENT = 0.6;
 const BVG_HALBWAISEN_PROZENT = 0.2;
 const BVG_VOLLWAISEN_PROZENT = 0.4;
 
-/** BSV 2025: Max-Einzelrente CHF 30'240 → Witwenrente-Plafond 80 % = 24'192. */
-const AHV_MAX_EINZELRENTE = 30_240;
-const AHV_WITWENRENTE_PLAFOND = AHV_MAX_EINZELRENTE * AHV_WITWEN_PROZENT; // 24'192
+// Kein Cap auf Witwenrente — natürliches Maximum ergibt sich aus der
+// Skala-44-Plafonierung der hypothetischen Altersrente des Verstorbenen.
 
 export interface HinterlassenenInput {
   /** Hypothetische Altersrente des Verstorbenen (AHV) pro Jahr. */
@@ -94,27 +98,31 @@ export function berechneHinterlassenen(
   const erfueltAlter = input.alterUeberlebender >= 45;
   const ahvAnspruchsberechtigt = hatKind || (erfueltDauerEhe && erfueltAlter);
 
-  // AHV-Witwenrente
+  // AHV-Witwenrente — 80 % der hypothetischen Altersrente des Verstorbenen.
+  // Kein zusätzlicher Plafond (natürliches Max ergibt sich aus Skala 44).
   let ahvWitwenrente = 0;
   if (ahvAnspruchsberechtigt) {
-    const brutto = input.ahvAltersrenteVerstorbener * AHV_WITWEN_PROZENT;
-    // Plafond auf 80 % der AHV-Maximalrente einzeln
-    const nachPlafond = Math.min(brutto, AHV_WITWENRENTE_PLAFOND);
-    // Wenn Überlebender eigene Altersrente hat: Plafond auf 100 % Max-Einzel.
-    // Vereinfachung: kombinierte Rente max AHV-Maximalrente einzeln (echte
-    // Regel ist Komplex bei Vorbezug/Aufschub).
+    const witwenAnspruch =
+      input.ahvAltersrenteVerstorbener * AHV_WITWEN_PROZENT;
+
+    // Art. 24b AHVG: bezieht Überlebender bereits eigene Altersrente,
+    // wird nur die HÖHERE der beiden Renten ausbezahlt. Witwenrente kommt
+    // also nur zur Wirkung, wenn sie höher ist als die eigene Altersrente —
+    // und auch dann nur als "zusätzlicher" Betrag = max(0, witwen − eigene).
     if (input.eigeneAhvAltersrente && input.eigeneAhvAltersrente > 0) {
-      const kombiniert = nachPlafond + input.eigeneAhvAltersrente;
-      if (kombiniert > AHV_MAX_EINZELRENTE) {
-        ahvWitwenrente = Math.max(0, AHV_MAX_EINZELRENTE - input.eigeneAhvAltersrente);
+      if (witwenAnspruch > input.eigeneAhvAltersrente) {
+        ahvWitwenrente = witwenAnspruch - input.eigeneAhvAltersrente;
         hinweise.push(
-          `AHV: Witwen-/Altersrenten-Kombination plafoniert auf CHF ${formatChf(AHV_MAX_EINZELRENTE)} (Max-Einzelrente)`
+          `AHV Art. 24b: nur höhere Rente wird ausbezahlt — Witwenrente (CHF ${formatChf(witwenAnspruch)}) ersetzt eigene Altersrente (CHF ${formatChf(input.eigeneAhvAltersrente)}), Differenz CHF ${formatChf(ahvWitwenrente)} fliesst zusätzlich.`
         );
       } else {
-        ahvWitwenrente = nachPlafond;
+        ahvWitwenrente = 0;
+        hinweise.push(
+          `AHV Art. 24b: eigene Altersrente (CHF ${formatChf(input.eigeneAhvAltersrente)}) übersteigt Witwenanspruch (CHF ${formatChf(witwenAnspruch)}) — Witwenrente entfällt, eigene Rente läuft weiter.`
+        );
       }
     } else {
-      ahvWitwenrente = nachPlafond;
+      ahvWitwenrente = witwenAnspruch;
     }
   } else {
     hinweise.push(

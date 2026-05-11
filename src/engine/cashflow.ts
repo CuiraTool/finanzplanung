@@ -1012,23 +1012,32 @@ function wefSummeFuerImmoBis(
 }
 
 /**
- * PK-Saldo in der Sparphase — linearer Hochlauf vom Altersguthaben heute
- * zum voraussichtlichen Altersguthaben bei Bezug, abzüglich WEF-Vorbezüge
- * die bis zum betreffenden Jahr stattgefunden haben.
+ * PK-Saldo in der Sparphase — versicherungsmathematischer Hochlauf
+ * (compound) vom Altersguthaben heute zum voraussichtlichen Altersguthaben
+ * bei Bezug, abzüglich WEF-Vorbezüge.
+ *
+ * Modell:
+ *   FV = PV × (1+r)^n + S × ((1+r)^n − 1) / r
+ *   - PV = altersguthabenHeute
+ *   - FV = altersguthabenBeiBezug (vom PK-Ausweis)
+ *   - n  = bezugsjahr − jetzt
+ *   - r  = BVG-Mindestzins 1.25 % p.a. (annährungsweise)
+ *   - S  = jährliche Spargutschrift, abgeleitet aus PV/FV/n/r
+ *
+ * Für Jahr k (mit 0 ≤ k ≤ n):
+ *   saldo(k) = PV × (1+r)^k + S × ((1+r)^k − 1) / r
+ *
+ * Dadurch konkaver Verlauf statt linear — entspricht der echten
+ * Sparphasen-Mathematik aus dem PK-Reglement (Zinseszins + Sparbeitrag).
  *
  * Logik:
  *   - kein aktiver Anschluss → 0
- *   - kein altersguthabenHeute → fallback auf altersguthabenBeiBezug (statisch)
- *   - kein altersguthabenBeiBezug → fallback auf altersguthabenHeute (statisch)
- *   - kein Bezugsjahr → statisch altersguthabenHeute
- *   - jahr ≥ Bezugsjahr → 0 (PK ist ausbezahlt)
- *   - sonst → linear interpoliert zwischen jetzt und Bezugsjahr
- *
- * Beispiel: heute CHF 580'000, bei Bezug 2032 CHF 720'000, aktuell 2026.
- *   2026 → 580'000
- *   2029 → 580'000 + (720'000-580'000) × 3/6 = 650'000
- *   2032 → 0 (ausbezahlt; Kapital auf Hauptkonto via kapAuszahlungenJahr)
+ *   - keine PV/FV Daten → 0
+ *   - jahr ≥ bezugsjahr → 0 (Kapital auf Hauptkonto via kapAuszahlungenJahr)
+ *   - sonst: versicherungsmath. Hochlauf, minus WEF-Vorbezüge bis Jahr
  */
+const BVG_MINDESTZINS = 0.0125; // 1.25 % p.a. (Stand 2025)
+
 function pkSaldoSparphase(
   p: BvgPersonInput,
   jahr: number,
@@ -1040,29 +1049,32 @@ function pkSaldoSparphase(
   const heute = p.altersguthabenHeute;
   const beiBezug = p.altersguthabenBeiBezug;
 
-  // Beide null → keine Daten
   if (heute == null && beiBezug == null) return 0;
-
-  // Nach Bezug → 0 (Kapital ist auf Hauptkonto via kapAuszahlungenJahr)
   if (bezugsjahr != null && jahr >= bezugsjahr) return 0;
 
-  // WEF-Vorbezüge die bis zu diesem Jahr stattfinden, mindern das Saldo
   const wefSumme = wefSummeBis(p, jahr);
 
-  // Kein Bezugsjahr ODER kein altersguthabenBeiBezug → statisch heute (− WEF)
   if (bezugsjahr == null || beiBezug == null) {
     return Math.max(0, (heute ?? beiBezug ?? 0) - wefSumme);
   }
-
-  // Kein altersguthabenHeute → fallback auf statisch beiBezug (− WEF)
   if (heute == null) return Math.max(0, beiBezug - wefSumme);
-
-  // Linearer Hochlauf zwischen jetzt und bezugsjahr (− WEF)
   if (bezugsjahr <= jetzt) return Math.max(0, beiBezug - wefSumme);
   if (jahr <= jetzt) return Math.max(0, heute - wefSumme);
 
-  const t = (jahr - jetzt) / (bezugsjahr - jetzt);
-  const saldoOhneWef = Math.round(heute + (beiBezug - heute) * t);
+  // Versicherungsmathematischer Hochlauf
+  const n = bezugsjahr - jetzt;
+  const k = jahr - jetzt;
+  const r = BVG_MINDESTZINS;
+
+  // Sparbeitrag S rückwärts aus FV / PV / n / r ableiten
+  const pvAufgezinst = heute * Math.pow(1 + r, n);
+  const annuitaetsFaktor = r === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
+  const sparBeitrag = (beiBezug - pvAufgezinst) / annuitaetsFaktor;
+
+  // Saldo nach k Jahren
+  const compoundedPv = heute * Math.pow(1 + r, k);
+  const kompoFaktorK = r === 0 ? k : (Math.pow(1 + r, k) - 1) / r;
+  const saldoOhneWef = Math.round(compoundedPv + sparBeitrag * kompoFaktorK);
   return Math.max(0, saldoOhneWef - wefSumme);
 }
 
