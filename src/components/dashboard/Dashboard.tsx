@@ -13,6 +13,7 @@ import { SteuerDetailCard } from "./SteuerDetailCard";
 import { DreiSaeulenKpi } from "./DreiSaeulenKpi";
 import { PlausibilityPanel } from "./PlausibilityPanel";
 import { HinterlassenenCard } from "./HinterlassenenCard";
+import { VarianteDeltaPanel } from "./VarianteDeltaPanel";
 import { MassnahmenListe } from "./MassnahmenListe";
 import { KiMassnahmen } from "./KiMassnahmen";
 import { StressTests } from "./StressTests";
@@ -233,6 +234,8 @@ export function Dashboard() {
       </div>
 
       <PlausibilityPanel />
+
+      <VarianteDeltaPanel />
 
       <DreiSaeulenKpi />
 
