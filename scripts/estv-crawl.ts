@@ -1,37 +1,52 @@
 #!/usr/bin/env tsx
 /**
- * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1).
+ * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1+2+3).
  *
  * Holt für jedes Profil aus `src/engine/__validation__/estv-profile.ts`
- * den offiziellen ESTV-Steuerbetrag via interne JSON-API:
+ * den offiziellen ESTV-Steuerbetrag via interne JSON-API.
  *
- *   POST https://swisstaxcalculator.estv.admin.ch
- *        /delegate/ost-integration/v1/lg-proxy
- *        /operation/c3b67379_ESTV/API_calculateSimpleTaxes
+ * Zwei Endpoints werden bedient je nach Profil-Typ:
  *
- * Request-Body (vereinfacht):
+ * (a) Ordentliche Einkommens-/Vermögenssteuer (kind="ordentlich"):
+ *   POST .../operation/c3b67379_ESTV/API_calculateSimpleTaxes
+ *
+ *   Request:
  *   {
  *     SimKey: null,
  *     TaxYear: 2026,
- *     TaxLocationID: 891400000,    // siehe locations.json (BfsID → TaxLocationID)
+ *     TaxLocationID: 891400000,    // siehe locations.json
  *     Relationship: 1,             // 1=SINGLE, 2=MARRIED
  *     Confession1: 4,              // 1=REFORMED, 2=ROMAN_CATHOLIC, 3=CHRIST_CATHOLIC,
  *                                   // 4=NO_CONFESSION, 5=OTHERS
- *     Confession2: 0,              // 0 wenn Single
- *     Children: [],                // [] oder Array von Geburts-/Alters-Infos
+ *     Confession2: 0,
+ *     Children: [],
  *     TaxableIncomeCanton: 150000,
  *     TaxableIncomeFed: 150000,
  *     TaxableFortune: 50000
  *   }
  *
- * Response-Body:
+ *   Response: { IncomeTaxFed, IncomeTaxCanton, IncomeTaxCity, IncomeTaxChurch,
+ *               FortuneTaxCanton, FortuneTaxCity, FortuneTaxChurch,
+ *               PersonalTax, TotalTax, … }
+ *
+ * (b) Kapitalauszahlungssteuer (kind="kapital"):
+ *   POST .../operation/c3b67379_ESTV/API_calculateManyCapitalTaxes
+ *
+ *   Request:
  *   {
- *     IncomeSimpleTaxCanton, IncomeSimpleTaxCity, IncomeSimpleTaxFed,
- *     IncomeTaxCanton, IncomeTaxCity, IncomeTaxChurch, IncomeTaxFed,
- *     FortuneTaxCanton, FortuneTaxCity, FortuneTaxChurch,
- *     PersonalTax, TaxCredit, TotalTax, TotalNetTax,
- *     Location: { TaxLocationID, BfsID, … }
+ *     SimKey: null,
+ *     TaxYear: 2026,
+ *     TaxGroupID: 891400000,       // identisch zur TaxLocationID
+ *     Relationship: 1,
+ *     Confession1: 4,
+ *     Confession2: 0,
+ *     NumberOfChildren: 0,
+ *     Gender: 1,                   // 1=MALE, 2=FEMALE
+ *     AgeAtPayment: 65,
+ *     Capital: 300000
  *   }
+ *
+ *   Response: { response: [{ TaxFed, TaxCanton, TaxCity, TaxChurch, Location }] }
  *
  * Rate-Limiting: 1.5 s zwischen Calls (defensiv, ESTV rate-limited nicht
  * sichtbar, aber wir wollen freundlich sein).
@@ -128,6 +143,16 @@ interface EstvApiResponse {
   };
 }
 
+interface EstvCapitalApiResponse {
+  response: Array<{
+    TaxFed: number;
+    TaxCanton: number;
+    TaxCity: number;
+    TaxChurch: number;
+    Location: EstvLocation;
+  }>;
+}
+
 // ─── Locations: BfsID → TaxLocationID via lokales JSON ─────────────────────
 
 function loadLocations(jahr: 2025 | 2026): Map<number, number> {
@@ -211,6 +236,49 @@ async function fetchEstv(
   throw lastErr ?? new Error("Unknown fetch error");
 }
 
+async function fetchEstvCapital(
+  profile: EstvProfile,
+  taxGroupId: number
+): Promise<EstvCapitalApiResponse> {
+  const body = {
+    SimKey: null,
+    TaxYear: profile.jahr,
+    TaxGroupID: taxGroupId,
+    Relationship: relationshipCode(profile.fallart),
+    Confession1: confessionCode(profile.konfession),
+    Confession2: 0,
+    NumberOfChildren: profile.anzahlKinder,
+    Gender: profile.gender || 1,
+    AgeAtPayment: profile.alterBeiAuszahlung || 65,
+    Capital: profile.kapital,
+  };
+
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${ESTV_BASE}/API_calculateManyCapitalTaxes`, {
+        method: "POST",
+        headers: ESTV_HEADERS,
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const json = (await res.json()) as EstvCapitalApiResponse;
+      if (!json || !Array.isArray(json.response) || json.response.length === 0) {
+        throw new Error("Empty response.response array from ESTV capital");
+      }
+      return json;
+    } catch (e) {
+      lastErr = e as Error;
+      if (attempt < MAX_RETRIES) {
+        await sleep(RETRY_BACKOFF_MS * attempt);
+      }
+    }
+  }
+  throw lastErr ?? new Error("Unknown fetch error (capital)");
+}
+
 async function fetchEstvVersion(): Promise<string | undefined> {
   try {
     const res = await fetch(
@@ -260,7 +328,7 @@ async function main(): Promise<void> {
   const allProfiles = generateProfilesAll();
   const profiles = flags.limit ? allProfiles.slice(0, flags.limit) : allProfiles;
 
-  console.log(`ESTV-Crawl Phase 1+2 — ${profiles.length}/${allProfiles.length} Profile`);
+  console.log(`ESTV-Crawl Phase 1+2+3 — ${profiles.length}/${allProfiles.length} Profile`);
   console.log(`Force-Modus: ${flags.force}`);
   console.log(`Snapshot: ${SNAPSHOT_PATH}\n`);
 
@@ -325,27 +393,50 @@ async function main(): Promise<void> {
     }
 
     process.stdout.write(
-      `[${i + 1}/${profiles.length}] ${p.id} (TaxLocID ${taxLocationId}) ... `
+      `[${i + 1}/${profiles.length}] ${p.id} (${p.kind}, TaxLocID ${taxLocationId}) ... `
     );
 
     try {
-      const res = await fetchEstv(p, taxLocationId);
-      const r = res.response;
-      const entry: EstvSnapshotEntry = {
-        id: p.id,
-        ok: true,
-        crawledAt: new Date().toISOString(),
-        taxLocationId,
-        expectedBund: r.IncomeTaxFed,
-        expectedKanton: r.IncomeTaxCanton + r.FortuneTaxCanton,
-        expectedGemeinde: r.IncomeTaxCity + r.FortuneTaxCity,
-        expectedKirche: r.IncomeTaxChurch + r.FortuneTaxChurch,
-        expectedPersonal: r.PersonalTax,
-        expectedTotal: r.TotalTax,
-      };
-      snap.entries[p.id] = entry;
-      okCount++;
-      console.log(`✓ Total CHF ${r.TotalTax.toFixed(0)}`);
+      if (p.kind === "kapital") {
+        const res = await fetchEstvCapital(p, taxLocationId);
+        const r = res.response[0]!;
+        const total = r.TaxFed + r.TaxCanton + r.TaxCity + r.TaxChurch;
+        const entry: EstvSnapshotEntry = {
+          id: p.id,
+          ok: true,
+          crawledAt: new Date().toISOString(),
+          taxLocationId,
+          kind: "kapital",
+          expectedBund: r.TaxFed,
+          expectedKanton: r.TaxCanton,
+          expectedGemeinde: r.TaxCity,
+          expectedKirche: r.TaxChurch,
+          expectedPersonal: 0,
+          expectedTotal: total,
+        };
+        snap.entries[p.id] = entry;
+        okCount++;
+        console.log(`✓ Kapital Total CHF ${total.toFixed(0)}`);
+      } else {
+        const res = await fetchEstv(p, taxLocationId);
+        const r = res.response;
+        const entry: EstvSnapshotEntry = {
+          id: p.id,
+          ok: true,
+          crawledAt: new Date().toISOString(),
+          taxLocationId,
+          kind: "ordentlich",
+          expectedBund: r.IncomeTaxFed,
+          expectedKanton: r.IncomeTaxCanton + r.FortuneTaxCanton,
+          expectedGemeinde: r.IncomeTaxCity + r.FortuneTaxCity,
+          expectedKirche: r.IncomeTaxChurch + r.FortuneTaxChurch,
+          expectedPersonal: r.PersonalTax,
+          expectedTotal: r.TotalTax,
+        };
+        snap.entries[p.id] = entry;
+        okCount++;
+        console.log(`✓ Total CHF ${r.TotalTax.toFixed(0)}`);
+      }
     } catch (e) {
       const err = (e as Error).message;
       console.log(`✗ ${err}`);

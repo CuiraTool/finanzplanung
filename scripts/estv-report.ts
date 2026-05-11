@@ -58,18 +58,18 @@ function computeCuira(p: EstvProfile): number {
   const r = steuerProJahr({
     einkommenJahr: p.einkommen,
     vermoegenJahr: p.vermoegen,
-    kapAuszahlungenJahr: 0,
+    kapAuszahlungenJahr: p.kind === "kapital" ? p.kapital : 0,
     kanton: p.kanton,
     religion: p.konfession === "keine" ? "keine" : p.konfession,
     fallart: p.fallart,
     bfsId: p.bfsId,
     jahr: p.jahr,
     bruttoErwerbP1: 0,
-    alterP1: 40,
+    alterP1: p.kind === "kapital" ? p.alterBeiAuszahlung : 40,
     anzahlKinder: p.anzahlKinder,
     hatPkAnschlussP1: false,
   });
-  return r.einkommen + r.vermoegen;
+  return p.kind === "kapital" ? r.kapital : r.einkommen + r.vermoegen;
 }
 
 function loadSnapshot(): EstvSnapshot | null {
@@ -87,7 +87,7 @@ function main(): void {
   }
 
   const profiles = generateProfilesAll();
-  const rows: DriftRow[] = [];
+  const allRows: DriftRow[] = [];
 
   for (const p of profiles) {
     const entry = snap.entries[p.id];
@@ -96,8 +96,13 @@ function main(): void {
     const estv = entry.expectedTotal;
     const diff = cuira - estv;
     const diffPct = estv > 0 ? (diff / estv) * 100 : 0;
-    rows.push({ profile: p, cuira, estv, diff, diffPct });
+    allRows.push({ profile: p, cuira, estv, diff, diffPct });
   }
+
+  // Phase 1+2: ordentliche Steuern
+  const rows = allRows.filter((r) => r.profile.kind === "ordentlich");
+  // Phase 3: Kapitalauszahlung
+  const rowsKapital = allRows.filter((r) => r.profile.kind === "kapital");
 
   rows.sort(
     (a, b) =>
@@ -167,12 +172,12 @@ function main(): void {
     `**ESTV-API-Version:** ${snap.meta.estvVersion ?? "unknown"}  `
   );
   lines.push(
-    `**Profile gecrawlt:** ${rows.length} / ${snap.meta.profilesTotal}  `
+    `**Profile gecrawlt:** ${allRows.length} / ${snap.meta.profilesTotal}  `
   );
   lines.push("");
   lines.push("## Zusammenfassung");
   lines.push("");
-  lines.push("**Gesamt (alle 208 Profile):**");
+  lines.push(`**Ordentlich (Phase 1+2, ${rows.length} Profile):**`);
   lines.push(`- Median |Δ|: ${median.toFixed(1)} %`);
   lines.push(`- Mittelwert |Δ|: ${mean.toFixed(1)} %`);
   lines.push(`- Max |Δ|: ${max.toFixed(1)} %`);
@@ -243,6 +248,86 @@ function main(): void {
     lines.push("");
   }
 
+  // ── Phase 3 ──────────────────────────────────────────────────────────
+  if (rowsKapital.length > 0) {
+    const pcts = rowsKapital
+      .map((r) => Math.abs(r.diffPct))
+      .sort((a, b) => a - b);
+    const kMed = pcts[Math.floor(pcts.length / 2)] ?? 0;
+    const kMx = pcts[pcts.length - 1] ?? 0;
+    const kMn = pcts.reduce((s, x) => s + x, 0) / Math.max(1, pcts.length);
+    const kAbove5 = pcts.filter((p) => p > 5).length;
+    const kAbove10 = pcts.filter((p) => p > 10).length;
+
+    lines.push("## Phase 3 — Kapitalauszahlung (Single Alter 65, Hauptort)");
+    lines.push("");
+    lines.push(`**Profile:** ${rowsKapital.length} (26 Kantone × 3 Kapital-Stufen 100k/300k/500k)`);
+    lines.push(`- Median |Δ|: ${kMed.toFixed(2)} %`);
+    lines.push(`- Mittelwert |Δ|: ${kMn.toFixed(2)} %`);
+    lines.push(`- Max |Δ|: ${kMx.toFixed(2)} %`);
+    lines.push(`- Profile mit |Δ| > 5 %: ${kAbove5}`);
+    lines.push(`- Profile mit |Δ| > 10 %: ${kAbove10}`);
+    lines.push("- Toleranz-Ziel: ±10 %");
+    lines.push("");
+    lines.push(
+      "**Methode:** ESTV-kalibrierte Sondertarif-Engine — pro Kanton 3 Stützstellen " +
+        "(100k / 300k / 500k) für die einfache kantonale Sondersteuer (vor Steuerfuss) " +
+        "abgeleitet aus dem offiziellen Tarifrechner (`API_calculateManyCapitalTaxes`). " +
+        "Lineare Interpolation zwischen Stützstellen, lineare Extrapolation darüber/darunter."
+    );
+    lines.push("");
+
+    // Top 5 worst kapital drift
+    const kantonAbsK = new Map<string, number[]>();
+    for (const r of rowsKapital) {
+      if (!kantonAbsK.has(r.profile.kanton)) kantonAbsK.set(r.profile.kanton, []);
+      kantonAbsK.get(r.profile.kanton)!.push(Math.abs(r.diffPct));
+    }
+    const worstK = [...kantonAbsK.entries()]
+      .map(([k, vs]) => ({
+        k,
+        max: Math.max(...vs),
+        mean: vs.reduce((s, x) => s + x, 0) / vs.length,
+      }))
+      .sort((a, b) => b.max - a.max)
+      .slice(0, 5);
+    lines.push("### Top 5 Kantone mit grösster Drift — Kapital");
+    lines.push("");
+    lines.push("| # | Kanton | Mittel \\|Δ\\| | Max \\|Δ\\| |");
+    lines.push("|---|--------|--------------|------------|");
+    worstK.forEach((k, i) => {
+      lines.push(
+        `| ${i + 1} | ${k.k} | ${k.mean.toFixed(2)} % | ${k.max.toFixed(2)} % |`
+      );
+    });
+    lines.push("");
+
+    lines.push("### Drift pro Kanton — Kapital (100k / 300k / 500k)");
+    lines.push("");
+    for (const k of ALLE_KANTONE) {
+      const krows = rowsKapital
+        .filter((r) => r.profile.kanton === k)
+        .sort((a, b) => a.profile.kapital - b.profile.kapital);
+      if (krows.length === 0) continue;
+      lines.push(`#### ${k} (Hauptort) — Kapital`);
+      lines.push("");
+      lines.push("| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |");
+      lines.push("|---------|------:|-----:|------:|----:|:---------:|");
+      for (const r of krows) {
+        const bewertung =
+          Math.abs(r.diffPct) <= 10
+            ? "OK"
+            : Math.abs(r.diffPct) <= 20
+              ? "WARN"
+              : "DRIFT";
+        lines.push(
+          `| ${fmtChf(r.profile.kapital)} | ${fmtChf(r.cuira)} | ${fmtChf(r.estv)} | ${fmtChf(r.diff)} | ${fmtPct(r.diffPct)} | ${bewertung} |`
+        );
+      }
+      lines.push("");
+    }
+  }
+
   lines.push("## Empfehlungen");
   lines.push("");
   const w0 = worst5[0];
@@ -278,9 +363,10 @@ function main(): void {
   );
   lines.push("");
   lines.push(
-    "ESTV-Tarifrechner-Profile werden via `API_calculateSimpleTaxes` " +
-      "(öffentliche JSON-API von swisstaxcalculator.estv.admin.ch) gecrawlt. " +
-      "Cuira-Engine wird mit identischem `TaxableIncome` und `TaxableFortune` " +
+    "ESTV-Tarifrechner-Profile werden über zwei Endpoints gecrawlt: " +
+      "`API_calculateSimpleTaxes` für ordentliche Einkommens-/Vermögenssteuer " +
+      "(Phase 1+2) und `API_calculateManyCapitalTaxes` für Kapitalauszahlungen " +
+      "(Phase 3). Cuira-Engine wird mit identischen Bemessungs-Grössen " +
       "aufgerufen — Abzüge sind schon vor dem Engine-Aufruf weg, sodass nur " +
       "die Tarif-/Steuerfuss-Logik verglichen wird. Δ % ist signed " +
       "(Cuira − ESTV) / ESTV."

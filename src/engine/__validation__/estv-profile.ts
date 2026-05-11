@@ -1,19 +1,25 @@
 /**
- * ESTV-Validierungs-Profile (Sprint D11 Phase 1 + 2).
+ * ESTV-Validierungs-Profile (Sprint D11 Phase 1 + 2 + 3).
  *
  * Pflicht-Testmatrix für die Cuira-Steuer-Engine vs. offizielle ESTV-
  * Tarifrechner-Werte (https://swisstaxcalculator.estv.admin.ch).
  *
  * Phase 1 (initial):
  *  - 26 Kantone × 4 Einkommensstufen × Single + Konfession "keine" + Hauptort
- *  - 104 Profile, Jahr 2026
+ *  - 104 Profile, Jahr 2026 (kind="ordentlich")
  *
  * Phase 2 (Paare):
  *  - 26 Kantone × 4 Einkommensstufen × Paar + Konfession "keine" + Hauptort
- *  - +104 Paar-Profile → Total 208 Profile
+ *  - +104 Paar-Profile → Total 208 Profile (kind="ordentlich")
  *
- * Phase 3-4 (geplant, separate Sprints): Kapitalauszahlung,
- * Mehrgemeinden pro Kanton, Vermögensvariation.
+ * Phase 3 (Kapitalauszahlung — D11 Phase 3, Sprint 2026-05):
+ *  - 26 Kantone × 3 Kapitalbeträge (100k / 300k / 500k) × Single Alter 65
+ *  - +78 Kapital-Profile → Total 286 Profile (Phase 1+2 ordentlich + Phase 3 kapital)
+ *  - ESTV-Endpoint: API_calculateManyCapitalTaxes (TaxGroupID statt TaxLocationID,
+ *    Felder Gender + AgeAtPayment + Capital)
+ *
+ * Phase 4 (geplant, späterer Sprint): Mehrgemeinden pro Kanton,
+ * Vermögensvariation, Kapital × Paar.
  *
  * Die `expected*`-Werte werden vom Crawler `scripts/estv-crawl.ts` aus dem
  * ESTV-Tarifrechner befüllt und in `estv-snapshot.json` persistiert. Dieses
@@ -30,22 +36,37 @@ import {
 export type Fallart = "einzel" | "paar";
 export type Konfession = "keine" | "reformiert" | "katholisch";
 
+/**
+ * Profil-Typ:
+ *  - "ordentlich" → ord. Einkommens- + Vermögenssteuer (Phase 1+2)
+ *  - "kapital"    → einmalige Kapitalauszahlung aus Vorsorge (Phase 3)
+ */
+export type EstvProfileKind = "ordentlich" | "kapital";
+
 export interface EstvProfile {
   /** Stabile ID — `${kanton}-${einkommen}-${fallart}` für Resume-Logik. */
   id: string;
+  /** Profil-Typ: "ordentlich" oder "kapital". */
+  kind: EstvProfileKind;
   /** Kanton-Code (ZH, BE, …). */
   kanton: KantonCode;
   /** BfsID der Test-Gemeinde (Hauptort des Kantons). */
   bfsId: number;
-  /** Bemessung Einkommen (CHF/Jahr, steuerbares Einkommen). */
+  /** Bemessung Einkommen (CHF/Jahr, steuerbares Einkommen). 0 für kapital-Profile. */
   einkommen: number;
   /** Bemessung Vermögen (CHF, steuerbares Reinvermögen). */
   vermoegen: number;
-  /** Fallart (Phase 1: nur "einzel"; Phase 2: "einzel" + "paar"). */
+  /** Bemessung Kapitalauszahlung (CHF). > 0 nur bei kind="kapital". */
+  kapital: number;
+  /** Alter bei Kapitalauszahlung (Phase 3: 65). 0 für ordentliche Profile. */
+  alterBeiAuszahlung: number;
+  /** Geschlecht für Kapital-Profile (1=männlich, 2=weiblich; 0 für ordentliche). */
+  gender: 0 | 1 | 2;
+  /** Fallart (Phase 1: nur "einzel"; Phase 2: "einzel" + "paar"; Phase 3: "einzel"). */
   fallart: Fallart;
-  /** Konfession (Phase 1+2: nur "keine"). */
+  /** Konfession (Phase 1+2+3: nur "keine"). */
   konfession: Konfession;
-  /** Anzahl Kinder (Phase 1: 0). */
+  /** Anzahl Kinder (Phase 1+2+3: 0). */
   anzahlKinder: number;
   /** Steuerjahr. */
   jahr: 2026 | 2025;
@@ -72,10 +93,14 @@ export function generateProfilesPhase1(): EstvProfile[] {
     for (const einkommen of EINKOMMENSSTUFEN) {
       profiles.push({
         id: `${kanton}-${einkommen}-einzel-keine`,
+        kind: "ordentlich",
         kanton,
         bfsId: info.bfsIdHauptort,
         einkommen,
         vermoegen: 0,
+        kapital: 0,
+        alterBeiAuszahlung: 0,
+        gender: 0,
         fallart: "einzel",
         konfession: "keine",
         anzahlKinder: 0,
@@ -99,10 +124,14 @@ export function generateProfilesPhase2(): EstvProfile[] {
     for (const einkommen of EINKOMMENSSTUFEN) {
       profiles.push({
         id: `${kanton}-${einkommen}-paar-keine`,
+        kind: "ordentlich",
         kanton,
         bfsId: info.bfsIdHauptort,
         einkommen,
         vermoegen: 0,
+        kapital: 0,
+        alterBeiAuszahlung: 0,
+        gender: 0,
         fallart: "paar",
         konfession: "keine",
         anzahlKinder: 0,
@@ -114,12 +143,58 @@ export function generateProfilesPhase2(): EstvProfile[] {
 }
 
 /**
- * Generiert die kombinierte Profilliste Phase 1 + Phase 2.
+ * Kapitalbeträge Phase 3 — typische 3a-/PK-Bezüge der CH-Praxis. 100k testet
+ * den Mindestsatz-Bereich, 300k den Mittelbereich (ZH 1/20-Tarif), 500k die
+ * obere Stufe der Bruchteils-Methode.
+ */
+const KAPITAL_STUFEN = [100_000, 300_000, 500_000] as const;
+
+/**
+ * Generiert die Profilliste für Phase 3 — Kapitalauszahlungen aus Vorsorge.
  *
- * → 104 Single + 104 Paar = 208 Profile.
+ * Matrix: 26 Kantone × 3 Kapitalbeträge × Single Alter 65, Männlich,
+ * keine Konfession, Hauptort. → 78 Profile.
+ *
+ * ESTV-Endpoint: API_calculateManyCapitalTaxes (separater Tarifrechner für
+ * Kapitalbezug aus Vorsorge). Antwort liefert {TaxCanton, TaxCity, TaxChurch,
+ * TaxFed} — Personalsteuer + Vermögen sind nicht Teil dieses Bezugs.
+ */
+export function generateProfilesPhase3(): EstvProfile[] {
+  const profiles: EstvProfile[] = [];
+  for (const kanton of ALLE_KANTONE) {
+    const info = KANTON_INFO[kanton];
+    for (const kapital of KAPITAL_STUFEN) {
+      profiles.push({
+        id: `${kanton}-${kapital}-kapital-einzel-65-keine`,
+        kind: "kapital",
+        kanton,
+        bfsId: info.bfsIdHauptort,
+        einkommen: 0,
+        vermoegen: 0,
+        kapital,
+        alterBeiAuszahlung: 65,
+        gender: 1,
+        fallart: "einzel",
+        konfession: "keine",
+        anzahlKinder: 0,
+        jahr: 2026,
+      });
+    }
+  }
+  return profiles;
+}
+
+/**
+ * Generiert die kombinierte Profilliste Phase 1 + Phase 2 + Phase 3.
+ *
+ * → 104 Single ord. + 104 Paar ord. + 78 Kapital = 286 Profile.
  */
 export function generateProfilesAll(): EstvProfile[] {
-  return [...generateProfilesPhase1(), ...generateProfilesPhase2()];
+  return [
+    ...generateProfilesPhase1(),
+    ...generateProfilesPhase2(),
+    ...generateProfilesPhase3(),
+  ];
 }
 
 /**
@@ -150,8 +225,11 @@ export interface EstvSnapshotEntry {
   expectedGemeinde: number | null;
   /** Kirchensteuer (effektiv; bei konfession="keine" = 0). */
   expectedKirche: number | null;
-  /** Personalsteuer (kantonal, Pauschalbetrag). */
+  /** Personalsteuer (kantonal, Pauschalbetrag; nur bei ordentlich relevant). */
   expectedPersonal: number | null;
+  /** Profil-Typ — geerbt vom Profil, dokumentiert im Snapshot. Optional weil
+   *  alte Phase-1+2-Snapshots dieses Feld nicht haben. Fehlt → ordentlich. */
+  kind?: EstvProfileKind;
 }
 
 export interface EstvSnapshot {

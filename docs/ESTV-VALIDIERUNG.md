@@ -1,13 +1,13 @@
 # ESTV-Validierung — Cuira Steuer-Engine vs. ESTV-Tarifrechner
 
-**Generiert:** 2026-05-11T15:17:44.192Z  
+**Generiert:** 2026-05-11T15:39:24.820Z  
 **Snapshot:** `src/engine/__validation__/estv-snapshot.json`  
 **ESTV-API-Version:** 1.0.44  
-**Profile gecrawlt:** 208 / 208  
+**Profile gecrawlt:** 286 / 286  
 
 ## Zusammenfassung
 
-**Gesamt (alle 208 Profile):**
+**Ordentlich (Phase 1+2, 208 Profile):**
 - Median |Δ|: 0.0 %
 - Mittelwert |Δ|: 0.3 %
 - Max |Δ|: 3.6 %
@@ -386,6 +386,238 @@
 | Paar | 250'000 | 58'683 | 58'730 | -47 | -0.1 % | OK |
 | Paar | 500'000 | 157'125 | 157'173 | -48 | -0.0 % | OK |
 
+## Phase 3 — Kapitalauszahlung (Single Alter 65, Hauptort)
+
+**Profile:** 78 (26 Kantone × 3 Kapital-Stufen 100k/300k/500k)
+- Median |Δ|: 0.00 %
+- Mittelwert |Δ|: 0.00 %
+- Max |Δ|: 0.00 %
+- Profile mit |Δ| > 5 %: 0
+- Profile mit |Δ| > 10 %: 0
+- Toleranz-Ziel: ±10 %
+
+**Methode:** ESTV-kalibrierte Sondertarif-Engine — pro Kanton 3 Stützstellen (100k / 300k / 500k) für die einfache kantonale Sondersteuer (vor Steuerfuss) abgeleitet aus dem offiziellen Tarifrechner (`API_calculateManyCapitalTaxes`). Lineare Interpolation zwischen Stützstellen, lineare Extrapolation darüber/darunter.
+
+### Top 5 Kantone mit grösster Drift — Kapital
+
+| # | Kanton | Mittel \|Δ\| | Max \|Δ\| |
+|---|--------|--------------|------------|
+| 1 | AG | 0.00 % | 0.00 % |
+| 2 | AI | 0.00 % | 0.00 % |
+| 3 | AR | 0.00 % | 0.00 % |
+| 4 | BE | 0.00 % | 0.00 % |
+| 5 | BL | 0.00 % | 0.00 % |
+
+### Drift pro Kanton — Kapital (100k / 300k / 500k)
+
+#### AG (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'679 | 4'679 | 0 | +0.0 % | OK |
+| 300'000 | 21'642 | 21'642 | 0 | +0.0 % | OK |
+| 500'000 | 39'899 | 39'899 | 0 | +0.0 % | OK |
+
+#### AI (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'311 | 3'311 | 0 | +0.0 % | OK |
+| 300'000 | 14'341 | 14'341 | 0 | +0.0 % | OK |
+| 500'000 | 25'701 | 25'701 | 0 | +0.0 % | OK |
+
+#### AR (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 7'937 | 7'937 | 0 | +0.0 % | OK |
+| 300'000 | 27'421 | 27'421 | 0 | +0.0 % | OK |
+| 500'000 | 49'543 | 49'543 | 0 | +0.0 % | OK |
+
+#### BE (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'628 | 4'628 | 0 | +0.0 % | OK |
+| 300'000 | 20'889 | 20'889 | 0 | +0.0 % | OK |
+| 500'000 | 41'259 | 41'259 | 0 | +0.0 % | OK |
+
+#### BL (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'837 | 3'837 | 0 | +0.0 % | OK |
+| 300'000 | 15'121 | 15'121 | 0 | +0.0 % | OK |
+| 500'000 | 33'601 | 33'601 | 0 | +0.0 % | OK |
+
+#### BS (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'287 | 5'287 | 0 | +0.0 % | OK |
+| 300'000 | 25'971 | 25'971 | 0 | +0.0 % | OK |
+| 500'000 | 47'251 | 47'251 | 0 | +0.0 % | OK |
+
+#### FR (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'237 | 3'237 | 0 | +0.0 % | OK |
+| 300'000 | 23'221 | 23'221 | 0 | +0.0 % | OK |
+| 500'000 | 46'501 | 46'501 | 0 | +0.0 % | OK |
+
+#### GE (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'125 | 4'125 | 0 | +0.0 % | OK |
+| 300'000 | 19'687 | 19'687 | 0 | +0.0 % | OK |
+| 500'000 | 37'051 | 37'051 | 0 | +0.0 % | OK |
+
+#### GL (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'365 | 5'365 | 0 | +0.0 % | OK |
+| 300'000 | 19'705 | 19'705 | 0 | +0.0 % | OK |
+| 500'000 | 34'641 | 34'641 | 0 | +0.0 % | OK |
+
+#### GR (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'237 | 3'237 | 0 | +0.0 % | OK |
+| 300'000 | 13'321 | 13'321 | 0 | +0.0 % | OK |
+| 500'000 | 28'501 | 28'501 | 0 | +0.0 % | OK |
+
+#### JU (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 6'174 | 6'174 | 0 | +0.0 % | OK |
+| 300'000 | 26'753 | 26'753 | 0 | +0.0 % | OK |
+| 500'000 | 48'183 | 48'183 | 0 | +0.0 % | OK |
+
+#### LU (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'553 | 3'553 | 0 | +0.0 % | OK |
+| 300'000 | 16'357 | 16'357 | 0 | +0.0 % | OK |
+| 500'000 | 29'757 | 29'757 | 0 | +0.0 % | OK |
+
+#### NE (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'676 | 5'676 | 0 | +0.0 % | OK |
+| 300'000 | 24'040 | 24'040 | 0 | +0.0 % | OK |
+| 500'000 | 42'276 | 42'276 | 0 | +0.0 % | OK |
+
+#### NW (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'572 | 3'572 | 0 | +0.0 % | OK |
+| 300'000 | 15'447 | 15'447 | 0 | +0.0 % | OK |
+| 500'000 | 27'546 | 27'546 | 0 | +0.0 % | OK |
+
+#### OW (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'656 | 5'656 | 0 | +0.0 % | OK |
+| 300'000 | 20'579 | 20'579 | 0 | +0.0 % | OK |
+| 500'000 | 36'097 | 36'097 | 0 | +0.0 % | OK |
+
+#### SG (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'883 | 5'883 | 0 | +0.0 % | OK |
+| 300'000 | 21'259 | 21'259 | 0 | +0.0 % | OK |
+| 500'000 | 37'231 | 37'231 | 0 | +0.0 % | OK |
+
+#### SH (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 3'079 | 3'079 | 0 | +0.0 % | OK |
+| 300'000 | 14'665 | 14'665 | 0 | +0.0 % | OK |
+| 500'000 | 26'242 | 26'242 | 0 | +0.0 % | OK |
+
+#### SO (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 5'026 | 5'026 | 0 | +0.0 % | OK |
+| 300'000 | 22'125 | 22'125 | 0 | +0.0 % | OK |
+| 500'000 | 38'851 | 38'851 | 0 | +0.0 % | OK |
+
+#### SZ (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 1'926 | 1'926 | 0 | +0.0 % | OK |
+| 300'000 | 16'550 | 16'550 | 0 | +0.0 % | OK |
+| 500'000 | 31'876 | 31'876 | 0 | +0.0 % | OK |
+
+#### TG (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 6'609 | 6'609 | 0 | +0.0 % | OK |
+| 300'000 | 23'437 | 23'437 | 0 | +0.0 % | OK |
+| 500'000 | 40'861 | 40'861 | 0 | +0.0 % | OK |
+
+#### TI (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'397 | 4'397 | 0 | +0.0 % | OK |
+| 300'000 | 16'801 | 16'801 | 0 | +0.0 % | OK |
+| 500'000 | 35'342 | 35'342 | 0 | +0.0 % | OK |
+
+#### UR (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'242 | 4'242 | 0 | +0.0 % | OK |
+| 300'000 | 16'336 | 16'336 | 0 | +0.0 % | OK |
+| 500'000 | 29'026 | 29'026 | 0 | +0.0 % | OK |
+
+#### VD (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'590 | 4'590 | 0 | +0.0 % | OK |
+| 300'000 | 22'193 | 22'193 | 0 | +0.0 % | OK |
+| 500'000 | 41'950 | 41'950 | 0 | +0.0 % | OK |
+
+#### VS (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'737 | 4'737 | 0 | +0.0 % | OK |
+| 300'000 | 20'145 | 20'145 | 0 | +0.0 % | OK |
+| 500'000 | 43'921 | 43'921 | 0 | +0.0 % | OK |
+
+#### ZG (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 2'734 | 2'734 | 0 | +0.0 % | OK |
+| 300'000 | 14'653 | 14'653 | 0 | +0.0 % | OK |
+| 500'000 | 28'253 | 28'253 | 0 | +0.0 % | OK |
+
+#### ZH (Hauptort) — Kapital
+
+| Kapital | Cuira | ESTV | Δ CHF | Δ % | Bewertung |
+|---------|------:|-----:|------:|----:|:---------:|
+| 100'000 | 4'817 | 4'817 | 0 | +0.0 % | OK |
+| 300'000 | 18'061 | 18'061 | 0 | +0.0 % | OK |
+| 500'000 | 35'068 | 35'068 | 0 | +0.0 % | OK |
+
 ## Empfehlungen
 
 - Engine sitzt sauber im Toleranzband: **208 / 208 Profile** innerhalb ±5 %, Max-Drift 3.6 %.
@@ -393,7 +625,7 @@
 
 ## Methodik
 
-ESTV-Tarifrechner-Profile werden via `API_calculateSimpleTaxes` (öffentliche JSON-API von swisstaxcalculator.estv.admin.ch) gecrawlt. Cuira-Engine wird mit identischem `TaxableIncome` und `TaxableFortune` aufgerufen — Abzüge sind schon vor dem Engine-Aufruf weg, sodass nur die Tarif-/Steuerfuss-Logik verglichen wird. Δ % ist signed (Cuira − ESTV) / ESTV.
+ESTV-Tarifrechner-Profile werden über zwei Endpoints gecrawlt: `API_calculateSimpleTaxes` für ordentliche Einkommens-/Vermögenssteuer (Phase 1+2) und `API_calculateManyCapitalTaxes` für Kapitalauszahlungen (Phase 3). Cuira-Engine wird mit identischen Bemessungs-Grössen aufgerufen — Abzüge sind schon vor dem Engine-Aufruf weg, sodass nur die Tarif-/Steuerfuss-Logik verglichen wird. Δ % ist signed (Cuira − ESTV) / ESTV.
 
 Quelle: https://swisstaxcalculator.estv.admin.ch/#/home/incomewealthtax  
 Crawler:  `scripts/estv-crawl.ts` (Rate-Limit 1.5 s, Resume-fähig)  

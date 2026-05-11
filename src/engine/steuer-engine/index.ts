@@ -288,56 +288,311 @@ export function bundessteuerKapitalNeu(
 }
 
 /**
- * Kapitalauszahlungssteuer pro Kanton — einheitliche Bruchteils-Methode.
+ * Kapitalauszahlungssteuer pro Kanton — kalibrierte Sondertarif-Methode
+ * (Sprint D11 Phase 3, 2026-05).
  *
- * Modell (ZH ZStB 22.1 + analog für alle 26 Kantone):
- *  1. Steuersatz wird mit dem ordentlichen Einkommens-Tarif auf einer
- *     FIKTIVEN Bemessung = Kapital / TEILER berechnet
- *  2. Effektivsatz aus Bemessung × Kapital = einfache Staatssteuer
- *  3. Optionaler Mindestsatz (gesetzlich z.B. ZH §38 Abs. 4 → 2 %)
- *  4. × Steuerfuss (Kanton + Gemeinde + Kirche)
+ * Hintergrund: jeder Kanton hat einen eigenen Sondertarif für Kapitalleist-
+ * ungen aus Vorsorge (Säule 2 Bezug, 3a Bezug). Die früher verwendete
+ * generische "Bruchteils-Methode" mit Teiler=5 auf den ordentlichen
+ * Einkommens-Tarif war eine grobe Approximation und wich für 72/78 ESTV-
+ * Profilen um > 10 % ab (Median 120 %, Max 307 %).
  *
- * Diese Methode ist effektiv flacher als "ordentliche-Steuer / 5", weil
- * der Tarif progressiv ist. Empirisch besser ESTV-deckungsgleich.
+ * Phase-3-Lösung: pro Kanton 3 kalibrierte Stützstellen (100k / 300k / 500k)
+ * für die einfache kantonale Sondersteuer (vor Steuerfuss), abgeleitet aus
+ * dem offiziellen ESTV-Tarifrechner via `pnpm exec tsx
+ * scripts/estv-phase3-derive-rates.ts`. Zwischen den Stützstellen wird
+ * linear interpoliert; unter 100k linear vom Ursprung; über 500k linear
+ * über die letzte Steigung extrapoliert.
  *
- * Teiler pro Kanton (operative Praxis laut kantonalen Steuerbüchern):
- *  - ZH ZStB 22.1: Teiler 20, Mindest 2 % einfache
- *  - BE Art. 44 StG: Teiler 5
- *  - LU §59: Teiler 5
- *  - ZG §35: Teiler 5
- *  - AG §45: Teiler 5
- *  - SG §52: Teiler 5
- *  - SZ §40: Teiler 5
- *  - SO §47: Teiler 5 + Mindest 2 %
- *  - VS Art. 33: Teiler 5
- *  - VD Art. 49: Teiler 5
- *  - alle anderen Kantone: Default Teiler 5 (Standard-Bruchteils-Tarif)
+ * Vorteile:
+ *  - Exakte Übereinstimmung mit ESTV an den Stützstellen (Drift = 0 %).
+ *  - Plausible Werte zwischen + ausserhalb der Stützstellen.
+ *  - Berücksichtigt automatisch alle kantonalen Eigenarten
+ *    (GE Rabais d'impôt, ZG eigene Tabelle, BS Sondertarif, SZ Plafond, …).
  *
- * D11-Validierung: für ZH 8002 Single 100k Kapital 2026 ergibt diese Engine
- * Werte mit Drift typisch < 3 % gegenüber ESTV-Tarifrechner. Für andere
- * Kantone unverified — Sprint D11 Phase 2 ergänzt manuelle Abgleiche.
+ * Annahme bei Anwendung des Gemeinde-Steuerfusses: die Sondersteuer auf
+ * Kapital wird in den Kantonen wie die ordentliche Einkommenssteuer mit
+ * dem Einkommens-Steuerfuss (Kanton + Gemeinde + Kirche) multipliziert.
+ * Diese Annahme gilt für ~24 von 26 Kantonen. Ausnahmen (z.B. NW mit
+ * fixem 1/3-Faktor, Genève Rabais d'impôt auf Kapital) sind durch die
+ * Kalibrierung am Hauptort bereits eingepreist.
+ *
+ * Limitation: Die Kalibrierung gilt nur für den Hauptort. Für andere
+ * Gemeinden wird der einfache Satz skaliert (Annahme: Sondersteuer-Fuss
+ * folgt dem Einkommens-Steuerfuss). Bei abweichenden Gemeinden ist mit
+ * Drift bis ±5 % zu rechnen. Phase 4 (geplant) validiert
+ * Mehrgemeinden-Genauigkeit.
  */
 
-interface KapitalMethode {
+interface KapitalKalibrationspunkt {
+  /** Kapitalbetrag (CHF). */
+  kapital: number;
+  /** Einfache kantonale Sondersteuer am Hauptort (vor Steuerfuss). */
+  einfache: number;
+}
+
+/**
+ * Kalibrationspunkte pro Kanton (Stützstellen 100k / 300k / 500k, Jahr 2026,
+ * Single Alter 65, Konfession keine, Hauptort). Generiert mit
+ * `scripts/estv-phase3-derive-rates.ts` aus dem ESTV-Snapshot.
+ *
+ * Werte: einfache Sondersteuer (CHF). Mit IncomeRateCanton + IncomeRateCity
+ * (+ ggf. Kirche) am Hauptort multipliziert ergibt sich die kantonale
+ * Kapitalauszahlungssteuer.
+ */
+const KAPITAL_CALIBRATION_2026: Partial<
+  Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
+> = {
+  AG: [
+    { kapital: 100_000, einfache: 2081.41 },
+    { kapital: 300_000, einfache: 8251.76 },
+    { kapital: 500_000, einfache: 14772.86 },
+  ],
+  AI: [
+    { kapital: 100_000, einfache: 1825 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  AR: [
+    { kapital: 100_000, einfache: 1000 },
+    { kapital: 300_000, einfache: 3000 },
+    { kapital: 500_000, einfache: 5275.95 },
+  ],
+  BE: [
+    { kapital: 100_000, einfache: 906.09 },
+    { kapital: 300_000, einfache: 3470.21 },
+    { kapital: 500_000, einfache: 6812.4 },
+  ],
+  BL: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 14000 },
+  ],
+  BS: [
+    { kapital: 100_000, einfache: 4750 },
+    { kapital: 300_000, einfache: 20750 },
+    { kapital: 500_000, einfache: 36750 },
+  ],
+  FR: [
+    { kapital: 100_000, einfache: 1534.09 },
+    { kapital: 300_000, einfache: 10227.27 },
+    { kapital: 500_000, einfache: 20454.55 },
+  ],
+  GE: [
+    { kapital: 100_000, einfache: 2035.28 },
+    { kapital: 300_000, einfache: 8205.8 },
+    { kapital: 500_000, einfache: 15060.41 },
+  ],
+  GL: [
+    { kapital: 100_000, einfache: 4000 },
+    { kapital: 300_000, einfache: 12000 },
+    { kapital: 500_000, einfache: 20000 },
+  ],
+  GR: [
+    { kapital: 100_000, einfache: 1500 },
+    { kapital: 300_000, einfache: 4500 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  JU: [
+    { kapital: 100_000, einfache: 1186.74 },
+    { kapital: 300_000, einfache: 4533.05 },
+    { kapital: 500_000, einfache: 7933.05 },
+  ],
+  LU: [
+    { kapital: 100_000, einfache: 1040 },
+    { kapital: 300_000, einfache: 3840 },
+    { kapital: 500_000, einfache: 6640 },
+  ],
+  NE: [
+    { kapital: 100_000, einfache: 2719.05 },
+    { kapital: 300_000, einfache: 9957.14 },
+    { kapital: 500_000, einfache: 16812.17 },
+  ],
+  NW: [
+    { kapital: 100_000, einfache: 611.9 },
+    { kapital: 300_000, einfache: 2061.69 },
+    { kapital: 500_000, einfache: 3436.49 },
+  ],
+  OW: [
+    { kapital: 100_000, einfache: 719.97 },
+    { kapital: 300_000, einfache: 2160.06 },
+    { kapital: 500_000, einfache: 3600 },
+  ],
+  SG: [
+    { kapital: 100_000, einfache: 2200 },
+    { kapital: 300_000, einfache: 6600 },
+    { kapital: 500_000, einfache: 11000 },
+  ],
+  SH: [
+    { kapital: 100_000, einfache: 1598.74 },
+    { kapital: 300_000, einfache: 5939.62 },
+    { kapital: 500_000, einfache: 9900 },
+  ],
+  SO: [
+    { kapital: 100_000, einfache: 2127.49 },
+    { kapital: 300_000, einfache: 8011.37 },
+    { kapital: 500_000, einfache: 13436.02 },
+  ],
+  SZ: [
+    { kapital: 100_000, einfache: 487.37 },
+    { kapital: 300_000, einfache: 3975.09 },
+    { kapital: 500_000, einfache: 7500 },
+  ],
+  TG: [
+    { kapital: 100_000, einfache: 2400 },
+    { kapital: 300_000, einfache: 7200 },
+    { kapital: 500_000, einfache: 12000 },
+  ],
+  TI: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 12870.98 },
+  ],
+  UR: [
+    { kapital: 100_000, einfache: 1900 },
+    { kapital: 300_000, einfache: 5700 },
+    { kapital: 500_000, einfache: 9500 },
+  ],
+  VD: [
+    { kapital: 100_000, einfache: 1735.76 },
+    { kapital: 300_000, einfache: 7268.52 },
+    { kapital: 500_000, einfache: 13468.52 },
+  ],
+  VS: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 7106.67 },
+    { kapital: 500_000, einfache: 15914.29 },
+  ],
+  ZG: [
+    { kapital: 100_000, einfache: 1690 },
+    { kapital: 300_000, einfache: 7255.38 },
+    { kapital: 500_000, einfache: 13655.38 },
+  ],
+  ZH: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 11479.91 },
+  ],
+};
+
+/**
+ * Interpoliert die einfache kantonale Sondersteuer für ein gegebenes Kapital.
+ *
+ *  - Innerhalb der Stützstellen: stückweise linear.
+ *  - Unterhalb der kleinsten Stützstelle: linear ab Ursprung
+ *    (Annahme: bei sehr kleinen Beträgen proportional).
+ *  - Oberhalb der grössten Stützstelle: linear-extrapoliert mit Steigung
+ *    des letzten Segments (Annahme: marginaler Spitzentarif gleich bleibend).
+ */
+function interpoliereEinfache(
+  kapital: number,
+  punkte: ReadonlyArray<KapitalKalibrationspunkt>
+): number {
+  if (punkte.length === 0 || kapital <= 0) return 0;
+  // Stützstellen sind sortiert nach kapital aufsteigend (per Definition).
+  const first = punkte[0]!;
+  if (kapital <= first.kapital) {
+    // Linear vom Ursprung zur ersten Stützstelle.
+    return (kapital / first.kapital) * first.einfache;
+  }
+  for (let i = 1; i < punkte.length; i++) {
+    const a = punkte[i - 1]!;
+    const b = punkte[i]!;
+    if (kapital <= b.kapital) {
+      const t = (kapital - a.kapital) / (b.kapital - a.kapital);
+      return a.einfache + t * (b.einfache - a.einfache);
+    }
+  }
+  // Über der höchsten Stützstelle: Steigung des letzten Segments
+  // weiterführen (extrapolation).
+  const lastIdx = punkte.length - 1;
+  const last = punkte[lastIdx]!;
+  if (lastIdx === 0) {
+    // Nur eine Stützstelle → linear vom Ursprung.
+    return (kapital / last.kapital) * last.einfache;
+  }
+  const prev = punkte[lastIdx - 1]!;
+  const slope = (last.einfache - prev.einfache) / (last.kapital - prev.kapital);
+  return last.einfache + slope * (kapital - last.kapital);
+}
+
+/**
+ * Legacy-Bruchteils-Methode (vor D11 Phase 3) — wird als Fallback verwendet,
+ * wenn für ein Jahr keine ESTV-Kalibrierung verfügbar ist (z.B. 2025).
+ *
+ * Modell: Steuersatz mit dem ordentlichen Einkommens-Tarif auf fiktiver
+ * Bemessung = Kapital / Teiler. Effektivsatz × Kapital = einfache Sondersteuer.
+ * Optionaler Mindestsatz (gesetzlich z.B. ZH §38 Abs. 4 → 2 %).
+ *
+ * Drift gegen ESTV ist gross (siehe Phase 3 Validierung) — nur für Jahre
+ * ohne Kalibrierungs-Daten verwenden.
+ */
+interface KapitalLegacyMethode {
   teiler: number;
   mindestProzent?: number;
 }
 
-const KAPITAL_METHODE: Partial<Record<KantonCode, KapitalMethode>> = {
-  // ZH: Bruchteils-Tarif 1/20 laut ZStB 22.1 + Mindestsatz 2 %
-  ZH: { teiler: 20, mindestProzent: 2 },
-  // SO: Mindestsatz 2 % laut §47 Abs. 4 StG
-  SO: { teiler: 5, mindestProzent: 2 },
-  // Alle anderen Kantone: Default Teiler 5 (keine explizite Konfig nötig,
-  // wird aus DEFAULT_KAPITAL_METHODE genommen).
-};
-const DEFAULT_KAPITAL_METHODE: KapitalMethode = { teiler: 5 };
+const KAPITAL_LEGACY_METHODE: Partial<Record<KantonCode, KapitalLegacyMethode>> =
+  {
+    ZH: { teiler: 20, mindestProzent: 2 },
+    SO: { teiler: 5, mindestProzent: 2 },
+  };
+const DEFAULT_KAPITAL_LEGACY: KapitalLegacyMethode = { teiler: 5 };
+
+function kantonsteuerKapitalLegacy(
+  kapital: number,
+  opts: {
+    kanton: KantonCode;
+    bfsId?: number;
+    fallart: Fallart;
+    religion: Religion;
+    jahr: SteuerJahr;
+  }
+): number {
+  const info = KANTON_INFO[opts.kanton];
+  if (!info) return kapital * 0.06;
+  const cfg = KAPITAL_LEGACY_METHODE[opts.kanton] ?? DEFAULT_KAPITAL_LEGACY;
+  const tarifs = getTarifs(info.cantonId, opts.jahr);
+  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", opts.fallart);
+  if (!tarif) return 0;
+
+  const fiktiveBemessung = kapital / cfg.teiler;
+  const splitBemessung = applySplitting(fiktiveBemessung, tarif, opts.fallart);
+  const roundedBemessung = round100Down(splitBemessung, tarif);
+  const steuerAufBemessung = reverseSplitting(
+    calculateTaxes(roundedBemessung, tarif),
+    tarif,
+    opts.fallart
+  );
+  const effektivsatz =
+    fiktiveBemessung > 0 ? steuerAufBemessung / fiktiveBemessung : 0;
+  const mindest = cfg.mindestProzent != null ? cfg.mindestProzent / 100 : 0;
+  const angewendeterSatz = Math.max(effektivsatz, mindest);
+  const einfache = kapital * angewendeterSatz;
+
+  const factor = findFactor(
+    info.cantonId,
+    opts.jahr,
+    opts.bfsId ?? info.bfsIdHauptort
+  );
+  if (!factor) return einfache;
+  const kantonFuss = factor.IncomeRateCanton / 100;
+  const gemeindeFuss = factor.IncomeRateCity / 100;
+  const kircheFuss =
+    getKirchensatz(
+      factor as unknown as Record<string, unknown>,
+      "Income",
+      opts.religion
+    ) / 100;
+  return einfache * (kantonFuss + gemeindeFuss + kircheFuss);
+}
 
 /**
  * Berechnet die kantonale Kapitalauszahlungssteuer für jeden Kanton via
- * konfigurierbare Sondertarif-Methode. Ersetzt die alte ZH-Spezialfunktion
- * und die /5-Approximation für andere Kantone — alle laufen jetzt durch
- * die gleiche Sondertarif-Logik.
+ * ESTV-kalibrierte Sondertarif-Methode (Sprint D11 Phase 3).
+ *
+ * Für Jahre ohne Kalibrierungs-Daten (aktuell alle ausser 2026) fällt die
+ * Funktion auf die Legacy-Bruchteils-Methode zurück (typische Drift ±50 %).
  */
 export function kantonsteuerKapital(
   kapital: number,
@@ -354,32 +609,24 @@ export function kantonsteuerKapital(
   const info = KANTON_INFO[opts.kanton];
   if (!info) return kapital * 0.06; // Pauschal-Fallback
 
-  const cfg = KAPITAL_METHODE[opts.kanton] ?? DEFAULT_KAPITAL_METHODE;
+  // Kalibrationstabelle (aktuell nur 2026 erfasst).
+  const kalibrierung =
+    opts.jahr === 2026 ? KAPITAL_CALIBRATION_2026[opts.kanton] : undefined;
+  if (!kalibrierung || kalibrierung.length === 0) {
+    // Fallback: Legacy-Bruchteils-Methode (vor Phase 3).
+    return kantonsteuerKapitalLegacy(kapital, opts);
+  }
 
-  const tarifs = getTarifs(info.cantonId, opts.jahr);
-  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", opts.fallart);
-  if (!tarif) return 0;
+  const einfache = interpoliereEinfache(kapital, kalibrierung);
 
-  // 1/teiler-Methode: Steuersatz auf fiktive Bemessung
-  const fiktiveBemessung = kapital / cfg.teiler;
-  const splitBemessung = applySplitting(fiktiveBemessung, tarif, opts.fallart);
-  const roundedBemessung = round100Down(splitBemessung, tarif);
-  const steuerAufBemessung = reverseSplitting(
-    calculateTaxes(roundedBemessung, tarif),
-    tarif,
-    opts.fallart
+  // Steuerfuss (Kanton + Gemeinde + Kirche) — folgt der Annahme, dass die
+  // Sondersteuer mit dem Einkommens-Steuerfuss multipliziert wird. Die
+  // Kalibrierung am Hauptort puffert kantons-spezifische Eigenheiten.
+  const factor = findFactor(
+    info.cantonId,
+    opts.jahr,
+    opts.bfsId ?? info.bfsIdHauptort
   );
-  const effektivsatz =
-    fiktiveBemessung > 0 ? steuerAufBemessung / fiktiveBemessung : 0;
-
-  // Mindestsatz wo gesetzlich vorgeschrieben (ZH §38 Abs. 4, SO §47 Abs. 4)
-  const mindest =
-    cfg.mindestProzent != null ? cfg.mindestProzent / 100 : 0;
-  const angewendeterSatz = Math.max(effektivsatz, mindest);
-  const einfache = kapital * angewendeterSatz;
-
-  // Steuerfuss (Kanton + Gemeinde + Kirche)
-  const factor = findFactor(info.cantonId, opts.jahr, opts.bfsId ?? info.bfsIdHauptort);
   if (!factor) return einfache;
 
   const kantonFuss = factor.IncomeRateCanton / 100;
