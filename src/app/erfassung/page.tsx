@@ -1045,7 +1045,7 @@ function SecPk() {
           value={bvg.p1.umwandlungssatzProzent}
           onChange={(e) =>
             setBvgP1({
-              umwandlungssatzProzent: parseFloat(e.target.value || "6.8"),
+              umwandlungssatzProzent: parseFloat(e.target.value || "5.5"),
             })
           }
         />
@@ -1091,7 +1091,7 @@ function SecPk() {
               value={bvg.p2.umwandlungssatzProzent}
               onChange={(e) =>
                 setBvgP2({
-                  umwandlungssatzProzent: parseFloat(e.target.value || "6.8"),
+                  umwandlungssatzProzent: parseFloat(e.target.value || "5.5"),
                 })
               }
             />

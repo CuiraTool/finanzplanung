@@ -794,7 +794,10 @@ const initialBvgPerson: BvgPersonInput = {
   aktiverAnschluss: true,
   altersguthabenHeute: null,
   altersguthabenBeiBezug: null,
-  umwandlungssatzProzent: 6.8,
+  // Default 5.5% statt BVG-Mindestsatz 6.8% — realistischer, weil PK-
+  // Reglemente landesweit gesunken sind. Empirisch aus Berater-Plänen
+  // (Franziska PKSZ ≈ 5.25%, SSM-Standardannahme).
+  umwandlungssatzProzent: 5.5,
   bezugspraeferenz: "rente",
   kapitalanteil: 50,
   freizuegigkeit: [],
