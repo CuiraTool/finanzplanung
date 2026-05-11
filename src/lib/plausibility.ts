@@ -151,8 +151,12 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
   }
 
   // ─── Block 5: BVG ───────────────────────────────────────────────
+  // Warnung nur wenn User Block 5 angefangen hat (altersguthabenHeute
+  // gesetzt) aber Bezugs-Saldo vergessen — sonst triggert das bei JEDEM
+  // neuen Plan (PK-Anschluss ist Default true, beide Saldi null).
   if (
     state.bvg.p1.aktiverAnschluss &&
+    state.bvg.p1.altersguthabenHeute != null &&
     state.bvg.p1.altersguthabenBeiBezug == null
   ) {
     out.push({
@@ -177,6 +181,7 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
   }
   if (
     state.bvg.p1.aktiverAnschluss &&
+    state.bvg.p1.altersguthabenHeute != null &&
     (state.bvg.p1.umwandlungssatzProzent <= 0 ||
       state.bvg.p1.umwandlungssatzProzent > 8)
   ) {
