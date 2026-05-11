@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1+2+3).
+ * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1+2+3+4).
  *
  * Holt für jedes Profil aus `src/engine/__validation__/estv-profile.ts`
  * den offiziellen ESTV-Steuerbetrag via interne JSON-API.
@@ -328,7 +328,7 @@ async function main(): Promise<void> {
   const allProfiles = generateProfilesAll();
   const profiles = flags.limit ? allProfiles.slice(0, flags.limit) : allProfiles;
 
-  console.log(`ESTV-Crawl Phase 1+2+3 — ${profiles.length}/${allProfiles.length} Profile`);
+  console.log(`ESTV-Crawl Phase 1+2+3+4 — ${profiles.length}/${allProfiles.length} Profile`);
   console.log(`Force-Modus: ${flags.force}`);
   console.log(`Snapshot: ${SNAPSHOT_PATH}\n`);
 

@@ -171,9 +171,18 @@ export function Dashboard() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold text-[var(--color-cuira-deep)]">
-            Live-Dashboard
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-semibold text-[var(--color-cuira-deep)]">
+              Live-Dashboard
+            </h2>
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-700"
+              title="Steuer-Engine validiert gegen offiziellen ESTV-Tarifrechner (swisstaxcalculator.estv.admin.ch) — 364 Profile, 26 Kantone × Single+Paar × ordentlich+Kapital, 2025+2026"
+            >
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              ESTV-validiert
+            </span>
+          </div>
           <p className="text-xs text-slate-400">
             Aktualisiert sich auf jede Eingabe in Echtzeit
             {inflationEnabled && (

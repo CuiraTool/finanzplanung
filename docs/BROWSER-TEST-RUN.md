@@ -1,22 +1,22 @@
 # Browser-Test-Run — Sprint F
 
-**Datum:** 2026-05-11T16:20:38.949Z
+**Datum:** 2026-05-11T17:07:37.228Z
 **Tool:** Playwright headless (chromium-headless-shell)
-**Target:** `https://cuira.netlify.app`
+**Target:** `http://localhost:3000`
 **Seed-Base:** `0xC04A` (deterministisch reproduzierbar)
 
 ## Profile
 
 | Status | Count |
 |---|---|
-| OK (keine Bugs) | 10 |
-| Bugs (mittel/leicht) | 0 |
+| OK (keine Bugs) | 99 |
+| Bugs (mittel/leicht) | 1 |
 | Crashes (kritisch) | 0 |
-| **Total** | **10** |
+| **Total** | **100** |
 
 ## Bekannte Baseline-Issues
 
-**SSR/CSR-Hydration-Mismatch (React #418):** 30 Vorkommen über alle Profile.
+**SSR/CSR-Hydration-Mismatch (React #418):** 300 Vorkommen über alle Profile.
 
 Fires bereits ohne Profil-Injection (leerer localStorage) — Ursache: `useViewMode()` + Zustand `persist` lesen erst client-side localStorage, während SSR Default-Werte rendert. React-19-strict weniger tolerant als React-18. Existiert vor Sprint F.
 
@@ -24,22 +24,24 @@ Fires bereits ohne Profil-Injection (leerer localStorage) — Ursache: `useViewM
 
 ## Performance
 
-- Total runtime: 40.8s
-- Avg pro Profil: 4.08s
+- Total runtime: 2486.8s
+- Avg pro Profil: 24.87s
 - 4 Page-Loads pro Profil (Wizard, Print, Wizard-PlanB, optional zusätzliche)
 
 ## Verteilung Fallart
 
-- einzel: 6
-- paar: 4
+- einzel: 50
+- paar: 50
 
 ## Top-Kantone (Verteilung)
 
-- SG: 2
-- SO: 2
-- GE: 1
-- AG: 1
-- NW: 1
-- GR: 1
-- GL: 1
-- BL: 1
+- GR: 7
+- GE: 6
+- NW: 6
+- UR: 6
+- LU: 6
+- SO: 5
+- GL: 5
+- BE: 5
+- SZ: 5
+- AG: 4

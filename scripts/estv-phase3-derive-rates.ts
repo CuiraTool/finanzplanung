@@ -1,14 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Leitet aus dem ESTV-Phase-3-Snapshot die einfache Kapitalauszahlungs-Steuer
+ * Leitet aus dem ESTV-Phase-3/4-Snapshot die einfache Kapitalauszahlungs-Steuer
  * pro Kanton ab (Total Kanton-Seite / Steuerfuss).
  *
  * Output: TypeScript-Snippet für die Engine — Lookup-Tabelle mit
  *   { kapital: 100_000, einfache: ... } pro Kanton.
  *
  * Usage:
- *   pnpm exec tsx scripts/estv-phase3-derive-rates.ts            # default 2026
+ *   pnpm exec tsx scripts/estv-phase3-derive-rates.ts            # default 2026, Single
  *   pnpm exec tsx scripts/estv-phase3-derive-rates.ts --year 2025
+ *   pnpm exec tsx scripts/estv-phase3-derive-rates.ts --paar     # Phase 4 (Paar)
+ *   pnpm exec tsx scripts/estv-phase3-derive-rates.ts --paar --year 2025
  */
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -16,6 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   generateProfilesPhase3,
+  generateProfilesPhase4,
   type EstvSnapshot,
 } from "../src/engine/__validation__/estv-profile";
 import { KANTON_INFO } from "../src/engine/steuer-engine";
@@ -34,7 +37,13 @@ function parseYear(argv: string[]): 2025 | 2026 {
   }
   return 2026;
 }
+function parsePaar(argv: string[]): boolean {
+  return argv.includes("--paar");
+}
 const YEAR = parseYear(process.argv.slice(2));
+const PAAR = parsePaar(process.argv.slice(2));
+const VARIANT = PAAR ? "PAAR" : "";
+const VARIANT_LABEL = PAAR ? "Paar (Phase 4)" : "Single (Phase 3)";
 
 const snap = JSON.parse(
   readFileSync(
@@ -43,7 +52,7 @@ const snap = JSON.parse(
   )
 ) as EstvSnapshot;
 
-const profiles = generateProfilesPhase3(YEAR);
+const profiles = PAAR ? generateProfilesPhase4(YEAR) : generateProfilesPhase3(YEAR);
 const perKanton = new Map<
   string,
   Array<{ kapital: number; kt: number; gem: number; kirche: number }>
@@ -61,12 +70,13 @@ for (const p of profiles) {
   });
 }
 
-console.log(`// Per-Kanton calibrated capital-payment tax breakpoints (Phase 3, ${YEAR}).`);
+console.log(`// Per-Kanton calibrated capital-payment tax breakpoints — ${VARIANT_LABEL}, ${YEAR}.`);
 console.log("// Werte sind die einfache Staatssteuer (vor Steuerfuss) am Hauptort, abgeleitet");
 console.log("// aus ESTV TaxCanton+TaxCity+TaxChurch ÷ (IncomeRateCanton+IncomeRateCity+IncomeRateChurch).");
 console.log("// Bei Konfession=keine ist Kirchen-Anteil 0, so dass nur (Kanton+Gemeinde)-Fuss zählt.");
 console.log("");
-console.log(`export const KAPITAL_CALIBRATION_${YEAR}: Record<string, Array<{ kapital: number; einfache: number }>> = {`);
+const TABLE_NAME = PAAR ? `KAPITAL_CALIBRATION_PAAR_${YEAR}` : `KAPITAL_CALIBRATION_${YEAR}`;
+console.log(`export const ${TABLE_NAME}: Record<string, Array<{ kapital: number; einfache: number }>> = {`);
 
 const sorted = [...perKanton.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 for (const [k, rows] of sorted) {

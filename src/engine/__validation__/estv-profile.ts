@@ -1,5 +1,5 @@
 /**
- * ESTV-Validierungs-Profile (Sprint D11 Phase 1 + 2 + 3).
+ * ESTV-Validierungs-Profile (Sprint D11 Phase 1 + 2 + 3 + 4).
  *
  * Pflicht-Testmatrix für die Cuira-Steuer-Engine vs. offizielle ESTV-
  * Tarifrechner-Werte (https://swisstaxcalculator.estv.admin.ch).
@@ -14,12 +14,20 @@
  *
  * Phase 3 (Kapitalauszahlung — D11 Phase 3, Sprint 2026-05):
  *  - 26 Kantone × 3 Kapitalbeträge (100k / 300k / 500k) × Single Alter 65
- *  - +78 Kapital-Profile → Total 286 Profile (Phase 1+2 ordentlich + Phase 3 kapital)
+ *  - +78 Kapital-Profile × 2 Jahre (2025+2026) → +156 Profile.
  *  - ESTV-Endpoint: API_calculateManyCapitalTaxes (TaxGroupID statt TaxLocationID,
  *    Felder Gender + AgeAtPayment + Capital)
  *
- * Phase 4 (geplant, späterer Sprint): Mehrgemeinden pro Kanton,
- * Vermögensvariation, Kapital × Paar.
+ * Phase 4 (Kapital × Paar — D11 Phase 4, Sprint 2026-05):
+ *  - 26 Kantone × 3 Kapitalbeträge × Paar (verheiratet) Alter 65
+ *  - +78 Kapital-Paar-Profile × 2 Jahre → +156 Profile.
+ *  - ESTV nutzt für verheiratete oft einen Splitting- oder eigenen Paar-Tarif;
+ *    Drift vs. Phase-3-Single-Tabelle muss separat kalibriert werden.
+ *
+ *  → Phase 1+2+3+4 Total: 104 + 104 + 156 + 156 = 520 Profile.
+ *
+ * Phase 5 (geplant, späterer Sprint): Mehrgemeinden pro Kanton, Vermögens-
+ * variation, Kapital mit Religion + Kindern.
  *
  * Die `expected*`-Werte werden vom Crawler `scripts/estv-crawl.ts` aus dem
  * ESTV-Tarifrechner befüllt und in `estv-snapshot.json` persistiert. Dieses
@@ -62,11 +70,11 @@ export interface EstvProfile {
   alterBeiAuszahlung: number;
   /** Geschlecht für Kapital-Profile (1=männlich, 2=weiblich; 0 für ordentliche). */
   gender: 0 | 1 | 2;
-  /** Fallart (Phase 1: nur "einzel"; Phase 2: "einzel" + "paar"; Phase 3: "einzel"). */
+  /** Fallart (Phase 1: nur "einzel"; Phase 2: "einzel" + "paar"; Phase 3: "einzel"; Phase 4: "paar"). */
   fallart: Fallart;
-  /** Konfession (Phase 1+2+3: nur "keine"). */
+  /** Konfession (Phase 1+2+3+4: nur "keine"). */
   konfession: Konfession;
-  /** Anzahl Kinder (Phase 1+2+3: 0). */
+  /** Anzahl Kinder (Phase 1+2+3+4: 0). */
   anzahlKinder: number;
   /** Steuerjahr. */
   jahr: 2026 | 2025;
@@ -190,10 +198,54 @@ export function generateProfilesPhase3(jahr: 2025 | 2026 = 2026): EstvProfile[] 
 }
 
 /**
- * Generiert die kombinierte Profilliste Phase 1 + Phase 2 + Phase 3 (2026 + 2025).
+ * Generiert die Profilliste für Phase 4 — Kapitalauszahlungen für Paare
+ * (verheiratet, gemeinsam veranlagt, Alter 65, Konfession keine).
  *
- * → 104 Single ord. + 104 Paar ord. + 78 Kapital 2026 + 78 Kapital 2025
- *   = 364 Profile.
+ * Matrix: 26 Kantone × 3 Kapitalbeträge × Paar Alter 65, Männlich (Person 1),
+ * keine Konfession, Hauptort. → 78 Profile pro Jahr.
+ *
+ * Begründung: Viele Kantone wenden bei Kapitalauszahlungen einen Sondertarif
+ * an, der für Paare anders ist als für Singles (Splitting, eigener Tarif,
+ * höhere Freigrenzen). Phase 3 testete nur Single — Phase 4 schliesst die
+ * Lücke und liefert eine separate Kalibrierung KAPITAL_CALIBRATION_PAAR_{jahr}
+ * falls Drift > 5 % auftritt.
+ *
+ * IDs: `{kanton}-{kapital}-kapital-paar-65-keine{suffix}` — analog zu Phase 3
+ * mit "paar" statt "einzel".
+ */
+export function generateProfilesPhase4(jahr: 2025 | 2026 = 2026): EstvProfile[] {
+  const profiles: EstvProfile[] = [];
+  const suffix = jahr === 2025 ? "-2025" : "";
+  for (const kanton of ALLE_KANTONE) {
+    const info = KANTON_INFO[kanton];
+    for (const kapital of KAPITAL_STUFEN) {
+      profiles.push({
+        id: `${kanton}-${kapital}-kapital-paar-65-keine${suffix}`,
+        kind: "kapital",
+        kanton,
+        bfsId: info.bfsIdHauptort,
+        einkommen: 0,
+        vermoegen: 0,
+        kapital,
+        alterBeiAuszahlung: 65,
+        gender: 1,
+        fallart: "paar",
+        konfession: "keine",
+        anzahlKinder: 0,
+        jahr,
+      });
+    }
+  }
+  return profiles;
+}
+
+/**
+ * Generiert die kombinierte Profilliste Phase 1 + 2 + 3 + 4 (2026 + 2025).
+ *
+ * → 104 Single ord. + 104 Paar ord. +
+ *   78 Kapital-Single 2026 + 78 Kapital-Single 2025 +
+ *   78 Kapital-Paar 2026 + 78 Kapital-Paar 2025
+ *   = 520 Profile.
  */
 export function generateProfilesAll(): EstvProfile[] {
   return [
@@ -201,6 +253,8 @@ export function generateProfilesAll(): EstvProfile[] {
     ...generateProfilesPhase2(),
     ...generateProfilesPhase3(2026),
     ...generateProfilesPhase3(2025),
+    ...generateProfilesPhase4(2026),
+    ...generateProfilesPhase4(2025),
   ];
 }
 

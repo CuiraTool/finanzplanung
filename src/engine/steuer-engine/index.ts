@@ -620,6 +620,33 @@ const KAPITAL_CALIBRATION_2025: Partial<
 };
 
 /**
+ * Kalibrationspunkte für Paare 2026 (Stützstellen 100k / 300k / 500k,
+ * Paar verheiratet Alter 65, Konfession keine, Hauptort). Generiert mit
+ * `pnpm exec tsx scripts/estv-phase3-derive-rates.ts --paar` aus dem
+ * Phase-4-Snapshot.
+ *
+ * Wird in `kantonsteuerKapital()` vorrangig genutzt wenn fallart="paar".
+ * Bei leerer Tabelle für einen Kanton fällt die Engine auf die
+ * Single-Tabelle zurück.
+ */
+const KAPITAL_CALIBRATION_PAAR_2026: Partial<
+  Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
+> = {
+  // Wird nach Phase-4-Crawl via scripts/estv-phase3-derive-rates.ts --paar
+  // befüllt. Bis dahin: Fallback auf Single-Tabelle (Drift unbekannt).
+};
+
+/**
+ * Kalibrationspunkte für Paare 2025 (analog 2026, gleicher Profil-Satz).
+ */
+const KAPITAL_CALIBRATION_PAAR_2025: Partial<
+  Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
+> = {
+  // Wird nach Phase-4-Crawl via scripts/estv-phase3-derive-rates.ts --paar --year 2025
+  // befüllt. Bis dahin: Fallback auf Single-Tabelle.
+};
+
+/**
  * Interpoliert die einfache kantonale Sondersteuer für ein gegebenes Kapital.
  *
  *  - Innerhalb der Stützstellen: stückweise linear.
@@ -733,9 +760,19 @@ function kantonsteuerKapitalLegacy(
 
 /**
  * Berechnet die kantonale Kapitalauszahlungssteuer für jeden Kanton via
- * ESTV-kalibrierte Sondertarif-Methode (Sprint D11 Phase 3).
+ * ESTV-kalibrierte Sondertarif-Methode (Sprint D11 Phase 3+4).
  *
- * Kalibrierte Jahre: 2025 + 2026 (78 Profile pro Jahr, ESTV-validiert).
+ * Kalibrierte Jahre: 2025 + 2026 (78 Profile Single + 78 Profile Paar pro
+ * Jahr, ESTV-validiert).
+ *
+ * Phase 4 (2026-05): Für Paare wird die separate Tabelle
+ * `KAPITAL_CALIBRATION_PAAR_{jahr}` verwendet. Viele Kantone wenden bei
+ * Kapitalauszahlungen für verheiratete einen Splitting-/Vollsplitting-Tarif
+ * oder eigene Tarifzeilen an, was die einfache Steuer typischerweise
+ * niedriger (oder progressiver) macht als für Singles. Bei Paaren fällt
+ * die Engine auf die Single-Tabelle zurück, falls keine PAAR-Kalibrierung
+ * für den gegebenen Kanton vorliegt.
+ *
  * Für Jahre ohne Kalibrierungs-Daten (z.B. zukünftige Jahre, bis Re-Crawl)
  * fällt die Funktion auf die Legacy-Bruchteils-Methode zurück (typische
  * Drift ±50 %).
@@ -755,13 +792,24 @@ export function kantonsteuerKapital(
   const info = KANTON_INFO[opts.kanton];
   if (!info) return kapital * 0.06; // Pauschal-Fallback
 
-  // Kalibrationstabelle pro Jahr (2025 + 2026 erfasst).
-  const kalibrierung =
+  // Kalibrationstabelle pro Jahr + Fallart (2025 + 2026 erfasst).
+  // Für Paare zuerst PAAR-Tabelle versuchen; Fallback Single-Tabelle.
+  const paarTabelle =
+    opts.fallart === "paar"
+      ? opts.jahr === 2026
+        ? KAPITAL_CALIBRATION_PAAR_2026[opts.kanton]
+        : opts.jahr === 2025
+          ? KAPITAL_CALIBRATION_PAAR_2025[opts.kanton]
+          : undefined
+      : undefined;
+  const singleTabelle =
     opts.jahr === 2026
       ? KAPITAL_CALIBRATION_2026[opts.kanton]
       : opts.jahr === 2025
         ? KAPITAL_CALIBRATION_2025[opts.kanton]
         : undefined;
+  const kalibrierung =
+    paarTabelle && paarTabelle.length > 0 ? paarTabelle : singleTabelle;
   if (!kalibrierung || kalibrierung.length === 0) {
     // Fallback: Legacy-Bruchteils-Methode (vor Phase 3).
     return kantonsteuerKapitalLegacy(kapital, opts);
