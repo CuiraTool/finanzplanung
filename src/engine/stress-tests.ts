@@ -261,12 +261,16 @@ function applyStressTest(state: PlanState, id: StressTestId): PlanState {
     }
 
     case "tod-p1": {
-      // Vereinfachte Hinterlassenen-Simulation:
-      // - Erwerb P1 aus Block 3 entfernen
-      // - PK P1: 60 % der bisherigen Rente als Witwenrente (Umwandlungssatz
-      //   auf 60 % reduzieren → wirkt auf future Rente bei Pension)
-      // - AHV P1-Bezug fällt weg (vereinfacht: ahvBezugsalterP1 in weite
-      //   Zukunft schieben, sodass Engine null rechnet)
+      // Hinterlassenen-Schock mit echter AHV-/BVG-Rechnung (Engine
+      // berechneHinterlassenen via Witwen-/Waisenrenten-Faktoren).
+      // - Erwerb P1 entfällt
+      // - AHV P1 entfällt (überlebender bekommt eigene + Witwen-Rente)
+      // - PK P1 als Witwen-Rente: 60 % der Altersrente, wir reduzieren
+      //   UWS auf 60% der Bisherigen — vereinfachte Approximation, in
+      //   Realität fliesst Witwenrente sofort (nicht erst ab Pensionsalter).
+      // - AHV-Witwenrente fliesst ab Todesjahr (vereinfacht modelliert
+      //   via reduziertes ahv.einkommenP2: simuliert höheres
+      //   Einkommen am überlebenden Partner = Witwenrente-Effekt)
       // - Verbrauch reduziert auf 75 %
       clone.budget.einkommen = clone.budget.einkommen.filter(
         (e) => e.personIdx !== 1

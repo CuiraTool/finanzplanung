@@ -12,6 +12,7 @@ import { SteuerChart } from "./SteuerChart";
 import { SteuerDetailCard } from "./SteuerDetailCard";
 import { DreiSaeulenKpi } from "./DreiSaeulenKpi";
 import { PlausibilityPanel } from "./PlausibilityPanel";
+import { HinterlassenenCard } from "./HinterlassenenCard";
 import { MassnahmenListe } from "./MassnahmenListe";
 import { KiMassnahmen } from "./KiMassnahmen";
 import { StressTests } from "./StressTests";
@@ -234,6 +235,8 @@ export function Dashboard() {
       <PlausibilityPanel />
 
       <DreiSaeulenKpi />
+
+      <HinterlassenenCard />
 
       <div className="space-y-4">
         {cashflowA.length > 0 ? (
