@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -40,9 +41,16 @@ const useViewModeStore = create<ViewModeStore>()(
 
 /**
  * Tuple-API für minimale Aufrufer-Anpassung — wie ein useState.
+ *
+ * Hydration-Sicher: SSR rendert immer den Default ("split"); erst nach
+ * Mount im Browser wird der persistierte localStorage-Wert übernommen.
+ * Verhindert React #418 Hydration-Mismatch zwischen Server- und Client-
+ * Rendering.
  */
 export function useViewMode(): [ViewMode, (m: ViewMode) => void] {
   const mode = useViewModeStore((s) => s.mode);
   const setMode = useViewModeStore((s) => s.setMode);
-  return [mode, setMode];
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  return [hydrated ? mode : "split", setMode];
 }
