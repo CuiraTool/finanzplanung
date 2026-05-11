@@ -22,7 +22,7 @@ import {
   vermoegensteuerKanton,
   bundessteuerEinkommen,
   bundessteuerKapitalNeu,
-  kantonsteuerKapitalZh,
+  kantonsteuerKapital,
   KANTON_INFO,
   type Fallart,
   type KantonCode,
@@ -224,23 +224,16 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
   let kapitalKanton = 0;
   if (kapital > 0) {
     kapitalBund = bundessteuerKapitalNeu(kapital, fallart, jahr);
-    if (kantonCode === "ZH") {
-      kapitalKanton = kantonsteuerKapitalZh(
-        kapital,
-        fallart,
-        religion,
-        jahr,
-        input.bfsId
-      );
-    } else if (kantonCode) {
-      const r = einkommensteuerKanton(kapital, {
+    if (kantonCode) {
+      // Einheitliche Sondertarif-Engine pro Kanton (§38 ZH-Standard +
+      // konfigurierbarer Teiler/Mindestsatz pro Kanton).
+      kapitalKanton = kantonsteuerKapital(kapital, {
         kanton: kantonCode,
         bfsId: input.bfsId,
         fallart,
         religion,
         jahr,
       });
-      kapitalKanton = r.total / 5;
     } else {
       kapitalKanton = kapital * 0.06;
     }

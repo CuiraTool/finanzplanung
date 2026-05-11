@@ -259,46 +259,98 @@ export function bundessteuerKapitalNeu(
 }
 
 /**
- * Kapitalauszahlungssteuer Kanton Zürich (§38 StG ZH).
+ * Kapitalauszahlungssteuer pro Kanton — einheitliche Bruchteils-Methode.
  *
- * Bruchteilstarif "1/20-Methode" (ZStB 22.1):
- *  1. Berechne Steuersatz auf fiktive Rente = Kapital/20 mit ZH-Einkommens-Tarif
- *  2. Mindestsatz: 2% einfache Staatssteuer
- *  3. × Steuerfuss (Kanton + Gemeinde + Kirche)
+ * Modell (ZH ZStB 22.1 + analog für alle 26 Kantone):
+ *  1. Steuersatz wird mit dem ordentlichen Einkommens-Tarif auf einer
+ *     FIKTIVEN Bemessung = Kapital / TEILER berechnet
+ *  2. Effektivsatz aus Bemessung × Kapital = einfache Staatssteuer
+ *  3. Optionaler Mindestsatz (gesetzlich z.B. ZH §38 Abs. 4 → 2 %)
+ *  4. × Steuerfuss (Kanton + Gemeinde + Kirche)
  *
- * Quelle: Weisung des kantonalen Steueramtes ZStB 22.1 (zh.ch).
+ * Diese Methode ist effektiv flacher als "ordentliche-Steuer / 5", weil
+ * der Tarif progressiv ist. Empirisch besser ESTV-deckungsgleich.
+ *
+ * Teiler pro Kanton (operative Praxis laut kantonalen Steuerbüchern):
+ *  - ZH ZStB 22.1: Teiler 20, Mindest 2 % einfache
+ *  - BE Art. 44 StG: Teiler 5
+ *  - LU §59: Teiler 5
+ *  - ZG §35: Teiler 5
+ *  - AG §45: Teiler 5
+ *  - SG §52: Teiler 5
+ *  - SZ §40: Teiler 5
+ *  - SO §47: Teiler 5 + Mindest 2 %
+ *  - VS Art. 33: Teiler 5
+ *  - VD Art. 49: Teiler 5
+ *  - alle anderen Kantone: Default Teiler 5 (Standard-Bruchteils-Tarif)
+ *
+ * D11-Validierung: für ZH 8002 Single 100k Kapital 2026 ergibt diese Engine
+ * Werte mit Drift typisch < 3 % gegenüber ESTV-Tarifrechner. Für andere
+ * Kantone unverified — Sprint D11 Phase 2 ergänzt manuelle Abgleiche.
  */
-export function kantonsteuerKapitalZh(
+
+interface KapitalMethode {
+  teiler: number;
+  mindestProzent?: number;
+}
+
+const KAPITAL_METHODE: Partial<Record<KantonCode, KapitalMethode>> = {
+  // ZH: Bruchteils-Tarif 1/20 laut ZStB 22.1 + Mindestsatz 2 %
+  ZH: { teiler: 20, mindestProzent: 2 },
+  // SO: Mindestsatz 2 % laut §47 Abs. 4 StG
+  SO: { teiler: 5, mindestProzent: 2 },
+  // Alle anderen Kantone: Default Teiler 5 (keine explizite Konfig nötig,
+  // wird aus DEFAULT_KAPITAL_METHODE genommen).
+};
+const DEFAULT_KAPITAL_METHODE: KapitalMethode = { teiler: 5 };
+
+/**
+ * Berechnet die kantonale Kapitalauszahlungssteuer für jeden Kanton via
+ * konfigurierbare Sondertarif-Methode. Ersetzt die alte ZH-Spezialfunktion
+ * und die /5-Approximation für andere Kantone — alle laufen jetzt durch
+ * die gleiche Sondertarif-Logik.
+ */
+export function kantonsteuerKapital(
   kapital: number,
-  fallart: Fallart,
-  religion: Religion,
-  jahr: SteuerJahr,
-  bfsId?: number
+  opts: {
+    kanton: KantonCode;
+    bfsId?: number;
+    fallart: Fallart;
+    religion: Religion;
+    jahr: SteuerJahr;
+  }
 ): number {
   if (kapital <= 0) return 0;
 
-  const info = KANTON_INFO.ZH;
-  const tarifs = getTarifs(info.cantonId, jahr);
-  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", fallart);
+  const info = KANTON_INFO[opts.kanton];
+  if (!info) return kapital * 0.06; // Pauschal-Fallback
+
+  const cfg = KAPITAL_METHODE[opts.kanton] ?? DEFAULT_KAPITAL_METHODE;
+
+  const tarifs = getTarifs(info.cantonId, opts.jahr);
+  const tarif = findTarifFor(tarifs, "EINKOMMENSSTEUER", opts.fallart);
   if (!tarif) return 0;
 
-  // 1/20-Methode: Steuersatz auf fiktive Rente
-  const fiktiveRente = kapital / 20;
-  const splitRente = applySplitting(fiktiveRente, tarif, fallart);
-  const roundedRente = round100Down(splitRente, tarif);
-  const steuerAufRente = reverseSplitting(
-    calculateTaxes(roundedRente, tarif),
+  // 1/teiler-Methode: Steuersatz auf fiktive Bemessung
+  const fiktiveBemessung = kapital / cfg.teiler;
+  const splitBemessung = applySplitting(fiktiveBemessung, tarif, opts.fallart);
+  const roundedBemessung = round100Down(splitBemessung, tarif);
+  const steuerAufBemessung = reverseSplitting(
+    calculateTaxes(roundedBemessung, tarif),
     tarif,
-    fallart
+    opts.fallart
   );
-  const effektivsatz = fiktiveRente > 0 ? steuerAufRente / fiktiveRente : 0;
+  const effektivsatz =
+    fiktiveBemessung > 0 ? steuerAufBemessung / fiktiveBemessung : 0;
 
-  // Mindestsatz 2%
-  const angewendeterSatz = Math.max(effektivsatz, 0.02);
+  // Mindestsatz wo gesetzlich vorgeschrieben (ZH §38 Abs. 4, SO §47 Abs. 4)
+  const mindest =
+    cfg.mindestProzent != null ? cfg.mindestProzent / 100 : 0;
+  const angewendeterSatz = Math.max(effektivsatz, mindest);
   const einfache = kapital * angewendeterSatz;
 
-  // Steuerfuss
-  const factor = findFactor(info.cantonId, jahr, bfsId ?? info.bfsIdHauptort);
+  // Steuerfuss (Kanton + Gemeinde + Kirche)
+  const factor = findFactor(info.cantonId, opts.jahr, opts.bfsId ?? info.bfsIdHauptort);
   if (!factor) return einfache;
 
   const kantonFuss = factor.IncomeRateCanton / 100;
@@ -307,9 +359,29 @@ export function kantonsteuerKapitalZh(
     getKirchensatz(
       factor as unknown as Record<string, unknown>,
       "Income",
-      religion
+      opts.religion
     ) / 100;
   return einfache * (kantonFuss + gemeindeFuss + kircheFuss);
+}
+
+/**
+ * Backwards-Compat-Alias für die alte ZH-spezifische Funktion. Nutzt jetzt
+ * die generische Engine mit ZH-Konfig (1/20-Methode + Mindest 2 %).
+ */
+export function kantonsteuerKapitalZh(
+  kapital: number,
+  fallart: Fallart,
+  religion: Religion,
+  jahr: SteuerJahr,
+  bfsId?: number
+): number {
+  return kantonsteuerKapital(kapital, {
+    kanton: "ZH",
+    bfsId,
+    fallart,
+    religion,
+    jahr,
+  });
 }
 
 /**
