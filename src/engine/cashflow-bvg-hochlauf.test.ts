@@ -106,6 +106,7 @@ function makeBaseState(): CashflowInput {
       steuernHeute: null,
       einkommenHeute: null,
       religion: "keine",
+      alimente: { aktiv: false, betragJahr: null },
     },
     adresse: {
       strasse: "",

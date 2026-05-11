@@ -192,6 +192,15 @@ export function Dashboard() {
               </span>
             )}
           </p>
+          {immobilien.items.some((i) => i.typ === "selbstbewohnt") && (
+            <p className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+              <span aria-hidden>⚖️</span>
+              <span>
+                Eigenmietwert + Schuldzinsabzug nur bis{" "}
+                <strong>2029</strong>. Ab 2030 entfällt beides (Reform 2030).
+              </span>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InflationToggle />

@@ -81,6 +81,36 @@ export interface SteuerInput {
    * Sozial-/BVG-Abzüge fallen weg. Siehe AbzugInput.einkommenIstNetto.
    */
   einkommenIstNetto?: boolean;
+  /**
+   * Eigenmietwert (CHF/Jahr) — Summe über alle selbstbewohnten Liegen-
+   * schaften. Wird zum steuerbaren Einkommen addiert. Nur bei Steuerjahr
+   * ≤ 2029 wirksam — ab 2030 entfällt die Eigenmietwertbesteuerung
+   * aufgrund der Reform 2030 (Volksabstimmung Sept 2025 angenommen).
+   */
+  eigenmietwertJahr?: number;
+  /**
+   * Schuldzinsen (CHF/Jahr) — Summe über alle laufenden Hypothek-Tranchen.
+   * Wird vom steuerbaren Einkommen abgezogen. Nur bei Steuerjahr ≤ 2029
+   * wirksam, parallel zum Eigenmietwert (Reform 2030).
+   */
+  schuldzinsenJahr?: number;
+  /**
+   * Alimente / Unterhaltsbeiträge (CHF/Jahr). Voll vom steuerbaren
+   * Einkommen abzugsfähig (Art. 33 Abs. 1 lit. c DBG). Wirkt ohne
+   * Jahres-Restriktion.
+   */
+  alimenteJahr?: number;
+}
+
+/**
+ * Eigenmietwert + Schuldzinsabzug gelten bis und mit Steuerjahr 2029.
+ * Ab Steuerjahr 2030 entfällt beides (Reform 2030, Volksabstimmung
+ * Sept 2025 angenommen). Diese Konstante macht den Cutoff zentral.
+ */
+export const EIGENMIETWERT_LETZTES_JAHR = 2029;
+
+export function eigenmietwertAktivImJahr(jahr: number): boolean {
+  return jahr <= EIGENMIETWERT_LETZTES_JAHR;
 }
 
 export interface SteuerOutput {
@@ -113,8 +143,19 @@ function asKantonCode(kanton: string): KantonCode | null {
 export function steuerProJahr(input: SteuerInput): SteuerOutput {
   const fallart: Fallart = input.fallart === "paar" ? "paar" : "einzel";
   const jahr = clampJahr(input.jahr);
+  const kalenderjahr = input.jahr ?? new Date().getFullYear();
   const kantonCode = asKantonCode(input.kanton);
   const { religion } = input;
+
+  // Eigenmietwert + Schuldzinsabzug: nur bis und mit Steuerjahr 2029
+  // (Reform 2030). Ab Steuerjahr 2030 ignoriert die Engine beide Werte.
+  const eigenmietwertEff = eigenmietwertAktivImJahr(kalenderjahr)
+    ? Math.max(0, input.eigenmietwertJahr ?? 0)
+    : 0;
+  const schuldzinsenEff = eigenmietwertAktivImJahr(kalenderjahr)
+    ? Math.max(0, input.schuldzinsenJahr ?? 0)
+    : 0;
+  const alimenteEff = Math.max(0, input.alimenteJahr ?? 0);
 
   // ─── Abzüge berechnen (DBG + Kanton getrennt) ────────────────────────
   // Wenn detailfelder vorhanden: echte Abzüge berechnen.
@@ -151,17 +192,30 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     // Renten/Mieten/etc. = einkommenJahr - bruttoErwerb (Total) wird zur
     // Bemessungsgrundlage addiert (kein BVG/Sozial/Berufsauslagen darauf,
     // aber sehr wohl Versicherungs-/Kinder-/Doppelverdiener-Abzug bleibt).
+    // Plus Eigenmietwert (bis 2029), minus Schuldzinsen (bis 2029) und
+    // minus Alimente (laufend).
     const nichtErwerb = Math.max(
       0,
       input.einkommenJahr - abzInput.bruttoErwerbP1 - abzInput.bruttoErwerbP2
     );
-    steuerbarBund = Math.max(0, abzuegeBund.steuerbar + nichtErwerb);
-    steuerbarKanton = Math.max(0, abzuegeKt.steuerbar + nichtErwerb);
+    const zusatzPlus = eigenmietwertEff;
+    const zusatzMinus = schuldzinsenEff + alimenteEff;
+    steuerbarBund = Math.max(
+      0,
+      abzuegeBund.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+    );
+    steuerbarKanton = Math.max(
+      0,
+      abzuegeKt.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+    );
   } else {
     // Fallback: alte 0.85-Daumenregel (aus Backwards-Compat-Tests / einfache Aufrufer)
+    // Eigenmietwert/Schuldzinsen/Alimente werden hier zusätzlich verrechnet,
+    // damit der Fallback nicht silent komplett ignoriert.
     const approx = bruttoZuSteuerbarApprox(input.einkommenJahr);
-    steuerbarBund = approx;
-    steuerbarKanton = approx;
+    const zusatz = eigenmietwertEff - schuldzinsenEff - alimenteEff;
+    steuerbarBund = Math.max(0, approx + zusatz);
+    steuerbarKanton = Math.max(0, approx + zusatz);
   }
 
   // ─── Bundessteuer ────────────────────────────────────────────────────

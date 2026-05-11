@@ -44,6 +44,7 @@ export function Block3Budget() {
   const setKategorie = usePlanStore((s) => s.setAusgabenKategorie);
   const setWunsch = usePlanStore((s) => s.setWunschverbrauchPension);
   const setSteuerAnker = usePlanStore((s) => s.setSteuerAnker);
+  const setAlimente = usePlanStore((s) => s.setAlimente);
   const adresse = usePlanStore((s) => s.adresse);
 
   const indikativHeute =
@@ -217,6 +218,54 @@ export function Block3Budget() {
             das Netto-Einkommen — Religion und Wohnort werden in Block 1
             erfasst.
           </p>
+        )}
+      </fieldset>
+
+      {/* Alimente / Unterhalt — voll abzugsfähig nach Art. 33 DBG */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">
+          Alimente / Unterhalt
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            optional — Unterhaltsbeiträge an Ex-Partner oder Kinder
+          </span>
+        </legend>
+
+        <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={budget.alimente.aktiv}
+            onChange={(e) => setAlimente({ aktiv: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+          />
+          <span>
+            Ich zahle Alimente / Unterhaltsbeiträge
+            <span className="block text-xs font-normal text-slate-500">
+              Wird vom steuerbaren Einkommen abgezogen (Art. 33 Abs. 1 lit. c
+              DBG) und als laufende Ausgabe im Cashflow geführt.
+            </span>
+          </span>
+        </label>
+
+        {budget.alimente.aktiv && (
+          <Field
+            label="Betrag (CHF/Jahr)"
+            hint="Vollständige jährliche Unterhaltszahlung — wird laufend wirksam"
+          >
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={budget.alimente.betragJahr ?? ""}
+              onChange={(e) =>
+                setAlimente({
+                  betragJahr:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              placeholder="z.B. 24'000"
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
         )}
       </fieldset>
     </div>

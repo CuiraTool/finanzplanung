@@ -98,20 +98,20 @@ export function Block8Immobilien() {
 
       <TragbarkeitPanel />
 
-      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        <div className="mb-1 font-medium text-slate-700">
-          ℹ️ Eigenmietwert &amp; Schuldzinsabzug — bewusst nicht modelliert
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="mb-1 font-medium">
+          ⚖️ Eigenmietwert &amp; Schuldzinsabzug — nur bis Steuerjahr 2029
         </div>
         <p className="leading-relaxed">
-          Die Schweiz schafft die Eigenmietwertbesteuerung per <strong>2028</strong>{" "}
-          ab (Volksabstimmung Sept 2025 angenommen). Mit dem Wegfall des
-          Eigenmietwerts entfällt auch der Schuldzinsabzug bei selbstbewohnten
-          Liegenschaften weitgehend. Da die Reform vor der Pensionierung der
-          meisten Cuira-Kunden greift, modellieren wir bewusst <em>weder</em>{" "}
-          den Eigenmietwert <em>noch</em> den Schuldzinsabzug — die Auslegeordnung
-          ist damit für den Zustand <strong>nach 2028</strong> realistisch.
-          Kurzfristig kann das die Steuerschätzung der nächsten 1-3 Jahre
-          leicht überzeichnen.
+          Die Schweiz schafft die Eigenmietwertbesteuerung per <strong>2030</strong>{" "}
+          ab (Volksabstimmung Sept 2025 angenommen). Mit dem Wegfall des Eigen-
+          mietwerts entfällt auch der Schuldzinsabzug bei selbstbewohnten Liegen-
+          schaften weitgehend. Bis und mit Steuerjahr <strong>2029</strong>{" "}
+          modellieren wir <em>beide</em> Effekte (Eigenmietwert als Plus zum
+          steuerbaren Einkommen, Hypothek-Schuldzinsen als Abzug). Ab Steuer-
+          jahr <strong>2030</strong> entfällt beides automatisch in der Engine.
+          Eigenmietwert-Default: 1.13 % vom Verkehrswert (ZH-Median, pro
+          Liegenschaft anpassbar).
         </p>
       </div>
     </div>
@@ -209,6 +209,45 @@ function ImmobilieCard({
           className={`${inputClass} tabular-nums`}
         />
       </Field>
+
+      {item.typ === "selbstbewohnt" && (
+        <Field
+          label="Eigenmietwert (% vom Verkehrswert)"
+          hint="Default 1.13 % (ZH-Median). Wirkt nur bis Steuerjahr 2029 — ab 2030 entfällt der Eigenmietwert automatisch (Reform 2030)."
+        >
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              step={0.05}
+              min={0}
+              max={5}
+              value={item.eigenmietwertProzent ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  eigenmietwertProzent:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              placeholder="1.13"
+              className={`${inputClass} w-24 tabular-nums`}
+            />
+            <span className="text-xs text-slate-500">%/Jahr</span>
+            {item.verkehrswert != null && item.verkehrswert > 0 && (
+              <span className="text-xs text-slate-400">
+                ≈ {formatChf(
+                  Math.round(
+                    (item.verkehrswert *
+                      (item.eigenmietwertProzent ?? 1.13)) /
+                      100
+                  )
+                )}{" "}
+                EMW/Jahr
+              </span>
+            )}
+          </div>
+        </Field>
+      )}
 
       {item.typ === "rendite" && (
         <Field

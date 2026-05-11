@@ -582,6 +582,28 @@ export default function PrintPage() {
           </div>
         )}
 
+        {/* ── Reform-Hinweis bei Eigenheim ───────────────────── */}
+        {fullState.immobilien.items.some(
+          (i) => i.typ === "selbstbewohnt"
+        ) && (
+          <div
+            className="mt-4 rounded-md border px-3 py-2 text-xs leading-relaxed"
+            style={{
+              borderColor: "#fcd34d",
+              background: "#fffbeb",
+              color: "#78350f",
+            }}
+          >
+            <strong>Reform 2030 — Eigenmietwert &amp; Schuldzinsabzug.</strong>{" "}
+            In den Steuerjahren bis und mit <strong>2029</strong> wirken in
+            dieser Auslegeordnung der Eigenmietwert (Default 1.13 % vom Verkehrs-
+            wert) als Plus zum steuerbaren Einkommen sowie die Hypothek-Schuld-
+            zinsen als Abzug. Ab Steuerjahr <strong>2030</strong> entfällt beides
+            automatisch — die Volksabstimmung vom Sept. 2025 hat die Reform
+            angenommen.
+          </div>
+        )}
+
         {/* ── Tragbarkeit ────────────────────────────────────── */}
         {(tragbarkeitHeute || tragbarkeitPension) && (
           <div className="page-break-before pt-4">
@@ -1005,6 +1027,14 @@ export default function PrintPage() {
             (BSV-Skala 44, Stand AHV21) und der kantonalen Steuerverwaltungen.
             Standard-Annahmen: Inflation 1.5 % p.a., kalkulatorischer Hypozins
             5 %, Verkehrswertsteigerung 1.5 % p.a. (anpassbar).
+          </p>
+          <p className="mb-2">
+            <strong>Eigenmietwert &amp; Schuldzinsabzug.</strong> Die Engine
+            modelliert Eigenmietwert (Default 1.13 % vom Verkehrswert) und den
+            Schuldzinsabzug bei selbstbewohnten Liegenschaften nur bis und mit
+            Steuerjahr 2029. Ab Steuerjahr 2030 entfällt beides aufgrund der
+            Reform 2030 (Volksabstimmung Sept 2025 angenommen) — die Auslegeordnung
+            spiegelt diese Rechtslage automatisch wider.
           </p>
           <p className="mb-2">
             <strong>Keine Beratung im engeren Sinn.</strong> Diese

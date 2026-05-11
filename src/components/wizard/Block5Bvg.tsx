@@ -459,6 +459,7 @@ function Einkaeufe({
             bezugsjahr != null &&
             it.jahr >= bezugsjahr - SPERRFRIST_EINKAUF_JAHRE + 1;
           const warnen = sperrfristVerletzt && kapitalIstAnteil;
+          const bisJahrEff = it.bisJahr ?? it.jahr + 5;
           return (
             <li
               key={it.id}
@@ -478,8 +479,52 @@ function Einkaeufe({
                   Entfernen
                 </button>
               </div>
-              <div className="grid grid-cols-[120px_1fr] gap-2">
-                <Field label="Jahr">
+
+              {/* Modus-Toggle: Einzel vs. Serie */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdate(it.id, { serie: false })
+                  }
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-left text-xs transition ${
+                    !it.serie
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="font-medium">Einzel-Einkauf</div>
+                  <div className="text-[10px] text-slate-400">
+                    nur im Startjahr
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdate(it.id, {
+                      serie: true,
+                      bisJahr: it.bisJahr ?? it.jahr + 5,
+                    })
+                  }
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-left text-xs transition ${
+                    it.serie
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="font-medium">Serie</div>
+                  <div className="text-[10px] text-slate-400">
+                    jährlich gleicher Betrag
+                  </div>
+                </button>
+              </div>
+
+              <div
+                className={`grid gap-2 ${
+                  it.serie ? "grid-cols-3" : "grid-cols-[120px_1fr]"
+                }`}
+              >
+                <Field label={it.serie ? "Von Jahr" : "Jahr"}>
                   <input
                     type="number"
                     min={2000}
@@ -491,7 +536,21 @@ function Einkaeufe({
                     className={`${inputClass} tabular-nums`}
                   />
                 </Field>
-                <Field label="Betrag (CHF)">
+                {it.serie && (
+                  <Field label="Bis Jahr (inkl.)">
+                    <input
+                      type="number"
+                      min={it.jahr}
+                      max={2100}
+                      value={bisJahrEff}
+                      onChange={(e) =>
+                        onUpdate(it.id, { bisJahr: Number(e.target.value) })
+                      }
+                      className={`${inputClass} tabular-nums`}
+                    />
+                  </Field>
+                )}
+                <Field label="Betrag (CHF / Jahr)">
                   <input
                     type="number"
                     inputMode="numeric"
@@ -507,6 +566,18 @@ function Einkaeufe({
                   />
                 </Field>
               </div>
+              {it.serie && it.betrag != null && it.betrag > 0 && (
+                <p className="text-[11px] text-slate-500">
+                  Serie wirkt jährlich {it.betrag.toLocaleString("de-CH")} CHF
+                  von {it.jahr} bis {bisJahrEff} inkl. (
+                  {Math.max(0, bisJahrEff - it.jahr + 1)} Jahre, Total{" "}
+                  {(
+                    it.betrag *
+                    Math.max(0, bisJahrEff - it.jahr + 1)
+                  ).toLocaleString("de-CH")}{" "}
+                  CHF).
+                </p>
+              )}
               {warnen && (
                 <p className="text-xs text-amber-700">
                   ⚠ 3-Jahres-Sperrfrist verletzt: dieser Einkauf liegt weniger als

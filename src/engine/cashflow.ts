@@ -38,7 +38,12 @@ import {
 } from "./ahv";
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
 import { saeuleDreiAuszahlung } from "./saeule3";
-import { steuerProJahr, steuerProJahrIK, type FremdKantonAnteil } from "./steuer";
+import {
+  steuerProJahr,
+  steuerProJahrIK,
+  eigenmietwertAktivImJahr,
+  type FremdKantonAnteil,
+} from "./steuer";
 import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
@@ -150,6 +155,19 @@ export interface CashflowZeile {
   einnahmenMieten: number;
   einnahmenErbschaft: number; // einmalige Erbschaft (im Jahr; nur wenn Toggle aktiv)
   einnahmenTotal: number;
+  /**
+   * Eigenmietwert im Jahr (CHF) — Σ über alle selbstbewohnten Liegenschaften
+   * × eigenmietwertProzent. Nur bis und mit 2029 wirksam (Reform 2030).
+   * Wird zum steuerbaren Einkommen addiert, fliesst aber NICHT in einnahmenTotal
+   * (kein Cashflow-Eingang — der Wert ist eine fiktive Einkommens-Position).
+   */
+  eigenmietwertJahr: number;
+  /**
+   * Schuldzins-Steuer-Abzug im Jahr — = ausgabenHypozins solange Reform-Phase
+   * aktiv (≤2029) und mindestens eine selbstbewohnte Immobilie vorhanden ist.
+   * Ab 2030 oder ohne Eigenheim: 0.
+   */
+  schuldzinsenAbzug: number;
   ausgabenHaushalt: number;
   ausgabenSteuern: number;
   ausgabenSteuernEinkommen: number;
@@ -165,6 +183,7 @@ export interface CashflowZeile {
   ausgabenAhvNe: number; // AHV-NE-Beiträge bei Frühpension (vor AHV-Alter, nicht-erwerbstätig)
   ausgabenHypozins: number; // jährliche Hypothek-Zinsen (Σ über alle laufenden Tranchen)
   ausgabenSchenkung: number; // einmalige Schenkung / Erbvorbezug (im Jahr; nur wenn Toggle aktiv)
+  ausgabenAlimente: number; // Alimente / Unterhaltsbeiträge (Art. 33 DBG, Cashflow + Steuer-Abzug)
   ausgabenEinmalig: number;
   ausgabenTotal: number;
   kapAuszahlungen: number;
@@ -348,6 +367,25 @@ export function cashflowReihe(
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
     const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
     const ausgabenSchenkung = schenkungAusgabeJahr(state, jahr);
+    // Alimente: voll abzugsfähig (Art. 33 DBG) + Cashflow-Ausgabe.
+    // Wirkt nur wenn der Toggle aktiv ist UND ein Betrag erfasst ist.
+    const ausgabenAlimente =
+      state.budget.alimente?.aktiv && state.budget.alimente.betragJahr != null
+        ? Math.max(0, state.budget.alimente.betragJahr)
+        : 0;
+    // Eigenmietwert: bis 2029 wirksam auf Einkommen (Reform 2030)
+    const eigenmietwertJahr = eigenmietwertJahrTotal(state, jahr);
+    // Schuldzinsabzug: nur bis 2029 UND nur wenn mindestens eine selbst-
+    // bewohnte Immobilie vorhanden ist. Vereinfacht: voller Hypozinsen-Abzug
+    // (ohne 60k-Pauschale / Vermögensertrag-Begrenzung). Korrekt für
+    // typische Eigenheim-Fälle in der Auslegeordnung.
+    const hatEigenheim = state.immobilien.items.some(
+      (im) =>
+        im.typ === "selbstbewohnt" &&
+        !(im.plan === "verkaufen" && jahr >= im.verkaufsjahr)
+    );
+    const schuldzinsenAbzug =
+      eigenmietwertAktivImJahr(jahr) && hatEigenheim ? ausgabenHypozins : 0;
 
     // Vermögen vor Steuern (Stand Jahresanfang) — vereinfacht: Block-7-Saldi
     // VOR der Cashflow-Buchung in diesem Jahr, plus Immobilien minus Hypotheken.
@@ -396,7 +434,7 @@ export function cashflowReihe(
       bfsId: state.adresse.gemeindeBfsId ?? undefined,
       religion: state.budget.religion,
       fallart: state.fallart,
-      jahr: jahr <= 2025 ? 2025 : 2026,
+      jahr,
       // Detail-Felder für präzise Abzüge (Phase 5)
       bruttoErwerbP1,
       bruttoErwerbP2,
@@ -425,6 +463,11 @@ export function cashflowReihe(
       // Kinder + 3a + DDV. Konsistent mit dem im Block 5 separat
       // erfassten BVG-Beitrag.
       einkommenIstNetto: true,
+      // Reform 2030: Eigenmietwert + Schuldzinsabzug nur bis 2029 wirksam.
+      // Werte werden in der Steuer-Engine intern nach Kalenderjahr gefiltert.
+      eigenmietwertJahr,
+      schuldzinsenJahr: schuldzinsenAbzug,
+      alimenteJahr: ausgabenAlimente,
     }, fremdAnteile);
     const ausgabenSteuern = steuern.total;
 
@@ -493,7 +536,8 @@ export function cashflowReihe(
       ausgabenPkEinkauf +
       ausgabenAhvNe +
       ausgabenHypozins +
-      ausgabenSchenkung;
+      ausgabenSchenkung +
+      ausgabenAlimente;
 
     // ─── Saldo ───────────────────────────────────────────────────
     const saldo = einnahmenTotal - ausgabenTotal;
@@ -572,6 +616,9 @@ export function cashflowReihe(
       ausgabenAhvNe: Math.round(ausgabenAhvNe),
       ausgabenHypozins: Math.round(ausgabenHypozins),
       ausgabenSchenkung: Math.round(ausgabenSchenkung),
+      ausgabenAlimente: Math.round(ausgabenAlimente),
+      eigenmietwertJahr: Math.round(eigenmietwertJahr),
+      schuldzinsenAbzug: Math.round(schuldzinsenAbzug),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
       ausgabenTotal: Math.round(ausgabenTotal),
       kapAuszahlungen: Math.round(kapAuszahlungen),
@@ -663,21 +710,93 @@ function saeuleDreiEinzahlungJahr(
 }
 
 /**
- * PK-Einkauf-Summe pro Jahr: summiert betrag aller Einkäufe deren `jahr`
- * mit dem Cashflow-Jahr übereinstimmt — beide Personen (bei Paar).
- * Wirkt als Ausgabe + Steuer-Abzug.
+ * Prüft, ob ein einzelner PK-Einkauf in einem konkreten Jahr aktiv ist.
+ * Einzel-Einkauf (serie=false): wirkt genau im Startjahr.
+ * Serie (serie=true): wirkt jährlich vom Startjahr bis bisJahr (inkl.).
+ */
+function einkaufAktivImJahr(
+  e: import("@/lib/store").EinkaufEntry,
+  jahr: number
+): boolean {
+  if (e.betrag == null || e.betrag <= 0) return false;
+  if (!e.serie) return e.jahr === jahr;
+  const bis = e.bisJahr ?? e.jahr;
+  return jahr >= e.jahr && jahr <= bis;
+}
+
+/**
+ * PK-Einkauf-Summe pro Jahr: summiert betrag aller Einkäufe (Einzel + Serie),
+ * die im Cashflow-Jahr aktiv sind — beide Personen (bei Paar).
+ * Wirkt als Ausgabe + Steuer-Abzug + Saldo-Hochlauf.
  */
 function pkEinkaufSummeJahr(state: CashflowInput, jahr: number): number {
   let total = 0;
   for (const e of state.bvg.p1.einkaeufe) {
-    if (e.jahr === jahr && e.betrag != null && e.betrag > 0) total += e.betrag;
+    if (einkaufAktivImJahr(e, jahr)) total += e.betrag ?? 0;
   }
   if (state.fallart === "paar") {
     for (const e of state.bvg.p2.einkaeufe) {
-      if (e.jahr === jahr && e.betrag != null && e.betrag > 0) total += e.betrag;
+      if (einkaufAktivImJahr(e, jahr)) total += e.betrag ?? 0;
     }
   }
   return total;
+}
+
+/**
+ * Expandiert Einkauf-Entries (Einzel + Serie) zu (jahr, betrag)-Paaren für
+ * die BVG-Hochlauf-Berechnung. Serien werden in einzelne Jahre aufgelöst.
+ */
+function expandEinkaeufe(
+  einkaeufe: import("@/lib/store").EinkaufEntry[]
+): { jahr: number; betrag: number }[] {
+  const out: { jahr: number; betrag: number }[] = [];
+  for (const e of einkaeufe) {
+    if (e.betrag == null || e.betrag <= 0) continue;
+    if (!e.serie) {
+      out.push({ jahr: e.jahr, betrag: e.betrag });
+    } else {
+      const bis = e.bisJahr ?? e.jahr;
+      for (let y = e.jahr; y <= bis; y++) {
+        out.push({ jahr: y, betrag: e.betrag });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Summe Eigenmietwert über alle selbstbewohnten Liegenschaften, die im
+ * Jahr noch gehalten werden. Default-Prozentsatz: 1.13 % vom Verkehrswert
+ * (ZH-Median). Pro Liegenschaft konfigurierbar via eigenmietwertProzent.
+ * Verkehrswert wird auf das Jahr hochgerechnet (gleiche Logik wie
+ * immobilieWert).
+ */
+const DEFAULT_EIGENMIETWERT_PROZENT = 1.13;
+
+function eigenmietwertJahrTotal(state: CashflowInput, jahr: number): number {
+  if (!eigenmietwertAktivImJahr(jahr)) return 0;
+  const heute = new Date().getFullYear();
+  let total = 0;
+  for (const im of state.immobilien.items) {
+    if (im.typ !== "selbstbewohnt") continue;
+    if (im.verkehrswert == null) continue;
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    const prozent = im.eigenmietwertProzent ?? DEFAULT_EIGENMIETWERT_PROZENT;
+    const wert = immobilieWert(im, jahr, heute);
+    total += (wert * prozent) / 100;
+  }
+  return Math.round(total);
+}
+
+/**
+ * True wenn der Plan mindestens eine selbstbewohnte Liegenschaft enthält
+ * (unabhängig von Jahr / Verkauf). Triggert die UI-Banner und den
+ * Schuldzinsabzug-Pfad.
+ */
+export function hatSelbstbewohnteLiegenschaft(
+  immobilien: { typ: string }[]
+): boolean {
+  return immobilien.some((i) => i.typ === "selbstbewohnt");
 }
 
 function parseYearMonth(s: string): { jahr: number; monat: number } | null {
@@ -778,9 +897,7 @@ function bvgRentePerson(
   if (!p.aktiverAnschluss || p.altersguthabenBeiBezug == null) return 0;
   if (p.bezugspraeferenz === "kapital") return 0;
   const bj = pensionsjahr(geburt, bezugsalter) ?? new Date().getFullYear();
-  const ekGueltig = p.einkaeufe
-    .filter((e) => e.betrag != null)
-    .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
+  const ekGueltig = expandEinkaeufe(p.einkaeufe);
   // WEF-Vorbezüge bis Bezugsjahr mindern das Altersguthaben für die
   // Renten-Berechnung (Vereinfachung: ohne Verzinsungs-Verlust-Approximation,
   // weil das beim altersguthabenBeiBezug-Wert vom PK-Ausweis schon
@@ -826,9 +943,7 @@ function bvgKapitalPerson(
     return { jahr: null, betrag: 0 };
   if (p.bezugspraeferenz === "rente") return { jahr: null, betrag: 0 };
   const bj = pensionsjahr(geburt, bezugsalter) ?? new Date().getFullYear();
-  const ekGueltig = p.einkaeufe
-    .filter((e) => e.betrag != null)
-    .map((e) => ({ jahr: e.jahr, betrag: e.betrag as number }));
+  const ekGueltig = expandEinkaeufe(p.einkaeufe);
   // WEF-Vorbezüge mindern Bezugskapital (siehe bvgRentePerson)
   const wefBisBezug = wefSummeBis(p, bj);
   const ausgangssaldo = Math.max(0, p.altersguthabenBeiBezug - wefBisBezug);

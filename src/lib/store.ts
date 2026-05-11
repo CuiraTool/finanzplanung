@@ -124,6 +124,14 @@ export interface EinkaufEntry {
   id: string;
   jahr: number;
   betrag: number | null;
+  /**
+   * Serie über mehrere Jahre: wenn true, wird der gleiche Betrag jährlich
+   * von `jahr` bis `bisJahr` (inkl.) wirksam — als Cashflow-Ausgabe,
+   * Steuer-Abzug UND PK-Saldo-Erhöhung. Default false (Einzel-Einkauf).
+   */
+  serie: boolean;
+  /** Endjahr der Serie (inkl.). Nur relevant wenn serie=true. */
+  bisJahr?: number;
 }
 
 /**
@@ -300,6 +308,14 @@ export interface Immobilie {
     gemeindeBfsId: number | null;
     gemeindeName: string;
   } | null;
+  /**
+   * Eigenmietwert als Prozent vom Verkehrswert (nur bei typ="selbstbewohnt"
+   * relevant). Default 1.13 % (ZH-Median nach Veranlagungspraxis). Wirkt
+   * im Steuer-Cashflow bis und mit Steuerjahr 2029 — ab 2030 entfällt
+   * Eigenmietwert + Schuldzinsabzug aufgrund der Reform 2030 (Volks-
+   * abstimmung Sept 2025 angenommen).
+   */
+  eigenmietwertProzent?: number | null;
 }
 
 export interface ImmobilienInput {
@@ -584,6 +600,16 @@ export type Religion =
   | "andere"
   | "keine";
 
+/**
+ * Alimente/Unterhalt: laufende Unterhaltsbeiträge an Ex-Partner oder Kinder
+ * sind nach Art. 33 Abs. 1 lit. c DBG vollumfänglich vom steuerbaren
+ * Einkommen abzugsfähig. Sie sind ausserdem eine echte Cashflow-Ausgabe.
+ */
+export interface AlimenteInput {
+  aktiv: boolean;
+  betragJahr: number | null;
+}
+
 export interface Budget {
   einkommen: Einkommensperiode[];
   ausgabenModus: AusgabenModus;
@@ -595,6 +621,11 @@ export interface Budget {
   /** Anker-Bruttojahreseinkommen, das zu `steuernHeute` gehört. */
   einkommenHeute: number | null;
   religion: Religion;
+  /**
+   * Alimente/Unterhaltsbeiträge (Art. 33 Abs. 1 lit. c DBG).
+   * Voll vom steuerbaren Einkommen abzugsfähig + Cashflow-Ausgabe.
+   */
+  alimente: AlimenteInput;
 }
 
 export interface PlanState {
@@ -648,6 +679,7 @@ export interface PlanState {
   setWunschverbrauchPension: (v: number | null) => void;
   setSteuerAnker: (steuern: number | null, einkommen: number | null) => void;
   setReligion: (r: Religion) => void;
+  setAlimente: (patch: Partial<AlimenteInput>) => void;
   setAhv: (patch: Partial<AhvInput>) => void;
   setBvgP1: (patch: Partial<BvgPersonInput>) => void;
   setBvgP2: (patch: Partial<BvgPersonInput>) => void;
@@ -805,6 +837,7 @@ const initialBudget: Budget = {
   steuernHeute: null,
   einkommenHeute: null,
   religion: "keine",
+  alimente: { aktiv: false, betragJahr: null },
 };
 
 function currentYearMonth(): string {
@@ -1144,6 +1177,10 @@ export const usePlanStore = create<PlanState>()(
           budget: { ...s.budget, steuernHeute: steuern, einkommenHeute: einkommen },
         })),
       setReligion: (r) => set((s) => ({ budget: { ...s.budget, religion: r } })),
+      setAlimente: (patch) =>
+        set((s) => ({
+          budget: { ...s.budget, alimente: { ...s.budget.alimente, ...patch } },
+        })),
       setAhv: (patch) => set((s) => ({ ahv: { ...s.ahv, ...patch } })),
       setBvgP1: (patch) =>
         set((s) => ({ bvg: { ...s.bvg, p1: { ...s.bvg.p1, ...patch } } })),
@@ -1216,6 +1253,7 @@ export const usePlanStore = create<PlanState>()(
                     id: newId(),
                     jahr: new Date().getFullYear() + 1,
                     betrag: null,
+                    serie: false,
                   },
                 ],
               },
@@ -1767,13 +1805,15 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v36",
-      version: 36,
+      name: "cuira-plan-v37",
+      version: 37,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
           saeuleDrei?: { p1: SaeuleDreiEntry[]; p2: SaeuleDreiEntry[] };
           plaene?: PlaeneRegister;
+          budget?: Budget;
+          bvg?: BvgInput;
         };
         // v34 → v35: Top-Level → plaene
         if (fromVersion < 35) {
@@ -1786,6 +1826,15 @@ export const usePlanStore = create<PlanState>()(
             plaene: { a: planA, b: planB, c: null },
           };
         }
+        // v36 → v37: Drei neue Felder mit Defaults
+        //   1. Budget.alimente — { aktiv: false, betragJahr: null }
+        //   2. EinkaufEntry.serie — default false (Einzel-Einkauf)
+        //   3. Immobilie.eigenmietwertProzent — bleibt undefined (Engine
+        //      nimmt Default 1.13 %, gilt nur bis Steuerjahr 2029)
+        //
+        // Wir lassen Migrationen für v36 später drin und führen die v37-
+        // Migration unterhalb aus.
+
         // v35 → v36: SaeuleDreiEntry.saeule Default "3a" für Bestands-Items
         if (fromVersion < 36) {
           const addSaeule = (entries: SaeuleDreiEntry[]): SaeuleDreiEntry[] =>
@@ -1817,6 +1866,45 @@ export const usePlanStore = create<PlanState>()(
               c: fix(state.plaene.c),
             };
           }
+        }
+
+        // v36 → v37: Alimente-Feld + Einkauf.serie + Immobilie.eigenmietwertProzent
+        if (fromVersion < 37) {
+          const ensureAlimente = (b: Budget | undefined): Budget | undefined => {
+            if (!b) return b;
+            const bm = b as Budget & { alimente?: AlimenteInput };
+            if (bm.alimente && typeof bm.alimente.aktiv === "boolean") return b;
+            return { ...b, alimente: { aktiv: false, betragJahr: null } };
+          };
+          const ensureSerieEntries = (entries: EinkaufEntry[]): EinkaufEntry[] =>
+            entries.map((e) => {
+              const raw = e as unknown as Record<string, unknown>;
+              if (typeof raw.serie === "boolean") return e;
+              return { ...e, serie: false };
+            });
+          const ensureSerieBvg = (b: BvgInput): BvgInput => ({
+            p1: { ...b.p1, einkaeufe: ensureSerieEntries(b.p1.einkaeufe) },
+            p2: { ...b.p2, einkaeufe: ensureSerieEntries(b.p2.einkaeufe) },
+          });
+          if (state.budget) state.budget = ensureAlimente(state.budget);
+          if (state.bvg) state.bvg = ensureSerieBvg(state.bvg);
+          if (state.plaene) {
+            const fix = (v: PlanVariantData | null): PlanVariantData | null =>
+              v
+                ? {
+                    ...v,
+                    budget: ensureAlimente(v.budget) as Budget,
+                    bvg: ensureSerieBvg(v.bvg),
+                  }
+                : null;
+            state.plaene = {
+              a: fix(state.plaene.a) as PlanVariantData,
+              b: fix(state.plaene.b),
+              c: fix(state.plaene.c),
+            };
+          }
+          // Immobilie.eigenmietwertProzent: bleibt undefined → Engine-Default 1.13.
+          // Keine aktive Migration nötig.
         }
         return state;
       },
