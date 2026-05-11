@@ -37,11 +37,10 @@ const ABS_TOLERANZ = 200;
  * Regression-Sicherung.
  */
 const KNOWN_DRIFT_IDS = new Set<string>([
-  // VS — Splittingfaktor / Tarifgruppe vermutlich falsch (siehe Empfehlung)
-  "VS-80000-einzel-keine",
-  "VS-150000-einzel-keine",
-  "VS-250000-einzel-keine",
-  "VS-500000-einzel-keine",
+  // VS — fixed in D11 Phase 2: Einkommen-Tarif aus ESTV-Crawler abgeleitet,
+  //       separate Single- und Verheiratet-Tabelle (BUND-Format, 47 Stufen).
+  //       Drift jetzt < 0.2 % (PersonalTax 24 CHF unmodelliert → minimaler
+  //       Rest-Drift bei kleinen Einkommen).
   // GE — Drift 6-8 %, vermutlich Pauschal-Abzug oder Steuerfuss-Detail
   "GE-80000-einzel-keine",
   "GE-150000-einzel-keine",
