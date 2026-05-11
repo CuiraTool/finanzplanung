@@ -166,11 +166,15 @@ function makeBaseState(): PlanState {
 }
 
 describe("runAllStressTests", () => {
-  it("liefert Resultat für jedes definierte Szenario", () => {
+  it("liefert nur relevante Szenarien (fall-spezifisch)", () => {
     const state = makeBaseState();
     const results = runAllStressTests(state);
-    expect(results).toHaveLength(STRESS_TESTS.length);
-    expect(results.map((r) => r.id)).toEqual(STRESS_TESTS.map((s) => s.id));
+    // Base state: einzel, Depot 200k, aktiver PK, KEINE Hypothek, KEIN Paar.
+    // → tod-p1 raus (kein Paar), hypozins-schock raus (keine Hypothek).
+    const expectedIds = STRESS_TESTS.map((s) => s.id).filter(
+      (id) => id !== "tod-p1" && id !== "hypozins-schock"
+    );
+    expect(results.map((r) => r.id).sort()).toEqual(expectedIds.sort());
   });
 
   it("Aktien-Crash reduziert Vermögen heute und bei Pension", () => {

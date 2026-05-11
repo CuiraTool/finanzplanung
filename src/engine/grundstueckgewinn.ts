@@ -39,11 +39,19 @@ export interface GgstInput {
   /** Verkaufspreis (entspricht hier dem Verkehrswert im Verkaufsjahr). */
   verkaufspreis: number;
   /**
-   * Anlagekosten = Kaufpreis + wertvermehrende Investitionen + Kaufnebenkosten.
+   * Anlagekosten = Kaufpreis + Kaufnebenkosten (Notar, Handänderung).
    * Wenn null/undefined: Default 75% des Verkaufspreises (typische Annahme
    * bei 15 J. Besitzdauer, 2% Wertsteigerung p.a.).
    */
   anlagekosten?: number | null;
+  /**
+   * Wertvermehrende Investitionen seit Kauf (Anbau, Heizungs-Ersatz, neues
+   * Bad, Solaranlage). Werden zu den Anlagekosten addiert und mindern den
+   * Reingewinn. Werterhaltende Aufwendungen (Anstrich, Reparaturen) sind
+   * NICHT abzugsfähig — wurden bereits laufend bei der Einkommensteuer
+   * berücksichtigt.
+   */
+  wertvermehrendeInvestitionen?: number | null;
   /** Besitzdauer in vollen Jahren. Wird für Tarif-Reduktion/-Zuschlag genutzt. */
   besitzdauerJahre: number;
   kanton: GgstKanton;
@@ -195,10 +203,15 @@ function besitzdauerFaktor(besitzdauer: number, kanton: GgstKanton): number {
  */
 export function berechneGgst(input: GgstInput): GgstOutput {
   const verkaufspreis = Math.max(0, input.verkaufspreis);
-  const anlagekosten =
+  const anlagekostenBasis =
     input.anlagekosten != null && input.anlagekosten >= 0
       ? input.anlagekosten
       : defaultAnlagekosten(verkaufspreis, Math.max(0, input.besitzdauerJahre));
+  const wertvermehrend = Math.max(
+    0,
+    input.wertvermehrendeInvestitionen ?? 0
+  );
+  const anlagekosten = anlagekostenBasis + wertvermehrend;
 
   const reingewinn = Math.max(0, verkaufspreis - anlagekosten);
 

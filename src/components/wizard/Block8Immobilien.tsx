@@ -321,7 +321,7 @@ function ImmobilieCard({
             </Field>
             <Field
               label="Anlagekosten"
-              hint="Kaufpreis + Investitionen + Nebenkosten"
+              hint="Kaufpreis + Kaufnebenkosten (Notar, Handänderung)"
             >
               <input
                 type="number"
@@ -338,6 +338,25 @@ function ImmobilieCard({
               />
             </Field>
           </div>
+
+          <Field
+            label="Wertvermehrende Investitionen seit Kauf (CHF)"
+            hint="Anbau, Heizungs-Ersatz, neues Bad, Solaranlage — mindert GGSt. Werterhaltend (Anstrich, Reparaturen) NICHT abzugsfähig"
+          >
+            <input
+              type="number"
+              min={0}
+              value={item.wertvermehrendeInvestitionen ?? ""}
+              placeholder="z.B. 80'000"
+              onChange={(e) =>
+                onUpdate({
+                  wertvermehrendeInvestitionen:
+                    e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
         </div>
       )}
 
@@ -401,6 +420,7 @@ function VerkaufsErloesPanel({
       verkaufsjahr: item.verkaufsjahr,
       kaufjahr: item.kaufjahr,
       anlagekosten: item.anlagekosten,
+      wertvermehrendeInvestitionen: item.wertvermehrendeInvestitionen,
     },
     kantonCode ?? ""
   );

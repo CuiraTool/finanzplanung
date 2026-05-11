@@ -9,6 +9,7 @@ import { formatChf } from "@/lib/format";
 import { EinnahmenAusgabenChart } from "./EinnahmenAusgabenChart";
 import { VermoegensChart } from "./VermoegensChart";
 import { SteuerChart } from "./SteuerChart";
+import { SteuerDetailCard } from "./SteuerDetailCard";
 import { MassnahmenListe } from "./MassnahmenListe";
 import { KiMassnahmen } from "./KiMassnahmen";
 import { StressTests } from "./StressTests";
@@ -251,6 +252,7 @@ export function Dashboard() {
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
             />
+            <SteuerDetailCard cashflow={cashflowA} />
           </>
         ) : (
           <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />

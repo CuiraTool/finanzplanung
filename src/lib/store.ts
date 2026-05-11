@@ -248,12 +248,23 @@ export interface Immobilie {
    */
   kaufjahr?: number | null;
   /**
-   * Anlagekosten = Kaufpreis + wertvermehrende Investitionen + Kaufnebenkosten.
+   * Anlagekosten = Kaufpreis + Kaufnebenkosten (Notar, Handänderung etc.).
    * Wenn null/undefined: Engine nimmt 75% des Verkaufspreises bei 15 J. Besitz
    * (Default-Annahme aus berechneGgst). Wenn der User einen genauen Wert hat,
-   * wird er hier eingegeben.
+   * wird er hier eingegeben. Wertvermehrende Investitionen werden separat
+   * in `wertvermehrendeInvestitionen` erfasst.
    */
   anlagekosten?: number | null;
+  /**
+   * Wertvermehrende Investitionen seit Kauf (Anbau, Heizungs-Ersatz, neues
+   * Bad, Solaranlage, Umbau zu zusätzlichem Stockwerk etc.). Diese Beträge
+   * mindern die Grundstückgewinnsteuer beim Verkauf, weil sie zu den
+   * Anlagekosten zählen. Werterhaltende Aufwendungen (Anstrich, Reparaturen)
+   * dürfen NICHT abgezogen werden — die wurden bereits laufend als
+   * Unterhaltsaufwand bei der Einkommenssteuer berücksichtigt.
+   * Wenn null/undefined: keine wertvermehrenden Investitionen geltend gemacht.
+   */
+  wertvermehrendeInvestitionen?: number | null;
   /**
    * Erwartete jährliche Wertsteigerung in % (default 1.5 — historischer
    * CH-Mittelwert für Wohneigentum). Wirkt im Cashflow auf den Verkehrs-
@@ -1217,6 +1228,8 @@ export const usePlanStore = create<PlanState>()(
             wertsteigerungProzent: initial?.wertsteigerungProzent ?? null,
             kaufjahr: initial?.kaufjahr ?? null,
             anlagekosten: initial?.anlagekosten ?? null,
+            wertvermehrendeInvestitionen:
+              initial?.wertvermehrendeInvestitionen ?? null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
@@ -1393,7 +1406,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v32",
+      name: "cuira-plan-v33",
     }
   )
 );

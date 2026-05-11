@@ -783,6 +783,7 @@ function kapitalauszahlungenJahr(
         verkaufsjahr: im.verkaufsjahr,
         kaufjahr: im.kaufjahr,
         anlagekosten: im.anlagekosten,
+        wertvermehrendeInvestitionen: im.wertvermehrendeInvestitionen,
       },
       state.adresse.kanton ?? ""
     );

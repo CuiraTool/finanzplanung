@@ -32,8 +32,10 @@ export interface ImmobilieFuerEngine {
   verkaufsjahr: number;
   /** Optional: Kaufjahr für GGSt-Besitzdauer. Default = Verkaufsjahr - 15. */
   kaufjahr?: number | null;
-  /** Optional: Anlagekosten (Kaufpreis + Investitionen) für GGSt. */
+  /** Optional: Anlagekosten (Kaufpreis + Kaufnebenkosten) für GGSt. */
   anlagekosten?: number | null;
+  /** Optional: wertvermehrende Investitionen seit Kauf (GGSt-Abzug). */
+  wertvermehrendeInvestitionen?: number | null;
 }
 
 /**
@@ -120,6 +122,7 @@ export function immobilienVerkaufsAuszahlungNetto(
   const ggst = berechneGgst({
     verkaufspreis: im.verkehrswert,
     anlagekosten: im.anlagekosten ?? null,
+    wertvermehrendeInvestitionen: im.wertvermehrendeInvestitionen ?? null,
     besitzdauerJahre,
     kanton: ggstKantonFromCode(kantonCode),
   });

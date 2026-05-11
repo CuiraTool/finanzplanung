@@ -293,9 +293,20 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
   const out: Massnahme[] = [];
   const heute = new Date().getFullYear();
 
-  // Brutto-Lohn pro Person (für Steuer-Berechnungen)
-  const bruttoP1 = state.ahv.einkommenP1 ?? 0;
-  const bruttoP2 = state.fallart === "paar" ? state.ahv.einkommenP2 ?? 0 : 0;
+  // Brutto-Lohn pro Person (für Steuer-Berechnungen).
+  // Fallback: wenn AHV-Brutto-Lohn nicht erfasst, leite aus Block 3 (Netto)
+  // ab via Netto × 1.15 (Sozialabgaben + BVG ≈ 15 %). So funktioniert die
+  // 3a-/PK-Optimierung auch bei reiner Netto-Erfassung im Budget.
+  const bruttoP1Roh = state.ahv.einkommenP1 ?? 0;
+  const bruttoP2Roh =
+    state.fallart === "paar" ? state.ahv.einkommenP2 ?? 0 : 0;
+  const nettoP1 = nettoEinkommenJahrPerson(state.budget.einkommen, 1);
+  const nettoP2 =
+    state.fallart === "paar"
+      ? nettoEinkommenJahrPerson(state.budget.einkommen, 2)
+      : 0;
+  const bruttoP1 = bruttoP1Roh > 0 ? bruttoP1Roh : Math.round(nettoP1 * 1.15);
+  const bruttoP2 = bruttoP2Roh > 0 ? bruttoP2Roh : Math.round(nettoP2 * 1.15);
   const bruttoTotal = bruttoP1 + bruttoP2;
   const alterP1 = parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
     ? heute - parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
@@ -494,20 +505,9 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
     });
   }
 
-  // ─── Optimierung 6: Doppelverdienerabzug-Hinweis (informativ) ────
-  if (state.fallart === "paar" && bruttoP1 > 0 && bruttoP2 > 0) {
-    const min = Math.min(bruttoP1, bruttoP2);
-    const ddvDbg = Math.max(8_400, Math.min(14_600, min * 0.5));
-    out.push({
-      id: "opt-doppelverdiener",
-      jahr: heute,
-      wer: "beide",
-      kategorie: "optimierung",
-      prioritaet: 3,
-      titel: `Doppelverdienerabzug wirkt automatisch (~${formatChfKurz(ddvDbg)} CHF DBG)`,
-      detail: `Wird in der Steuerveranlagung automatisch berücksichtigt — keine Aktion nötig. Reduziert Bundessteuer, Kanton-Pauschale separat (ZH: bis 13'700 CHF).`,
-    });
-  }
+  // Doppelverdienerabzug ist keine User-Massnahme — wird automatisch
+  // in der Steuerveranlagung berücksichtigt. Aus Massnahmen-Liste entfernt
+  // (User-Feedback: pollutiert Liste, keine Aktion nötig).
 
   // ─── Optimierung 7: 3a-Staffel-Bezug (Kapitalsteuer-Optimierung) ──
   // Wenn alle 3a-Konten + FZ im gleichen Jahr fällig werden, fällt voller
@@ -635,6 +635,81 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
     });
   }
 
+  // ─── Optimierung 10: WEF-Rückzahlung VOR PK-Einkauf ─────────────
+  // Gesetzlich (Art. 79b Abs. 3 BVG): PK-Einkäufe sind nur zulässig wenn
+  // WEF-Vorbezüge zuerst zurückgezahlt sind. Bei Verstoss → Aberkennung
+  // des Steuerabzugs + Nachsteuer + Bussen. Häufiger Berater-Fail.
+  // Nur aktiv wenn (a) WEF-Vorbezüge vorhanden UND (b) Berater PK-Einkauf
+  // bereits geplant hat ODER unsere PK-Einkauf-Massnahme wahrscheinlich
+  // greift (= Berater bekommt sie ohnehin in der Liste).
+  for (const p of personen) {
+    const bvg = p.idx === "p1" ? state.bvg.p1 : state.bvg.p2;
+    if (!bvg.aktiverAnschluss) continue;
+    const offeneWef = (bvg.wefVorbezuege ?? []).reduce(
+      (s, w) => s + (w.betrag ?? 0),
+      0
+    );
+    if (offeneWef <= 0) continue;
+    const planterEinkauf = bvg.einkaeufe.length > 0;
+    const passendeEinkaufMassnahme = out.some(
+      (m) => m.id === `opt-pk-einkauf-${p.idx}`
+    );
+    if (!planterEinkauf && !passendeEinkaufMassnahme) continue;
+
+    out.push({
+      id: `opt-wef-rueckzahlung-${p.idx}`,
+      jahr: heute,
+      wer: p.idx,
+      kategorie: "vorsorge",
+      prioritaet: 1,
+      titel: `WEF-Vorbezug rückzahlen (${p.name}) — vor PK-Einkauf zwingend`,
+      detail: `${formatChfKurz(offeneWef)} CHF WEF-Vorbezug offen. Gemäss Art. 79b Abs. 3 BVG sind freiwillige PK-Einkäufe nur zulässig wenn der WEF-Vorbezug zuerst zurückgezahlt ist. Andernfalls wird der Steuerabzug aberkannt + Nachsteuer + Verzugszinsen. Rückzahlung mindert keine Rente — der zurückgezahlte Betrag wächst wieder im Altersguthaben.`,
+    });
+  }
+
+  // ─── Optimierung 11: Schenkung statt Erbschaft (hohes Vermögen) ──
+  // Bei grossem Vermögen + Alter P1 ≥ 60 sind Schenkungen zu Lebzeiten
+  // oft steuergünstiger als Erbschaften — viele Kantone haben Schenkungs-
+  // freibeträge alle 5 J. + niedrigere Sätze für direkte Nachkommen.
+  // Plus: Generation-Skip oder Heirats-Schenkungen reduzieren später
+  // Erbschaftssteuer.
+  const heuteJahrLocal = new Date().getFullYear();
+  const geburtsjahrLocal = parseInt(
+    state.person1.geburtsdatum.slice(0, 4),
+    10
+  );
+  const alterP1Local = Number.isFinite(geburtsjahrLocal)
+    ? heuteJahrLocal - geburtsjahrLocal
+    : 0;
+  // Grob: Vermögen aus Block 7 + Immobilien-Netto
+  const vermoegenLiquid = state.vermoegen.items.reduce(
+    (s, it) =>
+      s + (it.typ === "darlehen" ? -(it.saldoHeute ?? 0) : it.saldoHeute ?? 0),
+    0
+  );
+  const immoNetto = state.immobilien.items.reduce((s, im) => {
+    const wert = im.verkehrswert ?? 0;
+    const hypo = im.hypotheken.reduce((hs, h) => hs + (h.hoehe ?? 0), 0);
+    return s + Math.max(0, wert - hypo);
+  }, 0);
+  const vermoegenGrob = vermoegenLiquid + immoNetto;
+
+  if (
+    vermoegenGrob > 1_500_000 &&
+    alterP1Local >= 60 &&
+    state.kinder.length > 0
+  ) {
+    out.push({
+      id: "opt-schenkung-statt-erbschaft",
+      jahr: heuteJahrLocal,
+      wer: "beide",
+      kategorie: "nachlass",
+      prioritaet: 2,
+      titel: `Schenkung zu Lebzeiten prüfen — bei ${formatChfKurz(vermoegenGrob)} CHF Vermögen`,
+      detail: `Bei direkten Nachkommen ist Schenkung in vielen Kantonen steuergünstiger als Erbschaft (ZH, BE, AG, SG: Kinder erbschaftssteuerfrei; aber Mehrhuhausen-Kantone besteuern Erbschaften). Vorteile Schenkung: Pflichtteil-Schutz, Generation-Skip möglich, frühe Vermögensplanung, Stiefkinder/Lebenspartner erfassbar. Nachteile: Kontrollverlust, Liquiditätsbedarf für Pflege/Eigenbedarf. CH-spezifisch via Schenkungsvertrag + ggf. Nutzniessungs-Vorbehalt.`,
+    });
+  }
+
   return out;
 }
 
@@ -666,4 +741,25 @@ function geburtsmonat(geburtsdatum: string): number {
   if (!geburtsdatum) return 1;
   const m = Number.parseInt(geburtsdatum.slice(5, 7), 10);
   return Number.isFinite(m) && m >= 1 && m <= 12 ? m : 1;
+}
+
+/**
+ * Netto-Jahreseinkommen pro Person aus Block 3 (Einkommensperioden).
+ * Heute-Wert: nur Perioden die im aktuellen Jahr aktiv sind.
+ */
+function nettoEinkommenJahrPerson(
+  perioden: PlanState["budget"]["einkommen"],
+  personIdx: 1 | 2
+): number {
+  const heute = new Date().getFullYear();
+  let total = 0;
+  for (const p of perioden) {
+    if (p.personIdx !== personIdx) continue;
+    if (p.betragMonatlich == null) continue;
+    const vonJ = p.von ? Number(p.von.slice(0, 4)) : 0;
+    const bisJ = p.bis ? Number(p.bis.slice(0, 4)) : 9999;
+    if (heute < vonJ || heute > bisJ) continue;
+    total += p.betragMonatlich * 12;
+  }
+  return total;
 }
