@@ -833,50 +833,76 @@ function computeAhvRente(
   bezugsjahrP1: number | null,
   bezugsjahrP2: number | null
 ): { haushalt: number; p1Einzel: number; p2Einzel: number } {
+  // Override-Pfad: wenn User echte AHV-Rente aus IK-Auszug eingetragen hat
+  // (z.B. bei Geschiedenen mit Splitting bereits im IK), nutzen wir den
+  // Wert direkt statt Skala-44-Berechnung.
+  const override1 = state.ahv.ahvRenteJahrEffektivP1;
+  const override2 = state.ahv.ahvRenteJahrEffektivP2;
+
   const e1 = state.ahv.einkommenP1;
-  if (e1 == null) return { haushalt: 0, p1Einzel: 0, p2Einzel: 0 };
   const fehljahreP1 = state.ahv.hatFehljahreP1 ? state.ahv.fehljahreAnzahlP1 : 0;
   const bezugsalterP1 = clampAhvAlter(state.ahv.ahvBezugsalterP1);
 
-  const p1Einzel = ahvJahresrenteEinzel({
-    massgebendesEinkommen: e1,
-    fehljahre: fehljahreP1,
-    bezugsalter: bezugsalterP1,
-    bezugsjahr: bezugsjahrP1 ?? new Date().getFullYear(),
-  }).jahresrente;
+  const p1Einzel =
+    override1 != null && override1 > 0
+      ? override1
+      : e1 != null
+        ? ahvJahresrenteEinzel({
+            massgebendesEinkommen: e1,
+            fehljahre: fehljahreP1,
+            bezugsalter: bezugsalterP1,
+            bezugsjahr: bezugsjahrP1 ?? new Date().getFullYear(),
+          }).jahresrente
+        : 0;
 
   if (state.fallart === "einzel") {
     return { haushalt: p1Einzel, p1Einzel, p2Einzel: 0 };
   }
 
   const e2 = state.ahv.einkommenP2;
-  if (e2 == null) return { haushalt: 0, p1Einzel, p2Einzel: 0 };
   const fehljahreP2 = state.ahv.hatFehljahreP2 ? state.ahv.fehljahreAnzahlP2 : 0;
   const bezugsalterP2 = clampAhvAlter(state.ahv.ahvBezugsalterP2);
 
-  // Einzelrente P2 ohne Splitting — gilt, wenn P2 vor P1 oder allein bezieht.
-  const p2Einzel = ahvJahresrenteEinzel({
-    massgebendesEinkommen: e2,
-    fehljahre: fehljahreP2,
-    bezugsalter: bezugsalterP2,
-    bezugsjahr: bezugsjahrP2 ?? new Date().getFullYear(),
-  }).jahresrente;
+  const p2Einzel =
+    override2 != null && override2 > 0
+      ? override2
+      : e2 != null
+        ? ahvJahresrenteEinzel({
+            massgebendesEinkommen: e2,
+            fehljahre: fehljahreP2,
+            bezugsalter: bezugsalterP2,
+            bezugsjahr: bezugsjahrP2 ?? new Date().getFullYear(),
+          }).jahresrente
+        : 0;
 
-  // Ehepaar-Rente (mit Splitting + Plafond) — gilt, wenn beide pensioniert.
-  const refJahr = Math.max(
-    bezugsjahrP1 ?? new Date().getFullYear(),
-    bezugsjahrP2 ?? new Date().getFullYear()
-  );
-  const out = ahvCouplePension({
-    einkommenP1: e1,
-    einkommenP2: e2,
-    fehljahreP1,
-    fehljahreP2,
-    bezugsalterP1,
-    bezugsalterP2,
-    bezugsjahr: refJahr,
-  });
-  return { haushalt: out.haushaltsRente, p1Einzel, p2Einzel };
+  // Ehepaar-Rente: wenn beide Override haben, einfach summieren mit Plafond
+  // CHF 45'360 (150% Max). Sonst Standard-Berechnung mit Splitting.
+  let haushalt: number;
+  if (override1 != null && override1 > 0 && override2 != null && override2 > 0) {
+    const PLAFOND_EHEPAAR = 45_360;
+    haushalt = Math.min(PLAFOND_EHEPAAR, override1 + override2);
+  } else if (e1 != null && e2 != null) {
+    const refJahr = Math.max(
+      bezugsjahrP1 ?? new Date().getFullYear(),
+      bezugsjahrP2 ?? new Date().getFullYear()
+    );
+    const out = ahvCouplePension({
+      einkommenP1: e1,
+      einkommenP2: e2,
+      fehljahreP1,
+      fehljahreP2,
+      bezugsalterP1,
+      bezugsalterP2,
+      bezugsjahr: refJahr,
+    });
+    haushalt = out.haushaltsRente;
+  } else {
+    // Mixed: ein Override gesetzt, anderer nicht → einfache Summe der
+    // beiden Einzelrenten (kein voller Splitting-Effekt)
+    haushalt = p1Einzel + p2Einzel;
+  }
+
+  return { haushalt, p1Einzel, p2Einzel };
 }
 
 function computeBvgRenteHaushalt(state: CashflowInput): { p1: number; p2: number } {

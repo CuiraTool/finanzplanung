@@ -107,6 +107,16 @@ export interface AhvInput {
    */
   ahvBezugsalterP1: number;
   ahvBezugsalterP2: number;
+  /**
+   * Voraussichtliche AHV-Jahresrente DIREKT aus IK-Auszug (CHF). Wenn
+   * gesetzt: überschreibt die Skala-44-Berechnung. Wichtig bei
+   * Geschiedenen (Splitting bereits im IK enthalten), bei Frühpension/
+   * Aufschub-Komplikationen oder wenn der Mandant einen konkreten BSV-
+   * Prognose-Wert vorliegen hat.
+   * Wenn null: Standard-Skala-44-Berechnung aus einkommenP*.
+   */
+  ahvRenteJahrEffektivP1: number | null;
+  ahvRenteJahrEffektivP2: number | null;
 }
 
 /** BVG / 2. Säule — Block 5. */
@@ -788,6 +798,8 @@ const initialAhv: AhvInput = {
   fehljahreAnzahlP2: 0,
   ahvBezugsalterP1: 65,
   ahvBezugsalterP2: 65,
+  ahvRenteJahrEffektivP1: null,
+  ahvRenteJahrEffektivP2: null,
 };
 
 const initialBvgPerson: BvgPersonInput = {
@@ -1005,6 +1017,8 @@ export const usePlanStore = create<PlanState>()(
             fehljahreAnzahlP2: 0,
             ahvBezugsalterP1: 65,
             ahvBezugsalterP2: 65,
+            ahvRenteJahrEffektivP1: null,
+            ahvRenteJahrEffektivP2: null,
           },
           bvg: initialBvg,
           saeuleDrei: { p1: [], p2: [] },
@@ -1808,7 +1822,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v37",
+      name: "cuira-plan-v38",
       version: 37,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
@@ -1908,6 +1922,34 @@ export const usePlanStore = create<PlanState>()(
           }
           // Immobilie.eigenmietwertProzent: bleibt undefined → Engine-Default 1.13.
           // Keine aktive Migration nötig.
+        }
+
+        // v37 → v38: AhvInput.ahvRenteJahrEffektivP1/P2 — Override aus IK-Auszug
+        if (fromVersion < 38) {
+          const ensureAhvOverride = (a: AhvInput | undefined): AhvInput | undefined => {
+            if (!a) return a;
+            const am = a as AhvInput & {
+              ahvRenteJahrEffektivP1?: number | null;
+              ahvRenteJahrEffektivP2?: number | null;
+            };
+            if (am.ahvRenteJahrEffektivP1 !== undefined) return a;
+            return {
+              ...a,
+              ahvRenteJahrEffektivP1: null,
+              ahvRenteJahrEffektivP2: null,
+            };
+          };
+          if (state.ahv)
+            state.ahv = ensureAhvOverride(state.ahv as AhvInput) as AhvInput;
+          if (state.plaene) {
+            const fix2 = (v: PlanVariantData | null): PlanVariantData | null =>
+              v ? { ...v, ahv: ensureAhvOverride(v.ahv) as AhvInput } : null;
+            state.plaene = {
+              a: fix2(state.plaene.a) as PlanVariantData,
+              b: fix2(state.plaene.b),
+              c: fix2(state.plaene.c),
+            };
+          }
         }
         return state;
       },

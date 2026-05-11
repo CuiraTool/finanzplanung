@@ -181,6 +181,8 @@ const arbAhv = (paar: boolean): fc.Arbitrary<AhvInput> =>
       fehljahreAnzahlP2: 0,
       ahvBezugsalterP1,
       ahvBezugsalterP2,
+      ahvRenteJahrEffektivP1: null,
+      ahvRenteJahrEffektivP2: null,
     }));
 
 // ─── BVG ────────────────────────────────────────────────────────────

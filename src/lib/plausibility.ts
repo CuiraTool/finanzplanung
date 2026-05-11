@@ -118,6 +118,21 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
     });
   }
 
+  // ─── Block 4: AHV — Geschieden ohne IK-Override ─────────────────
+  if (
+    state.zivilstand === "geschieden" &&
+    state.ahv.ahvRenteJahrEffektivP1 == null &&
+    state.ahv.einkommenP1 != null &&
+    state.ahv.einkommenP1 > 0
+  ) {
+    out.push({
+      id: "ahv-geschieden-ohne-override",
+      block: "4 AHV",
+      schwere: "warnung",
+      text: "Person 1 geschieden — AHV-Rente bei Geschiedenen weicht oft von der Standard-Berechnung ab (Splitting + Beitragslücken im IK). Echten Wert aus IK-Auszug eintragen empfohlen (Feld 'Voraussichtliche AHV-Jahresrente direkt').",
+    });
+  }
+
   // ─── Block 4: AHV ───────────────────────────────────────────────
   // Wenn vor Pensionierung und AHV-Einkommen null → 3a-Max + AHV-Rente
   // werden ungenau. Hinweis.

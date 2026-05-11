@@ -43,7 +43,7 @@ function makeStateMitImmobilieUndPk(): CashflowInput {
       fehljahreAnzahlP1: 0,
       fehljahreAnzahlP2: 0,
       ahvBezugsalterP1: 65,
-      ahvBezugsalterP2: 65,
+      ahvBezugsalterP2: 65, ahvRenteJahrEffektivP1: null, ahvRenteJahrEffektivP2: null,
     },
     bvg: {
       p1: {

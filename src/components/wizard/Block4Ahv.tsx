@@ -32,6 +32,7 @@ export function Block4Ahv() {
         hatFehljahre={ahv.hatFehljahreP1}
         fehljahreAnzahl={ahv.fehljahreAnzahlP1}
         ahvBezugsalter={ahv.ahvBezugsalterP1}
+        ahvRenteJahrEffektiv={ahv.ahvRenteJahrEffektivP1}
         onPatch={(p) => setAhv(mapToP1(p))}
       />
 
@@ -43,6 +44,7 @@ export function Block4Ahv() {
           hatFehljahre={ahv.hatFehljahreP2}
           fehljahreAnzahl={ahv.fehljahreAnzahlP2}
           ahvBezugsalter={ahv.ahvBezugsalterP2}
+          ahvRenteJahrEffektiv={ahv.ahvRenteJahrEffektivP2}
           onPatch={(p) => setAhv(mapToP2(p))}
         />
       )}
@@ -61,6 +63,7 @@ interface PersonAhvPatch {
   hatFehljahre?: boolean;
   fehljahreAnzahl?: number;
   ahvBezugsalter?: number;
+  ahvRenteJahrEffektiv?: number | null;
 }
 
 function mapToP1(p: PersonAhvPatch): Partial<AhvInput> {
@@ -70,6 +73,8 @@ function mapToP1(p: PersonAhvPatch): Partial<AhvInput> {
   if (p.hatFehljahre !== undefined) r.hatFehljahreP1 = p.hatFehljahre;
   if (p.fehljahreAnzahl !== undefined) r.fehljahreAnzahlP1 = p.fehljahreAnzahl;
   if (p.ahvBezugsalter !== undefined) r.ahvBezugsalterP1 = p.ahvBezugsalter;
+  if (p.ahvRenteJahrEffektiv !== undefined)
+    r.ahvRenteJahrEffektivP1 = p.ahvRenteJahrEffektiv;
   return r;
 }
 
@@ -80,6 +85,8 @@ function mapToP2(p: PersonAhvPatch): Partial<AhvInput> {
   if (p.hatFehljahre !== undefined) r.hatFehljahreP2 = p.hatFehljahre;
   if (p.fehljahreAnzahl !== undefined) r.fehljahreAnzahlP2 = p.fehljahreAnzahl;
   if (p.ahvBezugsalter !== undefined) r.ahvBezugsalterP2 = p.ahvBezugsalter;
+  if (p.ahvRenteJahrEffektiv !== undefined)
+    r.ahvRenteJahrEffektivP2 = p.ahvRenteJahrEffektiv;
   return r;
 }
 
@@ -90,6 +97,7 @@ function PersonAhvForm({
   hatFehljahre,
   fehljahreAnzahl,
   ahvBezugsalter,
+  ahvRenteJahrEffektiv,
   onPatch,
 }: {
   title: string;
@@ -98,6 +106,7 @@ function PersonAhvForm({
   hatFehljahre: boolean;
   fehljahreAnzahl: number;
   ahvBezugsalter: number;
+  ahvRenteJahrEffektiv: number | null;
   onPatch: (p: PersonAhvPatch) => void;
 }) {
   return (
@@ -106,7 +115,7 @@ function PersonAhvForm({
 
       <Field
         label="Massgebendes Jahreseinkommen (CHF)"
-        hint="durchschnittlich über die Karriere — laut IK-Auszug"
+        hint="durchschnittlich über die Karriere — laut IK-Auszug (NICHT aktueller Lohn)"
         info={
           <KiHinweis
             begriff="Massgebendes Einkommen"
@@ -124,6 +133,31 @@ function PersonAhvForm({
             })
           }
           placeholder="z.B. 80'000"
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
+
+      <Field
+        label="Voraussichtliche AHV-Jahresrente direkt (CHF, optional)"
+        hint="aus IK-Auszug / BSV-Prognose — überschreibt Skala-44-Berechnung. Empfohlen bei Geschiedenen, Frühpension-Komplikationen, Beitragslücken."
+        info={
+          <KiHinweis
+            begriff="AHV-Rente Override"
+            kontext="Wann direkt eingeben statt aus Einkommen rechnen?"
+          />
+        }
+      >
+        <input
+          type="number"
+          inputMode="numeric"
+          value={ahvRenteJahrEffektiv ?? ""}
+          onChange={(e) =>
+            onPatch({
+              ahvRenteJahrEffektiv:
+                e.target.value === "" ? null : Number(e.target.value),
+            })
+          }
+          placeholder="leer = aus Einkommen berechnet"
           className={`${inputClass} tabular-nums`}
         />
       </Field>
