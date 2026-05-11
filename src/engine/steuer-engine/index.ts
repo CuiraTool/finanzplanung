@@ -632,8 +632,136 @@ const KAPITAL_CALIBRATION_2025: Partial<
 const KAPITAL_CALIBRATION_PAAR_2026: Partial<
   Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
 > = {
-  // Wird nach Phase-4-Crawl via scripts/estv-phase3-derive-rates.ts --paar
-  // befüllt. Bis dahin: Fallback auf Single-Tabelle (Drift unbekannt).
+  AG: [
+    { kapital: 100_000, einfache: 1430.15 },
+    { kapital: 300_000, einfache: 7132.16 },
+    { kapital: 500_000, einfache: 13353.27 },
+  ],
+  AI: [
+    { kapital: 100_000, einfache: 1460.53 },
+    { kapital: 300_000, einfache: 5875 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  AR: [
+    { kapital: 100_000, einfache: 750 },
+    { kapital: 300_000, einfache: 2250 },
+    { kapital: 500_000, einfache: 3957.03 },
+  ],
+  BE: [
+    { kapital: 100_000, einfache: 761.46 },
+    { kapital: 300_000, einfache: 3151.94 },
+    { kapital: 500_000, einfache: 6087.26 },
+  ],
+  BL: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 14000 },
+  ],
+  BS: [
+    { kapital: 100_000, einfache: 4750 },
+    { kapital: 300_000, einfache: 20750 },
+    { kapital: 500_000, einfache: 36750 },
+  ],
+  FR: [
+    { kapital: 100_000, einfache: 1329.55 },
+    { kapital: 300_000, einfache: 9715.91 },
+    { kapital: 500_000, einfache: 19943.18 },
+  ],
+  GE: [
+    { kapital: 100_000, einfache: 1341.54 },
+    { kapital: 300_000, einfache: 6983.95 },
+    { kapital: 500_000, einfache: 13217.99 },
+  ],
+  GL: [
+    { kapital: 100_000, einfache: 4000 },
+    { kapital: 300_000, einfache: 12000 },
+    { kapital: 500_000, einfache: 20000 },
+  ],
+  GR: [
+    { kapital: 100_000, einfache: 1500 },
+    { kapital: 300_000, einfache: 4500 },
+    { kapital: 500_000, einfache: 7500 },
+  ],
+  JU: [
+    { kapital: 100_000, einfache: 986.74 },
+    { kapital: 300_000, einfache: 3559.79 },
+    { kapital: 500_000, einfache: 6159.79 },
+  ],
+  LU: [
+    { kapital: 100_000, einfache: 1040 },
+    { kapital: 300_000, einfache: 3840 },
+    { kapital: 500_000, einfache: 6640 },
+  ],
+  NE: [
+    { kapital: 100_000, einfache: 2500 },
+    { kapital: 300_000, einfache: 9293.65 },
+    { kapital: 500_000, einfache: 16578.31 },
+  ],
+  NW: [
+    { kapital: 100_000, einfache: 500 },
+    { kapital: 300_000, einfache: 2050.6 },
+    { kapital: 500_000, einfache: 3435.69 },
+  ],
+  OW: [
+    { kapital: 100_000, einfache: 719.97 },
+    { kapital: 300_000, einfache: 2160.06 },
+    { kapital: 500_000, einfache: 3600 },
+  ],
+  SG: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  SH: [
+    { kapital: 100_000, einfache: 1138.36 },
+    { kapital: 300_000, einfache: 5521.38 },
+    { kapital: 500_000, einfache: 9900 },
+  ],
+  SO: [
+    { kapital: 100_000, einfache: 1631.28 },
+    { kapital: 300_000, einfache: 7274.41 },
+    { kapital: 500_000, einfache: 13160.66 },
+  ],
+  SZ: [
+    { kapital: 100_000, einfache: 321.75 },
+    { kapital: 300_000, einfache: 2238.25 },
+    { kapital: 500_000, einfache: 5964.56 },
+  ],
+  TG: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  TI: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  UR: [
+    { kapital: 100_000, einfache: 1900 },
+    { kapital: 300_000, einfache: 5700 },
+    { kapital: 500_000, einfache: 9500 },
+  ],
+  VD: [
+    { kapital: 100_000, einfache: 1405.14 },
+    { kapital: 300_000, einfache: 6174.73 },
+    { kapital: 500_000, einfache: 11867.24 },
+  ],
+  VS: [
+    { kapital: 100_000, einfache: 1960 },
+    { kapital: 300_000, einfache: 6964.76 },
+    { kapital: 500_000, einfache: 15595.71 },
+  ],
+  ZG: [
+    { kapital: 100_000, einfache: 1198.46 },
+    { kapital: 300_000, einfache: 6834.62 },
+    { kapital: 500_000, einfache: 13234.62 },
+  ],
+  ZH: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
 };
 
 /**
@@ -642,8 +770,136 @@ const KAPITAL_CALIBRATION_PAAR_2026: Partial<
 const KAPITAL_CALIBRATION_PAAR_2025: Partial<
   Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
 > = {
-  // Wird nach Phase-4-Crawl via scripts/estv-phase3-derive-rates.ts --paar --year 2025
-  // befüllt. Bis dahin: Fallback auf Single-Tabelle.
+  AG: [
+    { kapital: 100_000, einfache: 1430.43 },
+    { kapital: 300_000, einfache: 7132.37 },
+    { kapital: 500_000, einfache: 13353.14 },
+  ],
+  AI: [
+    { kapital: 100_000, einfache: 1460.53 },
+    { kapital: 300_000, einfache: 5875 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  AR: [
+    { kapital: 100_000, einfache: 750 },
+    { kapital: 300_000, einfache: 2250 },
+    { kapital: 500_000, einfache: 3957.03 },
+  ],
+  BE: [
+    { kapital: 100_000, einfache: 762.35 },
+    { kapital: 300_000, einfache: 3156.37 },
+    { kapital: 500_000, einfache: 6095.46 },
+  ],
+  BL: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 14000 },
+  ],
+  BS: [
+    { kapital: 100_000, einfache: 4750 },
+    { kapital: 300_000, einfache: 20750 },
+    { kapital: 500_000, einfache: 36750 },
+  ],
+  FR: [
+    { kapital: 100_000, einfache: 1329.55 },
+    { kapital: 300_000, einfache: 9715.91 },
+    { kapital: 500_000, einfache: 19943.18 },
+  ],
+  GE: [
+    { kapital: 100_000, einfache: 1345.51 },
+    { kapital: 300_000, einfache: 6989.05 },
+    { kapital: 500_000, einfache: 13224.8 },
+  ],
+  GL: [
+    { kapital: 100_000, einfache: 4000 },
+    { kapital: 300_000, einfache: 12000 },
+    { kapital: 500_000, einfache: 20000 },
+  ],
+  GR: [
+    { kapital: 100_000, einfache: 1500 },
+    { kapital: 300_000, einfache: 4500 },
+    { kapital: 500_000, einfache: 7500 },
+  ],
+  JU: [
+    { kapital: 100_000, einfache: 986.74 },
+    { kapital: 300_000, einfache: 3559.79 },
+    { kapital: 500_000, einfache: 6159.79 },
+  ],
+  LU: [
+    { kapital: 100_000, einfache: 1040 },
+    { kapital: 300_000, einfache: 3840 },
+    { kapital: 500_000, einfache: 6640 },
+  ],
+  NE: [
+    { kapital: 100_000, einfache: 2500 },
+    { kapital: 300_000, einfache: 9293.65 },
+    { kapital: 500_000, einfache: 16578.31 },
+  ],
+  NW: [
+    { kapital: 100_000, einfache: 500 },
+    { kapital: 300_000, einfache: 2064.07 },
+    { kapital: 500_000, einfache: 3439.12 },
+  ],
+  OW: [
+    { kapital: 100_000, einfache: 719.97 },
+    { kapital: 300_000, einfache: 2160.06 },
+    { kapital: 500_000, einfache: 3600 },
+  ],
+  SG: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  SH: [
+    { kapital: 100_000, einfache: 1138.18 },
+    { kapital: 300_000, einfache: 5521.21 },
+    { kapital: 500_000, einfache: 9900 },
+  ],
+  SO: [
+    { kapital: 100_000, einfache: 1621.33 },
+    { kapital: 300_000, einfache: 7152.61 },
+    { kapital: 500_000, einfache: 12902.84 },
+  ],
+  SZ: [
+    { kapital: 100_000, einfache: 345.17 },
+    { kapital: 300_000, einfache: 2535.86 },
+    { kapital: 500_000, einfache: 6607.24 },
+  ],
+  TG: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  TI: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  UR: [
+    { kapital: 100_000, einfache: 1900 },
+    { kapital: 300_000, einfache: 5700 },
+    { kapital: 500_000, einfache: 9500 },
+  ],
+  VD: [
+    { kapital: 100_000, einfache: 1405.14 },
+    { kapital: 300_000, einfache: 6174.73 },
+    { kapital: 500_000, einfache: 11867.24 },
+  ],
+  VS: [
+    { kapital: 100_000, einfache: 1960 },
+    { kapital: 300_000, einfache: 6964.76 },
+    { kapital: 500_000, einfache: 15595.71 },
+  ],
+  ZG: [
+    { kapital: 100_000, einfache: 1199.02 },
+    { kapital: 300_000, einfache: 6836.92 },
+    { kapital: 500_000, einfache: 13236.9 },
+  ],
+  ZH: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
 };
 
 /**

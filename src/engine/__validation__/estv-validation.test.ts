@@ -1,5 +1,5 @@
 /**
- * ESTV-Validierungs-Test (Sprint D11 Phase 1 + 2 + 3).
+ * ESTV-Validierungs-Test (Sprint D11 Phase 1 + 2 + 3 + 4).
  *
  * Liest `estv-snapshot.json` (vom Crawler `scripts/estv-crawl.ts` erzeugt)
  * und vergleicht jeden Eintrag mit der Cuira-Engine `steuerProJahr(...)`.
@@ -10,7 +10,9 @@
  * Phase 3: +78 Kapitalauszahlungs-Profile 2026 (Single Alter 65,
  *          3 Kapitalstufen 100k/300k/500k, alle 26 Kantone, Hauptort).
  *          +78 Kapital-Profile 2025 (gleiche Matrix, TaxYear 2025).
- *  → Total 364 Profile.
+ * Phase 4: +156 Kapital-Paar-Profile (78×2026 + 78×2025, fallart=paar,
+ *          gleiche Matrix wie Phase 3).
+ *  → Total 520 Profile.
  *
  * Toleranzen:
  *  - Ordentlich: ±5 % auf Total Einkommens- + Vermögenssteuer.
@@ -192,7 +194,9 @@ describe("ESTV-Validierung Phase 3 (156 Kapitalauszahlungs-Profile, Single Alter
     return;
   }
 
-  const profiles = generateProfilesAll().filter((p) => p.kind === "kapital");
+  const profiles = generateProfilesAll().filter(
+    (p) => p.kind === "kapital" && p.fallart === "einzel"
+  );
   const drifts: Array<{
     id: string;
     expected: number;
@@ -254,6 +258,102 @@ describe("ESTV-Validierung Phase 3 (156 Kapitalauszahlungs-Profile, Single Alter
     if (drifts.length === 0) return;
     const sortedAbs = drifts
       .filter((d) => !KNOWN_DRIFT_KAPITAL_IDS.has(d.id))
+      .map((d) => Math.abs(d.diffProzent))
+      .sort((a, b) => a - b);
+    const median = sortedAbs[Math.floor(sortedAbs.length / 2)] ?? 0;
+    const max = sortedAbs[sortedAbs.length - 1] ?? 0;
+
+    expect(
+      median,
+      `Median |Δ%| = ${median.toFixed(2)} (Ziel ≤ 5 %)`
+    ).toBeLessThanOrEqual(5);
+    expect(
+      max,
+      `Max |Δ%| = ${max.toFixed(2)} (Ziel ≤ 15 %; höher = Kalibrierungslücke)`
+    ).toBeLessThanOrEqual(15);
+  });
+});
+
+/**
+ * Bekannte Drift-Fälle für Phase 4 (Kapital × Paar). Wird befüllt nachdem
+ * die PAAR-Kalibrierungstabelle eingespielt ist. An den Stützstellen sollte
+ * die Drift ebenfalls 0 % sein.
+ */
+const KNOWN_DRIFT_KAPITAL_PAAR_IDS = new Set<string>([]);
+
+describe("ESTV-Validierung Phase 4 (156 Kapital × Paar-Profile, Alter 65, Hauptort, 2025 + 2026)", () => {
+  const snap = loadSnapshot();
+
+  if (!snap) {
+    it.skip("Snapshot fehlt — bitte `pnpm exec tsx scripts/estv-crawl.ts` ausführen", () => {
+      // no-op
+    });
+    return;
+  }
+
+  const profiles = generateProfilesAll().filter(
+    (p) => p.kind === "kapital" && p.fallart === "paar"
+  );
+  const drifts: Array<{
+    id: string;
+    expected: number;
+    actual: number;
+    diffProzent: number;
+  }> = [];
+
+  for (const p of profiles) {
+    const entry = snap.entries[p.id];
+    if (!entry || !entry.ok || entry.expectedTotal == null) {
+      it.skip(`${p.id} (kein Crawler-Wert)`, () => undefined);
+      continue;
+    }
+
+    const known = KNOWN_DRIFT_KAPITAL_PAAR_IDS.has(p.id);
+    const itFn = known ? it.skip : it;
+    itFn(`${p.id}: |Cuira − ESTV| ≤ ${TOLERANZ_PROZENT_KAPITAL} %`, () => {
+      const r = steuerProJahr({
+        einkommenJahr: 0,
+        vermoegenJahr: 0,
+        kapAuszahlungenJahr: p.kapital,
+        kanton: p.kanton,
+        religion: p.konfession === "keine" ? "keine" : p.konfession,
+        fallart: p.fallart,
+        bfsId: p.bfsId,
+        jahr: p.jahr,
+        bruttoErwerbP1: 0,
+        alterP1: p.alterBeiAuszahlung,
+        anzahlKinder: p.anzahlKinder,
+        hatPkAnschlussP1: false,
+      });
+
+      const actual = r.kapital;
+      const expected = entry.expectedTotal!;
+      const diff = actual - expected;
+      const diffProzent =
+        expected > 0 ? (diff / expected) * 100 : actual > 0 ? 100 : 0;
+      drifts.push({
+        id: p.id,
+        expected,
+        actual,
+        diffProzent,
+      });
+
+      const tolAbs =
+        expected > 0
+          ? (Math.abs(expected) * TOLERANZ_PROZENT_KAPITAL) / 100
+          : ABS_TOLERANZ;
+
+      expect(
+        Math.abs(diff),
+        `Cuira=${actual.toFixed(0)}  ESTV=${expected.toFixed(0)}  Δ=${diff.toFixed(0)} (${diffProzent.toFixed(1)} %)`
+      ).toBeLessThanOrEqual(tolAbs);
+    });
+  }
+
+  it("Aggregat Kapital × Paar: median |Δ| < 5 %, max |Δ| < 15 %", () => {
+    if (drifts.length === 0) return;
+    const sortedAbs = drifts
+      .filter((d) => !KNOWN_DRIFT_KAPITAL_PAAR_IDS.has(d.id))
       .map((d) => Math.abs(d.diffProzent))
       .sort((a, b) => a - b);
     const median = sortedAbs[Math.floor(sortedAbs.length / 2)] ?? 0;
