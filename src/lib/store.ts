@@ -972,7 +972,9 @@ export const usePlanStore = create<PlanState>()(
                   {
                     id: newId(),
                     beschreibung: initial?.beschreibung ?? "",
-                    saldoHeute: initial?.saldoHeute ?? null,
+                    // Default 0 — Cashflow-Saldo wird von Anfang an ins
+                  // Hauptkonto verbucht, auch ohne initialen User-Eintrag.
+                  saldoHeute: initial?.saldoHeute ?? 0,
                     auszahlungsjahr:
                       initial?.auszahlungsjahr ?? new Date().getFullYear() + 5,
                     renditeProzent: initial?.renditeProzent ?? 0,
@@ -1176,7 +1178,9 @@ export const usePlanStore = create<PlanState>()(
                   id: newId(),
                   typ,
                   beschreibung: initial?.beschreibung ?? "",
-                  saldoHeute: initial?.saldoHeute ?? null,
+                  // Default 0 — Cashflow-Saldo wird von Anfang an ins
+                  // Hauptkonto verbucht, auch ohne initialen User-Eintrag.
+                  saldoHeute: initial?.saldoHeute ?? 0,
                   renditeProzent: initial?.renditeProzent ?? 0,
                   istHauptkonto: sollHauptkontoSein,
                 },

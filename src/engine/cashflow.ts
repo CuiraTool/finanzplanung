@@ -160,6 +160,7 @@ export interface CashflowZeile {
   ausgabenSteuernKapitalKanton: number; // davon Kanton-Sondertarif
   ausgabenSozialBvg: number; // AHV/IV/EO + ALV + NBU + BVG-AN-Beitrag (Erwerbsphase)
   ausgabenVorsorge3a: number; // jährliche Einzahlungen Säule 3a/3b
+  ausgabenPkEinkauf: number; // freiwilliger PK-Einkauf im Jahr (Σ p1+p2)
   ausgabenHypozins: number; // jährliche Hypothek-Zinsen (Σ über alle laufenden Tranchen)
   ausgabenSchenkung: number; // einmalige Schenkung / Erbvorbezug (im Jahr; nur wenn Toggle aktiv)
   ausgabenEinmalig: number;
@@ -260,6 +261,12 @@ export function cashflowReihe(
       (state.fallart === "paar"
         ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr)
         : 0);
+
+    // PK-Einkauf-Summe im aktuellen Jahr (beide Personen). Wirkt:
+    //  - als Ausgabe im Cashflow (mindert Hauptkonto)
+    //  - als Steuer-Abzug (pkEinkaufJahr im Steuer-Input)
+    //  - wächst PK-Saldo via bvgGesamtkapitalBeiBezug (schon vorhanden)
+    const pkEinkaufJahr = pkEinkaufSummeJahr(state, jahr);
 
     // AHV-Einnahmen je nach Pensionierungsstatus:
     //  • beide pensioniert → Ehepaarrente (Splitting + Plafond)
@@ -383,14 +390,21 @@ export function cashflowReihe(
       alterP2: alterP2 ?? 40,
       anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
       saeule3aEinzahlungJahr,
+      pkEinkaufJahr,
       hatPkAnschlussP1:
         state.bvg.p1.aktiverAnschluss && istVorPensionP1,
       hatPkAnschlussP2:
         state.fallart === "paar" &&
         state.bvg.p2.aktiverAnschluss &&
         istVorPensionP2,
-      ankerSteuernHeute: state.budget.steuernHeute,
-      ankerEinkommenHeute: ankerEinkommenImplizit,
+      // Anker greift NUR im heutigen Jahr (User-Wunsch): das Feld
+      // "Aktuelle Jahressteuer" reflektiert die letzte Veranlagung — Folgejahre
+      // werden via ESTV-Engine berechnet (Steuerentwicklung). Sonst würde der
+      // Anker proportional skaliert und auch Pension-Jahre verzerren.
+      ankerSteuernHeute:
+        jahr === heuteJahr ? state.budget.steuernHeute : null,
+      ankerEinkommenHeute:
+        jahr === heuteJahr ? ankerEinkommenImplizit : null,
       // User-Wunsch: Erwerbseinkommen wird als Netto interpretiert
       // (Sozial+BVG bereits abgezogen). Engine zieht keine zusätzlichen
       // Sozial-Abzüge mehr ab — nur Berufsauslagen + Versicherung +
@@ -412,6 +426,9 @@ export function cashflowReihe(
     // 3a-Einzahlung als separate Vorsorge-Ausgabe (geht NICHT auf das
     // Hauptkonto, sondern wächst den 3a-Saldo)
     const ausgabenVorsorge3a = saeule3aEinzahlungJahr;
+    // PK-Einkauf: fliesst als Ausgabe ab Hauptkonto, PK-Saldo wächst (via
+    // bvgGesamtkapitalBeiBezug → wird im Bezugsjahr addiert + verzinst).
+    const ausgabenPkEinkauf = pkEinkaufJahr;
 
     const ausgabenTotal =
       ausgabenHaushalt +
@@ -419,6 +436,7 @@ export function cashflowReihe(
       ausgabenEinmalig +
       ausgabenSozialBvg +
       ausgabenVorsorge3a +
+      ausgabenPkEinkauf +
       ausgabenHypozins +
       ausgabenSchenkung;
 
@@ -495,6 +513,7 @@ export function cashflowReihe(
       ausgabenSteuernKapitalKanton: Math.round(steuern.kapitalKanton),
       ausgabenSozialBvg: Math.round(ausgabenSozialBvg),
       ausgabenVorsorge3a: Math.round(ausgabenVorsorge3a),
+      ausgabenPkEinkauf: Math.round(ausgabenPkEinkauf),
       ausgabenHypozins: Math.round(ausgabenHypozins),
       ausgabenSchenkung: Math.round(ausgabenSchenkung),
       ausgabenEinmalig: Math.round(ausgabenEinmalig),
@@ -573,6 +592,24 @@ function saeuleDreiEinzahlungJahr(
     if (jahr < e.einzahlungAb) continue;
     if (e.einzahlungBis > 0 && jahr > e.einzahlungBis) continue;
     total += e.jaehrlicheEinzahlung;
+  }
+  return total;
+}
+
+/**
+ * PK-Einkauf-Summe pro Jahr: summiert betrag aller Einkäufe deren `jahr`
+ * mit dem Cashflow-Jahr übereinstimmt — beide Personen (bei Paar).
+ * Wirkt als Ausgabe + Steuer-Abzug.
+ */
+function pkEinkaufSummeJahr(state: CashflowInput, jahr: number): number {
+  let total = 0;
+  for (const e of state.bvg.p1.einkaeufe) {
+    if (e.jahr === jahr && e.betrag != null && e.betrag > 0) total += e.betrag;
+  }
+  if (state.fallart === "paar") {
+    for (const e of state.bvg.p2.einkaeufe) {
+      if (e.jahr === jahr && e.betrag != null && e.betrag > 0) total += e.betrag;
+    }
   }
   return total;
 }

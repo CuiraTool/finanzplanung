@@ -40,6 +40,20 @@
  *   Plus: reduzierte Vorbezugskürzungssätze für Übergangs-Jg (BSV-Tabelle,
  *   abhängig vom mittleren Einkommen) — hier nicht abgebildet, der User
  *   kriegt einen Hinweis im Wizard.
+ *
+ * TODO (Sprint AHV-NE):
+ *   AHV-Nichterwerbstätigen-Beiträge bei Frühpension.
+ *   Wer zwischen Frühpension und ordentlichem AHV-Alter 65 nicht mehr
+ *   erwerbstätig ist, schuldet als Nichterwerbstätiger AHV/IV/EO-Beiträge
+ *   vom Vermögen + 20× Renteneinkommen. BSV-Skala 2025:
+ *     - Mindest:  CHF 530/J
+ *     - Maximum:  CHF 26'400/J
+ *     - Stufen:   12 Stufen nach Bemessungsbetrag (Vermögen × 20 + Renteneinkommen)
+ *   Wirkt im Cashflow als Ausgabe ab Vorpensions-Jahr bis Bezugsalter
+ *   ordentliche AHV. Plus: ausgleichende Beitragsjahre für Lückenlosigkeit
+ *   der Skala 44. Implementation: separates Modul ahv-ne-beitrag.ts mit
+ *   Bemessungsbetrag-Berechnung + Beitragstabelle. In cashflow.ts pro
+ *   Jahr aufrufen wenn Vorpensions-Bedingung erfüllt.
  */
 
 const MIN_RENTE = 15_120;
