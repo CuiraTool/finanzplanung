@@ -52,7 +52,10 @@ export function Block10Nachlass() {
   const erbschaft = usePlanStore((s) => s.erbschaft);
   const setErbschaft = usePlanStore((s) => s.setErbschaft);
 
-  const erledigt = THEMEN.filter((t) => nachlass[t.key]).length;
+  // "Erledigt" = entweder explizit "gemacht" oder "nicht_notwendig" (= bewusst entschieden)
+  const erledigt = THEMEN.filter(
+    (t) => nachlass[t.key] === "ja" || nachlass[t.key] === "nicht_notwendig"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -309,36 +312,68 @@ function ThemaCard({
 }: {
   titel: string;
   erklaerung: string;
-  erledigt: boolean;
-  onToggle: (v: boolean) => void;
+  erledigt: import("@/lib/store").NachlassStatus;
+  onToggle: (v: import("@/lib/store").NachlassStatus) => void;
 }) {
+  const borderColor =
+    erledigt === "ja"
+      ? "border-emerald-300 bg-emerald-50/40"
+      : erledigt === "nicht_notwendig"
+        ? "border-slate-200 bg-slate-50/60"
+        : "border-slate-200 bg-white";
   return (
-    <li
-      className={`rounded-md border p-3 transition ${
-        erledigt
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <label className="flex cursor-pointer items-start gap-3">
-        <input
-          type="checkbox"
-          checked={erledigt}
-          onChange={(e) => onToggle(e.target.checked)}
-          className="mt-0.5 size-4 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-        />
-        <div className="flex-1 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-700">{titel}</span>
-            {erledigt && (
-              <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                Erledigt
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500">{erklaerung}</p>
+    <li className={`rounded-md border p-3 transition ${borderColor}`}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-slate-700">{titel}</span>
+          {erledigt === "ja" && (
+            <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+              Gemacht
+            </span>
+          )}
+          {erledigt === "nicht_notwendig" && (
+            <span className="rounded bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+              Nicht nötig
+            </span>
+          )}
         </div>
-      </label>
+        <p className="text-xs text-slate-500">{erklaerung}</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onToggle("ja")}
+            className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+              erledigt === "ja"
+                ? "border-emerald-500 bg-emerald-100 text-emerald-800"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            ✓ Gemacht
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggle("nein")}
+            className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+              erledigt === "nein"
+                ? "border-amber-400 bg-amber-50 text-amber-800"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            ✗ Nicht gemacht
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggle("nicht_notwendig")}
+            className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+              erledigt === "nicht_notwendig"
+                ? "border-slate-400 bg-slate-100 text-slate-800"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            — Nicht nötig
+          </button>
+        </div>
+      </div>
     </li>
   );
 }

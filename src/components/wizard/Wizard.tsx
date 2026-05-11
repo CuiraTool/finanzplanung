@@ -140,10 +140,10 @@ function blockGlance(blockId: number, s: PlanState): string {
       if (s.firma.vorhanden && s.firma.firmenname) return s.firma.firmenname;
       return "—";
     case 10: {
-      const yes = (Object.values(s.nachlass) as boolean[]).filter(Boolean)
-        .length;
+      const werte = Object.values(s.nachlass) as string[];
+      const yes = werte.filter((v) => v === "ja" || v === "nicht_notwendig").length;
       if (yes === 0) return "—";
-      const total = Object.keys(s.nachlass).length;
+      const total = werte.length;
       return `${yes} / ${total} Dokumente`;
     }
     default:
@@ -206,7 +206,9 @@ function blockIstErledigt(blockId: number, s: PlanState): boolean {
       return s.firma.vorhanden && !!s.firma.firmenname;
     case 10:
       // Mindestens ein Nachlass-Dokument mit Häkchen.
-      return (Object.values(s.nachlass) as boolean[]).some(Boolean);
+      return (Object.values(s.nachlass) as string[]).some(
+        (v) => v === "ja" || v === "nicht_notwendig"
+      );
     default:
       return false;
   }

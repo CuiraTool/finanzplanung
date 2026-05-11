@@ -158,7 +158,9 @@ function completion(
     // Nur wenn aktiv "vorhanden + Name" — "keine Firma" als Default zählt nicht.
     firma: s.firma.vorhanden && !!s.firma.firmenname,
     // Mindestens ein Nachlass-Häkchen gesetzt.
-    nachlass: (Object.values(s.nachlass) as boolean[]).some(Boolean),
+    nachlass: (Object.values(s.nachlass) as string[]).some(
+      (v) => v === "ja" || v === "nicht_notwendig"
+    ),
     docs: !!meta.docs?.vorsorgeausweisP1?.attached,
     uebergabe: (meta.notiz?.length ?? 0) >= 10,
   };
@@ -1449,8 +1451,8 @@ function SecNachlass() {
         {themen.map((t) => (
           <Check
             key={t.key}
-            checked={nachlass[t.key]}
-            onChange={(v) => setNachlass(t.key, v)}
+            checked={nachlass[t.key] === "ja"}
+            onChange={(v) => setNachlass(t.key, v ? "ja" : "nein")}
             label={t.label}
           />
         ))}

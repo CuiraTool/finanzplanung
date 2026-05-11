@@ -114,12 +114,12 @@ function makeBaseState(): PlanState {
       verkaufsjahr: 2040,
     },
     nachlass: {
-      vorsorgeauftrag: false,
-      patientenverfuegung: false,
-      generalvollmacht: false,
-      testament: false,
-      erbvertrag: false,
-      ehevertrag: false,
+      vorsorgeauftrag: "nein",
+      patientenverfuegung: "nein",
+      generalvollmacht: "nein",
+      testament: "nein",
+      erbvertrag: "nein",
+      ehevertrag: "nein",
     },
     anlagen: {
       erfahrung: null,

@@ -572,18 +572,28 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
   // Wenn Vorsorgeauftrag/Patientenverfügung/Testament fehlen → Hinweis.
   // Wirkung ist primär nicht-monetär (Familie geschützt), aber wir
   // schätzen die Notargebühren bei Nichtanlegen (Erbgang ohne Verfügung).
+  // Nur Dokumente die fehlen ("nein") UND nicht als "nicht_notwendig"
+  // markiert wurden. "ja" = vorhanden, "nicht_notwendig" = User-Entscheid.
+  const istFehlend = (status: string | undefined): boolean => status === "nein";
+
   const nachlassFehlen: string[] = [];
-  if (!state.nachlass.vorsorgeauftrag) nachlassFehlen.push("Vorsorgeauftrag");
-  if (!state.nachlass.patientenverfuegung)
+  if (istFehlend(state.nachlass.vorsorgeauftrag))
+    nachlassFehlen.push("Vorsorgeauftrag");
+  if (istFehlend(state.nachlass.patientenverfuegung))
     nachlassFehlen.push("Patientenverfügung");
-  if (!state.nachlass.testament && bruttoTotal > 80_000)
-    nachlassFehlen.push("Testament");
+  if (istFehlend(state.nachlass.testament)) nachlassFehlen.push("Testament");
   if (
     state.fallart === "paar" &&
-    !state.nachlass.ehevertrag &&
-    state.zivilstand === "verheiratet"
+    state.zivilstand === "verheiratet" &&
+    istFehlend(state.nachlass.ehevertrag)
   ) {
     nachlassFehlen.push("Ehevertrag");
+  }
+  if (istFehlend(state.nachlass.erbvertrag)) {
+    // Erbvertrag separat — wird typisch bei komplexem Familienkontext nötig
+    // (Patchwork, Konkubinat, ungleiche Erbteile). User entscheidet via
+    // "nicht_notwendig" wenn Standardfall.
+    nachlassFehlen.push("Erbvertrag");
   }
   if (nachlassFehlen.length >= 2) {
     out.push({
@@ -608,7 +618,14 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
       p.idx === "p1"
         ? state.ahv.ahvBezugsalterP1
         : state.ahv.ahvBezugsalterP2;
-    if (aktuellesBezugsalter !== 65) continue; // schon Vorbezug oder Aufschub geplant
+    // Aufschub-Vorschlag NUR wenn User Aufschub explizit gewählt hat
+    // (AHV-Bezugsalter > 65) ODER wenn Wunsch-Pensionsalter > 65 ist.
+    // Wenn User mit 65 bezieht → keine ungebetene Lebensentscheidung
+    // aufdrängen.
+    const wunschBezugsalter =
+      p.idx === "p1" ? state.ziele.bezugsalterP1 : state.ziele.bezugsalterP2;
+    const willAufschub = aktuellesBezugsalter > 65 || wunschBezugsalter > 65;
+    if (!willAufschub) continue;
 
     // Heuristik: nur Vorschlag wenn ausreichend Polster
     const heuteJahr = new Date().getFullYear();

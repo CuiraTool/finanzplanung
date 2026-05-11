@@ -1437,7 +1437,7 @@ export const QUESTIONS: QuestionSpec[] = [
     type: "yesno",
     get: (s) => s.nachlass.vorsorgeauftrag,
     set: (s, v) => {
-      s.nachlass.vorsorgeauftrag = v as boolean;
+      s.nachlass.vorsorgeauftrag = v ? "ja" : "nein";
     },
   },
   {
@@ -1448,7 +1448,7 @@ export const QUESTIONS: QuestionSpec[] = [
     type: "yesno",
     get: (s) => s.nachlass.patientenverfuegung,
     set: (s, v) => {
-      s.nachlass.patientenverfuegung = v as boolean;
+      s.nachlass.patientenverfuegung = v ? "ja" : "nein";
     },
   },
   {
@@ -1459,7 +1459,7 @@ export const QUESTIONS: QuestionSpec[] = [
     type: "yesno",
     get: (s) => s.nachlass.testament,
     set: (s, v) => {
-      s.nachlass.testament = v as boolean;
+      s.nachlass.testament = v ? "ja" : "nein";
     },
   },
   {
@@ -1472,7 +1472,7 @@ export const QUESTIONS: QuestionSpec[] = [
       s.zivilstand === "verheiratet" || s.zivilstand === "konkubinat",
     get: (s) => s.nachlass.ehevertrag,
     set: (s, v) => {
-      s.nachlass.ehevertrag = v as boolean;
+      s.nachlass.ehevertrag = v ? "ja" : "nein";
     },
   },
 

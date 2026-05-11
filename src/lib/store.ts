@@ -422,7 +422,16 @@ export type NachlassThemaKey =
   | "erbvertrag"
   | "ehevertrag";
 
-export type NachlassInput = Record<NachlassThemaKey, boolean>;
+/**
+ * 3-State pro Nachlass-Dokument:
+ *  - "ja": Dokument vorhanden
+ *  - "nein": fehlt — kommt in Massnahmenplan
+ *  - "nicht_notwendig": User entschieden dass nicht nötig — fliegt aus
+ *    Massnahmenplan
+ */
+export type NachlassStatus = "ja" | "nein" | "nicht_notwendig";
+
+export type NachlassInput = Record<NachlassThemaKey, NachlassStatus>;
 
 // ───────────────────────────────────────────────────────────────────
 // Erweiterte Felder (Blöcke M, N, O, P, R aus Typeform-Spec)
@@ -753,7 +762,7 @@ export interface PlanState {
     patch: Partial<Omit<Hypothek, "id">>
   ) => void;
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
-  setNachlass: (key: NachlassThemaKey, value: boolean) => void;
+  setNachlass: (key: NachlassThemaKey, value: NachlassStatus) => void;
   setFirma: (patch: Partial<FirmaInput>) => void;
   setAnlagen: (patch: Partial<AnlagenInput>) => void;
   setErbschaft: (patch: Partial<ErbschaftInput>) => void;
@@ -936,12 +945,12 @@ export const usePlanStore = create<PlanState>()(
         verkaufsjahr: new Date().getFullYear() + 10,
       },
       nachlass: {
-        vorsorgeauftrag: false,
-        patientenverfuegung: false,
-        generalvollmacht: false,
-        testament: false,
-        erbvertrag: false,
-        ehevertrag: false,
+        vorsorgeauftrag: "nein",
+        patientenverfuegung: "nein",
+        generalvollmacht: "nein",
+        testament: "nein",
+        erbvertrag: "nein",
+        ehevertrag: "nein",
       },
       anlagen: {
         erfahrung: null,
@@ -1032,12 +1041,12 @@ export const usePlanStore = create<PlanState>()(
             verkaufsjahr: new Date().getFullYear() + 10,
           },
           nachlass: {
-            vorsorgeauftrag: false,
-            patientenverfuegung: false,
-            generalvollmacht: false,
-            testament: false,
-            erbvertrag: false,
-            ehevertrag: false,
+            vorsorgeauftrag: "nein",
+            patientenverfuegung: "nein",
+            generalvollmacht: "nein",
+            testament: "nein",
+            erbvertrag: "nein",
+            ehevertrag: "nein",
           },
           anlagen: {
             erfahrung: null,
@@ -1680,12 +1689,12 @@ export const usePlanStore = create<PlanState>()(
             verkaufsjahr: new Date().getFullYear() + 10,
           },
           nachlass: {
-            vorsorgeauftrag: false,
-            patientenverfuegung: false,
-            generalvollmacht: false,
-            testament: false,
-            erbvertrag: false,
-            ehevertrag: false,
+            vorsorgeauftrag: "nein",
+            patientenverfuegung: "nein",
+            generalvollmacht: "nein",
+            testament: "nein",
+            erbvertrag: "nein",
+            ehevertrag: "nein",
           },
           anlagen: {
             erfahrung: null,
@@ -1764,12 +1773,12 @@ export const usePlanStore = create<PlanState>()(
                 verkaufsjahr: new Date().getFullYear() + 10,
               },
               nachlass: {
-                vorsorgeauftrag: false,
-                patientenverfuegung: false,
-                generalvollmacht: false,
-                testament: false,
-                erbvertrag: false,
-                ehevertrag: false,
+                vorsorgeauftrag: "nein",
+                patientenverfuegung: "nein",
+                generalvollmacht: "nein",
+                testament: "nein",
+                erbvertrag: "nein",
+                ehevertrag: "nein",
               },
               anlagen: {
                 erfahrung: null,
@@ -1822,8 +1831,8 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v38",
-      version: 37,
+      name: "cuira-plan-v39",
+      version: 39,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
@@ -1948,6 +1957,46 @@ export const usePlanStore = create<PlanState>()(
               a: fix2(state.plaene.a) as PlanVariantData,
               b: fix2(state.plaene.b),
               c: fix2(state.plaene.c),
+            };
+          }
+        }
+
+        // v38 → v39: Nachlass-Felder von boolean → NachlassStatus ("ja"/
+        // "nein"/"nicht_notwendig"). true → "ja", false → "nein".
+        if (fromVersion < 39) {
+          const migrateNachlass = (
+            n: Record<string, unknown> | undefined
+          ): NachlassInput | undefined => {
+            if (!n) return n as NachlassInput | undefined;
+            const m = { ...n } as Record<string, NachlassStatus | unknown>;
+            for (const k of Object.keys(n)) {
+              const v = n[k];
+              if (typeof v === "boolean") {
+                m[k] = v ? "ja" : "nein";
+              }
+            }
+            return m as unknown as NachlassInput;
+          };
+          if (state.nachlass)
+            state.nachlass = migrateNachlass(
+              state.nachlass as Record<string, unknown>
+            ) as NachlassInput;
+          if (state.plaene) {
+            const fix3 = (
+              v: PlanVariantData | null
+            ): PlanVariantData | null =>
+              v
+                ? {
+                    ...v,
+                    nachlass: migrateNachlass(
+                      v.nachlass as unknown as Record<string, unknown>
+                    ) as NachlassInput,
+                  }
+                : null;
+            state.plaene = {
+              a: fix3(state.plaene.a) as PlanVariantData,
+              b: fix3(state.plaene.b),
+              c: fix3(state.plaene.c),
             };
           }
         }

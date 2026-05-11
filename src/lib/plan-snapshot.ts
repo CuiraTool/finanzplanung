@@ -50,10 +50,10 @@ export interface PlanSnapshot {
   };
   firmaVorhanden: boolean;
   nachlass: {
-    testament: boolean;
-    vorsorgeauftrag: boolean;
-    patientenverfuegung: boolean;
-    ehevertrag: boolean;
+    testament: string;
+    vorsorgeauftrag: string;
+    patientenverfuegung: string;
+    ehevertrag: string;
   };
   bekannteMassnahmen: string[];
 }
