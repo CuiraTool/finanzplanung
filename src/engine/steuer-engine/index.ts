@@ -476,6 +476,150 @@ const KAPITAL_CALIBRATION_2026: Partial<
 };
 
 /**
+ * Kalibrationspunkte für Steuerjahr 2025 (Stützstellen 100k / 300k / 500k,
+ * Single Alter 65, Konfession keine, Hauptort). Generiert mit
+ * `pnpm exec tsx scripts/estv-phase3-derive-rates.ts --year 2025` aus dem
+ * ESTV-Snapshot (78 Profile, gecrawlt 2026-05-11).
+ *
+ * Werte sehr ähnlich zu 2026 — kleine Drifts in Kantonen mit angepassten
+ * Sondertarifen (BE, GE, NW, SH, SO, SZ, ZG, ZH).
+ */
+const KAPITAL_CALIBRATION_2025: Partial<
+  Record<KantonCode, ReadonlyArray<KapitalKalibrationspunkt>>
+> = {
+  AG: [
+    { kapital: 100_000, einfache: 2081.16 },
+    { kapital: 300_000, einfache: 8251.69 },
+    { kapital: 500_000, einfache: 14772.95 },
+  ],
+  AI: [
+    { kapital: 100_000, einfache: 1825 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  AR: [
+    { kapital: 100_000, einfache: 1000 },
+    { kapital: 300_000, einfache: 3000 },
+    { kapital: 500_000, einfache: 5275.95 },
+  ],
+  BE: [
+    { kapital: 100_000, einfache: 906.76 },
+    { kapital: 300_000, einfache: 3477.08 },
+    { kapital: 500_000, einfache: 6825.25 },
+  ],
+  BL: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 14000 },
+  ],
+  BS: [
+    { kapital: 100_000, einfache: 4750 },
+    { kapital: 300_000, einfache: 20750 },
+    { kapital: 500_000, einfache: 36750 },
+  ],
+  FR: [
+    { kapital: 100_000, einfache: 1534.09 },
+    { kapital: 300_000, einfache: 10227.27 },
+    { kapital: 500_000, einfache: 20454.55 },
+  ],
+  GE: [
+    { kapital: 100_000, einfache: 2037.55 },
+    { kapital: 300_000, einfache: 8210.9 },
+    { kapital: 500_000, einfache: 15067.22 },
+  ],
+  GL: [
+    { kapital: 100_000, einfache: 4000 },
+    { kapital: 300_000, einfache: 12000 },
+    { kapital: 500_000, einfache: 20000 },
+  ],
+  GR: [
+    { kapital: 100_000, einfache: 1500 },
+    { kapital: 300_000, einfache: 4500 },
+    { kapital: 500_000, einfache: 10000 },
+  ],
+  JU: [
+    { kapital: 100_000, einfache: 1186.74 },
+    { kapital: 300_000, einfache: 4533.05 },
+    { kapital: 500_000, einfache: 7933.05 },
+  ],
+  LU: [
+    { kapital: 100_000, einfache: 1040 },
+    { kapital: 300_000, einfache: 3840 },
+    { kapital: 500_000, einfache: 6640 },
+  ],
+  NE: [
+    { kapital: 100_000, einfache: 2719.05 },
+    { kapital: 300_000, einfache: 9957.14 },
+    { kapital: 500_000, einfache: 16812.17 },
+  ],
+  NW: [
+    { kapital: 100_000, einfache: 619.16 },
+    { kapital: 300_000, einfache: 2063.27 },
+    { kapital: 500_000, einfache: 3438.32 },
+  ],
+  OW: [
+    { kapital: 100_000, einfache: 719.97 },
+    { kapital: 300_000, einfache: 2160.06 },
+    { kapital: 500_000, einfache: 3600 },
+  ],
+  SG: [
+    { kapital: 100_000, einfache: 2200 },
+    { kapital: 300_000, einfache: 6600 },
+    { kapital: 500_000, einfache: 11000 },
+  ],
+  SH: [
+    { kapital: 100_000, einfache: 1598.79 },
+    { kapital: 300_000, einfache: 5939.39 },
+    { kapital: 500_000, einfache: 9900 },
+  ],
+  SO: [
+    { kapital: 100_000, einfache: 2100 },
+    { kapital: 300_000, einfache: 7850.24 },
+    { kapital: 500_000, einfache: 13125.12 },
+  ],
+  SZ: [
+    { kapital: 100_000, einfache: 556.21 },
+    { kapital: 300_000, einfache: 4374.83 },
+    { kapital: 500_000, einfache: 9768.62 },
+  ],
+  TG: [
+    { kapital: 100_000, einfache: 2400 },
+    { kapital: 300_000, einfache: 7200 },
+    { kapital: 500_000, einfache: 12000 },
+  ],
+  TI: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 12870.98 },
+  ],
+  UR: [
+    { kapital: 100_000, einfache: 1900 },
+    { kapital: 300_000, einfache: 5700 },
+    { kapital: 500_000, einfache: 9500 },
+  ],
+  VD: [
+    { kapital: 100_000, einfache: 1735.76 },
+    { kapital: 300_000, einfache: 7268.52 },
+    { kapital: 500_000, einfache: 13468.52 },
+  ],
+  VS: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 7106.67 },
+    { kapital: 500_000, einfache: 15914.29 },
+  ],
+  ZG: [
+    { kapital: 100_000, einfache: 1690.4 },
+    { kapital: 300_000, einfache: 7257.48 },
+    { kapital: 500_000, einfache: 13657.45 },
+  ],
+  ZH: [
+    { kapital: 100_000, einfache: 2000 },
+    { kapital: 300_000, einfache: 6000 },
+    { kapital: 500_000, einfache: 11659.91 },
+  ],
+};
+
+/**
  * Interpoliert die einfache kantonale Sondersteuer für ein gegebenes Kapital.
  *
  *  - Innerhalb der Stützstellen: stückweise linear.
@@ -591,8 +735,10 @@ function kantonsteuerKapitalLegacy(
  * Berechnet die kantonale Kapitalauszahlungssteuer für jeden Kanton via
  * ESTV-kalibrierte Sondertarif-Methode (Sprint D11 Phase 3).
  *
- * Für Jahre ohne Kalibrierungs-Daten (aktuell alle ausser 2026) fällt die
- * Funktion auf die Legacy-Bruchteils-Methode zurück (typische Drift ±50 %).
+ * Kalibrierte Jahre: 2025 + 2026 (78 Profile pro Jahr, ESTV-validiert).
+ * Für Jahre ohne Kalibrierungs-Daten (z.B. zukünftige Jahre, bis Re-Crawl)
+ * fällt die Funktion auf die Legacy-Bruchteils-Methode zurück (typische
+ * Drift ±50 %).
  */
 export function kantonsteuerKapital(
   kapital: number,
@@ -609,9 +755,13 @@ export function kantonsteuerKapital(
   const info = KANTON_INFO[opts.kanton];
   if (!info) return kapital * 0.06; // Pauschal-Fallback
 
-  // Kalibrationstabelle (aktuell nur 2026 erfasst).
+  // Kalibrationstabelle pro Jahr (2025 + 2026 erfasst).
   const kalibrierung =
-    opts.jahr === 2026 ? KAPITAL_CALIBRATION_2026[opts.kanton] : undefined;
+    opts.jahr === 2026
+      ? KAPITAL_CALIBRATION_2026[opts.kanton]
+      : opts.jahr === 2025
+        ? KAPITAL_CALIBRATION_2025[opts.kanton]
+        : undefined;
   if (!kalibrierung || kalibrierung.length === 0) {
     // Fallback: Legacy-Bruchteils-Methode (vor Phase 3).
     return kantonsteuerKapitalLegacy(kapital, opts);

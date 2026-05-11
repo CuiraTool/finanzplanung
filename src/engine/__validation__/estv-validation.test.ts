@@ -5,15 +5,17 @@
  * und vergleicht jeden Eintrag mit der Cuira-Engine `steuerProJahr(...)`.
  *
  * Phase 1: 104 Single-Profile (ordentliche Einkommens-/Vermögenssteuer,
- *          alle 26 Kantone × 4 Einkommensstufen, Hauptort).
- * Phase 2: +104 Paar-Profile (gleiche Matrix, fallart=paar).
- * Phase 3: +78 Kapitalauszahlungs-Profile (Single Alter 65, 3 Kapital-
- *          stufen 100k/300k/500k, alle 26 Kantone, Hauptort).
- *  → Total 286 Profile.
+ *          alle 26 Kantone × 4 Einkommensstufen, Hauptort, 2026).
+ * Phase 2: +104 Paar-Profile (gleiche Matrix, fallart=paar, 2026).
+ * Phase 3: +78 Kapitalauszahlungs-Profile 2026 (Single Alter 65,
+ *          3 Kapitalstufen 100k/300k/500k, alle 26 Kantone, Hauptort).
+ *          +78 Kapital-Profile 2025 (gleiche Matrix, TaxYear 2025).
+ *  → Total 364 Profile.
  *
  * Toleranzen:
  *  - Ordentlich: ±5 % auf Total Einkommens- + Vermögenssteuer.
- *  - Kapital:    ±10 % auf Total Bund + Kanton (Sondertarif-Approximation).
+ *  - Kapital:    ±5 % auf Total Bund + Kanton (Kalibrierungs-Toleranz, da
+ *                Stützstellen exakt auf ESTV).
  *
  * Wichtig: Profile-Liste in `estv-profile.ts` ist source-of-truth. Snapshot
  * ist regenerable (Re-Crawl). Wenn `estv-snapshot.json` fehlt, wird der
@@ -28,8 +30,8 @@ import { generateProfilesAll, type EstvSnapshot } from "./estv-profile";
 
 const SNAPSHOT_PATH = resolve(__dirname, "estv-snapshot.json");
 const TOLERANZ_PROZENT = 5;
-/** Toleranz für Kapital-Profile (Sondertarif-Kalibrierung, ±10 %). */
-const TOLERANZ_PROZENT_KAPITAL = 10;
+/** Toleranz für Kapital-Profile (Sondertarif-Kalibrierung, ±5 %). */
+const TOLERANZ_PROZENT_KAPITAL = 5;
 /** Profile mit erwartet 0 CHF Total: absolute Toleranz (CHF). */
 const ABS_TOLERANZ = 200;
 
@@ -180,7 +182,7 @@ describe("ESTV-Validierung Phase 1+2 (208 Profile, Single + Paar, Hauptort)", ()
   });
 });
 
-describe("ESTV-Validierung Phase 3 (78 Kapitalauszahlungs-Profile, Single Alter 65, Hauptort)", () => {
+describe("ESTV-Validierung Phase 3 (156 Kapitalauszahlungs-Profile, Single Alter 65, Hauptort, 2025 + 2026)", () => {
   const snap = loadSnapshot();
 
   if (!snap) {

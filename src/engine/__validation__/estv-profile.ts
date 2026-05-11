@@ -153,19 +153,24 @@ const KAPITAL_STUFEN = [100_000, 300_000, 500_000] as const;
  * Generiert die Profilliste für Phase 3 — Kapitalauszahlungen aus Vorsorge.
  *
  * Matrix: 26 Kantone × 3 Kapitalbeträge × Single Alter 65, Männlich,
- * keine Konfession, Hauptort. → 78 Profile.
+ * keine Konfession, Hauptort. → 78 Profile pro Jahr.
  *
  * ESTV-Endpoint: API_calculateManyCapitalTaxes (separater Tarifrechner für
  * Kapitalbezug aus Vorsorge). Antwort liefert {TaxCanton, TaxCity, TaxChurch,
  * TaxFed} — Personalsteuer + Vermögen sind nicht Teil dieses Bezugs.
+ *
+ * `jahr` default 2026 für Backwards-Compat (Phase-3-2026-IDs ohne Suffix).
+ * Für 2025: IDs erhalten `-2025`-Suffix damit beide Jahrgänge im selben
+ * Snapshot koexistieren können.
  */
-export function generateProfilesPhase3(): EstvProfile[] {
+export function generateProfilesPhase3(jahr: 2025 | 2026 = 2026): EstvProfile[] {
   const profiles: EstvProfile[] = [];
+  const suffix = jahr === 2025 ? "-2025" : "";
   for (const kanton of ALLE_KANTONE) {
     const info = KANTON_INFO[kanton];
     for (const kapital of KAPITAL_STUFEN) {
       profiles.push({
-        id: `${kanton}-${kapital}-kapital-einzel-65-keine`,
+        id: `${kanton}-${kapital}-kapital-einzel-65-keine${suffix}`,
         kind: "kapital",
         kanton,
         bfsId: info.bfsIdHauptort,
@@ -177,7 +182,7 @@ export function generateProfilesPhase3(): EstvProfile[] {
         fallart: "einzel",
         konfession: "keine",
         anzahlKinder: 0,
-        jahr: 2026,
+        jahr,
       });
     }
   }
@@ -185,15 +190,17 @@ export function generateProfilesPhase3(): EstvProfile[] {
 }
 
 /**
- * Generiert die kombinierte Profilliste Phase 1 + Phase 2 + Phase 3.
+ * Generiert die kombinierte Profilliste Phase 1 + Phase 2 + Phase 3 (2026 + 2025).
  *
- * → 104 Single ord. + 104 Paar ord. + 78 Kapital = 286 Profile.
+ * → 104 Single ord. + 104 Paar ord. + 78 Kapital 2026 + 78 Kapital 2025
+ *   = 364 Profile.
  */
 export function generateProfilesAll(): EstvProfile[] {
   return [
     ...generateProfilesPhase1(),
     ...generateProfilesPhase2(),
-    ...generateProfilesPhase3(),
+    ...generateProfilesPhase3(2026),
+    ...generateProfilesPhase3(2025),
   ];
 }
 
