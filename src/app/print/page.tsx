@@ -52,6 +52,8 @@ import { SteuerDetailCard } from "@/components/dashboard/SteuerDetailCard";
 import { SankeyChart } from "@/components/dashboard/SankeyChart";
 import { DreiSaeulenKpi } from "@/components/dashboard/DreiSaeulenKpi";
 import { HinterlassenenCard } from "@/components/dashboard/HinterlassenenCard";
+import { MassnahmenTabelle } from "@/components/dashboard/MassnahmenListe";
+import { DetailLiquiditaetTable } from "@/components/dashboard/DetailLiquiditaetTable";
 import {
   extractVariantFromState,
   kpisFuerVariant,
@@ -105,6 +107,16 @@ export default function PrintPage() {
   const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
+
+  // Detail-Liquidität: nur rendern wenn der User im Dashboard den Toggle
+  // gesetzt hat (localStorage "cuira-show-detail-liq" === "1").
+  const [showDetailLiq, setShowDetailLiq] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShowDetailLiq(
+      window.localStorage.getItem("cuira-show-detail-liq") === "1"
+    );
+  }, []);
 
   // KI-Massnahmen aus LocalStorage laden (vom Dashboard generiert)
   const [kiMassnahmen, setKiMassnahmen] = useState<
@@ -564,6 +576,21 @@ export default function PrintPage() {
           </Section>
         </div>
 
+        {/* ── Detail-Liquidität pro Jahr — nur wenn User-Toggle aktiv ── */}
+        {showDetailLiq && cashflow.length > 0 && (
+          <div className="page-break-before pt-4 print-detail-liq">
+            <Section titel="Detail-Liquidität pro Jahr">
+              <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+                Vollständige Jahres-Aufstellung — Einnahmen-Splits (Erwerb netto,
+                AHV, BVG-Rente, Mieten) gegenüber Ausgaben-Splits (Lebenshaltung,
+                Wohnen+Zinsen, Steuern, Kapitalsteuern, 3a/Vorsorge), Saldo und
+                Vermögens-Komponenten zum Jahresende.
+              </p>
+              <DetailLiquiditaetTable daten={cashflow} printMode />
+            </Section>
+          </div>
+        )}
+
         {/* ── Geldfluss-Diagramme (heute + Pension) ────────── */}
         {cashflow.length > 0 && (
           <div className="page-break-before pt-4">
@@ -884,39 +911,24 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Termine ─────────────────────────────────────────── */}
+        {/* ── Termine — SSM-Style 3-Spalten Tabelle ─────────────── */}
         {reminder.length > 0 && (
           <Section titel="Termine & Reminder">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
-                  <th className="py-2 text-left">Jahr</th>
-                  <th className="py-2 text-left">Wer</th>
-                  <th className="py-2 text-left">Massnahme</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reminder.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="border-b border-slate-100 text-sm last:border-b-0"
-                  >
-                    <td className="py-1.5 tabular-nums text-slate-600">
-                      {m.jahr}
-                    </td>
-                    <td className="py-1.5 text-slate-600">
-                      {werLabel(m.wer, fullState)}
-                    </td>
-                    <td className="py-1.5 text-slate-800">
-                      <div>{m.titel}</div>
-                      {m.detail && (
-                        <div className="text-xs text-slate-500">{m.detail}</div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+              Chronologische Liste — Wann / Wer / Was. Konkrete Zeitpunkte für
+              Einzahlungen, Bezüge, AHV-Anmeldung und Hypothek-Verlängerungen.
+            </p>
+            <MassnahmenTabelle
+              massnahmen={reminder}
+              vornameP1={fullState.person1.vorname}
+              vornameP2={
+                fullState.fallart === "paar"
+                  ? fullState.person2.vorname
+                  : undefined
+              }
+              fallart={fullState.fallart}
+              printMode
+            />
           </Section>
         )}
 
@@ -1216,6 +1228,23 @@ export default function PrintPage() {
             page-break-inside: avoid;
             break-inside: avoid;
           }
+          /* Detail-Liquidität: Querformat damit die breite Tabelle passt.
+             @page benannt → Section bekommt eigene Querformat-Seite. */
+          @page detail-liq {
+            size: A4 landscape;
+            margin: 12mm;
+          }
+          .print-detail-liq {
+            page: detail-liq;
+          }
+          .print-detail-liq table {
+            font-size: 7.5pt;
+            width: 100%;
+          }
+          .print-detail-liq td,
+          .print-detail-liq th {
+            padding: 2px 4px;
+          }
           .chart-section {
             page-break-inside: avoid;
             break-inside: avoid;
@@ -1386,16 +1415,6 @@ function zivilstandLabel(z: string): string {
       getrennt: "Getrennt",
     }[z] ?? z
   );
-}
-
-function werLabel(
-  wer: string,
-  state: ReturnType<typeof usePlanStore.getState>
-): string {
-  if (wer === "beide") return state.fallart === "paar" ? "Beide" : "—";
-  if (wer === "p1") return state.person1.vorname || "Person 1";
-  if (wer === "p2") return state.person2.vorname || "Person 2";
-  return "";
 }
 
 /**

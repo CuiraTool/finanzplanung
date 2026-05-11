@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePlanStore, type PlanState } from "@/lib/store";
 import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
 import { cashflowReihe, applyOverrides } from "@/engine/cashflow";
@@ -16,9 +16,12 @@ import { PlausibilityPanel } from "./PlausibilityPanel";
 import { HinterlassenenCard } from "./HinterlassenenCard";
 import { VarianteDeltaPanel } from "./VarianteDeltaPanel";
 import { MassnahmenListe } from "./MassnahmenListe";
+import { DetailLiquiditaetTable } from "./DetailLiquiditaetTable";
 import { KiMassnahmen } from "./KiMassnahmen";
 import { StressTests } from "./StressTests";
 import { InflationToggle } from "./InflationToggle";
+
+const SHOW_DETAIL_LIQ_KEY = "cuira-show-detail-liq";
 import { massnahmenAusState } from "@/engine/massnahmen";
 import { useInflation, deflationiereReihe } from "@/lib/inflation";
 
@@ -160,6 +163,25 @@ export function Dashboard() {
     return bZeile.vermoegenNetto - aZeile.vermoegenNetto;
   }, [cashflowA, cashflowB, ordPensionsjahr]);
 
+  // Detail-Liquidität Dropdown: localStorage-persist, default eingeklappt.
+  // Wenn aktiv, rendert auch das PDF /print die Tabelle.
+  const [showDetailLiq, setShowDetailLiq] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShowDetailLiq(
+      window.localStorage.getItem(SHOW_DETAIL_LIQ_KEY) === "1"
+    );
+  }, []);
+  const toggleDetailLiq = () => {
+    setShowDetailLiq((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(SHOW_DETAIL_LIQ_KEY, next ? "1" : "0");
+      }
+      return next;
+    });
+  };
+
   const diff85 = useMemo(() => {
     if (!cashflowB) return null;
     const aLetzte = cashflowA[cashflowA.length - 1];
@@ -270,6 +292,37 @@ export function Dashboard() {
               wunschPensionsjahr={wunschPensionsjahr}
               fallart={fallart}
             />
+            {/* Detail-Liquidität Dropdown — default eingeklappt; bei Aktivierung
+                wird die Tabelle auch im PDF-Output gerendert. */}
+            <div className="rounded-xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={toggleDetailLiq}
+                className="flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-slate-50"
+                aria-expanded={showDetailLiq}
+              >
+                <div>
+                  <div className="text-sm font-semibold text-slate-700">
+                    📋 Detail-Liquidität pro Jahr
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Vollständige Jahres-Tabelle mit Einnahmen, Ausgaben, Saldo
+                    und Vermögens-Komponenten · {showDetailLiq ? "im PDF aktiv" : "nicht im PDF"}
+                  </div>
+                </div>
+                <span
+                  className="ml-3 inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-sm text-slate-500"
+                  aria-hidden
+                >
+                  {showDetailLiq ? "▲" : "▼"}
+                </span>
+              </button>
+              {showDetailLiq && (
+                <div className="border-t border-slate-100 p-3">
+                  <DetailLiquiditaetTable daten={cashflowA} />
+                </div>
+              )}
+            </div>
             <VermoegensChart
               daten={cashflowA}
               datenB={cashflowB}

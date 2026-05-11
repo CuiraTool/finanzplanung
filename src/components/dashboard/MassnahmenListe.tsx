@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Massnahme, MassnahmenKategorie } from "@/engine/massnahmen";
 
 const KATEGORIE_BADGE: Record<MassnahmenKategorie, { label: string; color: string }> = {
@@ -38,12 +39,27 @@ interface Props {
   fallart: "einzel" | "paar";
 }
 
+const VIEW_KEY = "cuira-massnahmen-view";
+type View = "liste" | "tabelle";
+
 export function MassnahmenListe({
   massnahmen,
   vornameP1,
   vornameP2,
   fallart,
 }: Props) {
+  const [view, setView] = useState<View>("liste");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = window.localStorage.getItem(VIEW_KEY);
+    if (v === "liste" || v === "tabelle") setView(v);
+  }, []);
+  const updateView = (v: View) => {
+    setView(v);
+    if (typeof window !== "undefined")
+      window.localStorage.setItem(VIEW_KEY, v);
+  };
+
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
   const totalErsparnis = optimierungen.reduce(
@@ -53,7 +69,7 @@ export function MassnahmenListe({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <header className="mb-3 flex items-baseline justify-between">
+      <header className="mb-3 flex items-baseline justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-slate-700">Massnahmen</div>
           <div className="text-xs text-slate-400">
@@ -61,8 +77,40 @@ export function MassnahmenListe({
             Termine unten
           </div>
         </div>
-        <div className="text-xs text-slate-500 tabular-nums">
-          {massnahmen.length} {massnahmen.length === 1 ? "Eintrag" : "Einträge"}
+        <div className="flex items-center gap-3">
+          {/* View-Toggle Liste / Tabelle */}
+          {reminder.length > 0 && (
+            <div className="inline-flex overflow-hidden rounded-md border border-slate-200 text-[11px]">
+              <button
+                type="button"
+                onClick={() => updateView("liste")}
+                className={`px-2.5 py-1 transition-colors ${
+                  view === "liste"
+                    ? "bg-[var(--color-cuira-deep)] text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+                aria-pressed={view === "liste"}
+              >
+                Liste
+              </button>
+              <button
+                type="button"
+                onClick={() => updateView("tabelle")}
+                className={`px-2.5 py-1 transition-colors ${
+                  view === "tabelle"
+                    ? "bg-[var(--color-cuira-deep)] text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+                aria-pressed={view === "tabelle"}
+                title="SSM-Style 3-Spalten Wann/Wer/Was"
+              >
+                Tabelle
+              </button>
+            </div>
+          )}
+          <div className="text-xs text-slate-500 tabular-nums">
+            {massnahmen.length} {massnahmen.length === 1 ? "Eintrag" : "Einträge"}
+          </div>
         </div>
       </header>
 
@@ -117,17 +165,26 @@ export function MassnahmenListe({
               <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                 📅 Termine & Reminder
               </div>
-              <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
-                {reminder.map((m) => (
-                  <MassnahmeRow
-                    key={m.id}
-                    m={m}
-                    vornameP1={vornameP1}
-                    vornameP2={vornameP2}
-                    fallart={fallart}
-                  />
-                ))}
-              </ul>
+              {view === "liste" ? (
+                <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
+                  {reminder.map((m) => (
+                    <MassnahmeRow
+                      key={m.id}
+                      m={m}
+                      vornameP1={vornameP1}
+                      vornameP2={vornameP2}
+                      fallart={fallart}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <MassnahmenTabelle
+                  massnahmen={reminder}
+                  vornameP1={vornameP1}
+                  vornameP2={vornameP2}
+                  fallart={fallart}
+                />
+              )}
             </div>
           )}
         </>
@@ -233,4 +290,98 @@ function werLabelFor(
   if (wer === "p1") return vornameP1.trim() || (fallart === "paar" ? "Person 1" : "—");
   if (wer === "p2") return (vornameP2 ?? "").trim() || "Person 2";
   return "";
+}
+
+/**
+ * SSM-Style Massnahmen-Tabelle: 3 Spalten Wann / Wer / Was, chronologisch.
+ * Wird wahlweise vom Dashboard (per View-Toggle) oder vom Print-Layout
+ * (kompakt für PDF) verwendet.
+ */
+export function MassnahmenTabelle({
+  massnahmen,
+  vornameP1,
+  vornameP2,
+  fallart,
+  printMode,
+}: {
+  massnahmen: Massnahme[];
+  vornameP1: string;
+  vornameP2?: string;
+  fallart: "einzel" | "paar";
+  printMode?: boolean;
+}) {
+  const fontClass = printMode ? "text-[9pt]" : "text-xs";
+  const containerClass = printMode
+    ? ""
+    : "max-h-[520px] overflow-y-auto rounded-md border border-slate-200";
+
+  return (
+    <div className={containerClass}>
+      <table className={`w-full ${fontClass}`} style={{ borderCollapse: "collapse" }}>
+        <thead
+          className="sticky top-0 z-10"
+          style={{ background: "#f8fafc" }}
+        >
+          <tr style={{ color: "#64748b" }}>
+            <th
+              className="border-b border-slate-200 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider"
+              style={{ width: "70px" }}
+            >
+              Wann
+            </th>
+            <th
+              className="border-b border-slate-200 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider"
+              style={{ width: "110px" }}
+            >
+              Wer
+            </th>
+            <th className="border-b border-slate-200 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider">
+              Was
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {massnahmen.map((m, i) => {
+            const monatStr = m.monat
+              ? `${String(m.monat).padStart(2, "0")}.${m.jahr}`
+              : `${m.jahr}`;
+            const werTxt = werLabelFor(m.wer, vornameP1, vornameP2, fallart);
+            return (
+              <tr
+                key={m.id}
+                style={{
+                  borderTop: i === 0 ? undefined : "1px solid #f1f5f9",
+                  background: i % 2 === 0 ? "#ffffff" : "#fafafa",
+                }}
+              >
+                <td
+                  className="px-2 py-1.5 align-top tabular-nums"
+                  style={{ color: "#475569", whiteSpace: "nowrap" }}
+                >
+                  {monatStr}
+                </td>
+                <td
+                  className="px-2 py-1.5 align-top"
+                  style={{ color: "#475569", whiteSpace: "nowrap" }}
+                >
+                  {werTxt}
+                </td>
+                <td className="px-2 py-1.5 align-top" style={{ color: "#0f172a" }}>
+                  <div className="font-medium">{m.titel}</div>
+                  {m.detail && (
+                    <div
+                      className="mt-0.5 text-[10px]"
+                      style={{ color: "#64748b" }}
+                    >
+                      {m.detail}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
