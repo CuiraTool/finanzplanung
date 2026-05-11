@@ -84,6 +84,7 @@ function findOrCreate3a(
     entry = {
       id: markerId,
       type: "konto",
+      saeule: "3a",
       beschreibung: "3a-Konto",
       aktuellerWert: null,
       auszahlungsjahr: pensionsjahr,

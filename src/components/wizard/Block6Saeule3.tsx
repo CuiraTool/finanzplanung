@@ -134,6 +134,15 @@ function SaeuleDreiCard({
           >
             {item.type === "konto" ? "Konto" : "Versicherung"}
           </span>
+          <span
+            className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              item.saeule === "3a"
+                ? "bg-amber-50 text-amber-700"
+                : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            Säule {item.saeule}
+          </span>
           <span className="text-xs font-medium text-slate-500">
             Eintrag {index}
           </span>
@@ -146,6 +155,46 @@ function SaeuleDreiCard({
           Entfernen
         </button>
       </div>
+
+      {item.type === "versicherung" && (
+        <div className="rounded-md border border-slate-100 bg-slate-50/50 p-3">
+          <div className="mb-1 text-xs font-medium text-slate-700">
+            Säulen-Typ
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onUpdate({ saeule: "3a" })}
+              className={`rounded-md border px-3 py-2 text-left text-xs transition ${
+                item.saeule === "3a"
+                  ? "border-amber-500 bg-amber-50 text-amber-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <div className="font-semibold">Säule 3a (gebunden)</div>
+              <div className="mt-0.5 text-[10px] text-slate-500">
+                Prämie steuerlich abzugsfähig · Auszahlung mit
+                Kapitalleistungssteuer
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdate({ saeule: "3b" })}
+              className={`rounded-md border px-3 py-2 text-left text-xs transition ${
+                item.saeule === "3b"
+                  ? "border-slate-500 bg-slate-100 text-slate-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <div className="font-semibold">Säule 3b (frei)</div>
+              <div className="mt-0.5 text-[10px] text-slate-500">
+                Kein Steuerabzug · Auszahlung steuerfrei · Prämie
+                budgetrelevant
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
 
       <Field label="Beschreibung">
         <input

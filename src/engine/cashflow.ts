@@ -259,9 +259,15 @@ export function cashflowReihe(
     // Total 3a-Einzahlung im Jahr (alle Konten + Versicherungen, beide Personen,
     // wenn jahr in einzahlungAb..einzahlungBis liegt)
     const saeule3aEinzahlungJahr =
-      saeuleDreiEinzahlungJahr(state.saeuleDrei.p1, jahr) +
+      saeuleDreiEinzahlungJahr(state.saeuleDrei.p1, jahr, "3a") +
       (state.fallart === "paar"
-        ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr)
+        ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr, "3a")
+        : 0);
+    // 3b-Prämien: budgetrelevant (Cashflow-Ausgabe), KEIN Steuer-Abzug
+    const saeule3bEinzahlungJahr =
+      saeuleDreiEinzahlungJahr(state.saeuleDrei.p1, jahr, "3b") +
+      (state.fallart === "paar"
+        ? saeuleDreiEinzahlungJahr(state.saeuleDrei.p2, jahr, "3b")
         : 0);
 
     // PK-Einkauf-Summe im aktuellen Jahr (beide Personen). Wirkt:
@@ -323,11 +329,17 @@ export function cashflowReihe(
       jahr,
       bvgKapitalAuszahlungen
     );
+    // 3b-Auszahlung ist steuerfrei — wird vom Steuer-Input abgezogen
+    const auszahlungen3b = saeule3bAuszahlungenJahr(state, jahr);
     // WEF-Vorbezug: wird mit Kapitalauszahlungs-Sondertarif besteuert,
     // fliesst aber typisch direkt ins Eigenheim (nicht aufs Hauptkonto).
     // Daher zur Steuer-Bemessung dazu, aber NICHT zum Cashflow-Total.
     const wefBetragJahr = wefVorbezugJahr(state, jahr);
-    const kapAuszahlungenFuerSteuer = kapAuszahlungen + wefBetragJahr;
+    // Steuerpflichtige Kapital-Auszahlungen: total minus steuerfreie 3b
+    // + WEF-Vorbezug (Sondertarif). 3b-Auszahlung fliesst ins Hauptkonto
+    // aber wird NICHT besteuert (PreVorsorge ohne Steuerprivileg).
+    const kapAuszahlungenFuerSteuer =
+      kapAuszahlungen - auszahlungen3b + wefBetragJahr;
 
     // ─── Ausgaben ────────────────────────────────────────────────
     const istPensioniert =
@@ -427,7 +439,11 @@ export function cashflowReihe(
       : 0;
     // 3a-Einzahlung als separate Vorsorge-Ausgabe (geht NICHT auf das
     // Hauptkonto, sondern wächst den 3a-Saldo)
-    const ausgabenVorsorge3a = saeule3aEinzahlungJahr;
+    // 3a + 3b-Prämien fliessen als Vorsorge-Ausgabe (3a wächst Saldo, 3b
+    // wirkt nur als Versicherungsprämie ohne Saldo-Effekt). Steuerlich
+    // ist nur 3a abzugsfähig (pkEinkaufJahr + saeule3aEinzahlungJahr im
+    // Steuer-Input — 3b läuft nicht durch Steuer-Engine).
+    const ausgabenVorsorge3a = saeule3aEinzahlungJahr + saeule3bEinzahlungJahr;
     // PK-Einkauf: fliesst als Ausgabe ab Hauptkonto, PK-Saldo wächst (via
     // bvgGesamtkapitalBeiBezug → wird im Bezugsjahr addiert + verzinst).
     const ausgabenPkEinkauf = pkEinkaufJahr;
@@ -621,16 +637,26 @@ function erwerbseinkommenJahrPerson(
   return total;
 }
 
-/** Total 3a-Einzahlungen einer Person im Jahr (alle Konten/Versicherungen). */
+/** Total 3a- oder 3b-Einzahlungen einer Person im Jahr — filterbar per
+ *  `nurSaeule`. 3a wirkt als Steuer-Abzug, 3b nur als Cashflow-Ausgabe. */
 function saeuleDreiEinzahlungJahr(
-  entries: { jaehrlicheEinzahlung: number | null; einzahlungAb: number; einzahlungBis: number }[],
-  jahr: number
+  entries: {
+    jaehrlicheEinzahlung: number | null;
+    einzahlungAb: number;
+    einzahlungBis: number;
+    saeule?: "3a" | "3b";
+  }[],
+  jahr: number,
+  nurSaeule?: "3a" | "3b"
 ): number {
   let total = 0;
   for (const e of entries) {
     if (e.jaehrlicheEinzahlung == null) continue;
     if (jahr < e.einzahlungAb) continue;
     if (e.einzahlungBis > 0 && jahr > e.einzahlungBis) continue;
+    // Default "3a" für Legacy-Items ohne saeule-Feld
+    const sub = e.saeule ?? "3a";
+    if (nurSaeule && sub !== nurSaeule) continue;
     total += e.jaehrlicheEinzahlung;
   }
   return total;
@@ -831,6 +857,23 @@ function mieteinnahmenJahr(items: Immobilie[], jahr: number): number {
   return total;
 }
 
+/**
+ * Auszahlungen aus Säule-3b-Versicherungen im Jahr. Diese sind steuerfrei
+ * (Ablaufswert wird nicht zur Kapitalleistungssteuer herangezogen), fliessen
+ * aber genauso ins Hauptkonto wie 3a.
+ */
+function saeule3bAuszahlungenJahr(state: CashflowInput, jahr: number): number {
+  let total = 0;
+  for (const items of [state.saeuleDrei.p1, state.saeuleDrei.p2]) {
+    for (const it of items) {
+      if ((it.saeule ?? "3a") !== "3b") continue;
+      const a = saeuleDreiAuszahlung(it);
+      if (a && a.jahr === jahr) total += a.betrag;
+    }
+  }
+  return total;
+}
+
 function kapitalauszahlungenJahr(
   state: CashflowInput,
   jahr: number,
@@ -842,7 +885,9 @@ function kapitalauszahlungenJahr(
   if (bvgKap.p1.jahr === jahr) total += bvgKap.p1.betrag;
   if (bvgKap.p2.jahr === jahr) total += bvgKap.p2.betrag;
 
-  // 3a-Auszahlungen
+  // 3a- + 3b-Auszahlungen — beide gehen aufs Hauptkonto. ABER für die
+  // Steuer-Bemessung wird unten via kapAuszahlungenFuerSteuerKap nur 3a
+  // berücksichtigt (3b ist steuerfrei).
   for (const items of [state.saeuleDrei.p1, state.saeuleDrei.p2]) {
     for (const it of items) {
       const a = saeuleDreiAuszahlung(it);

@@ -178,10 +178,24 @@ export interface BvgInput {
 
 /** 3. Säule — Block 6. Konto oder Versicherung, beliebig viele pro Person. */
 export type SaeuleDreiTyp = "konto" | "versicherung";
+/**
+ * Säule 3a vs 3b — steuerlich grundverschieden:
+ *  - **3a** (gebunden): Einzahlung als Einkommens-Abzug bei Veranlagung,
+ *    Auszahlung mit Kapitalleistungssteuer (Sondertarif)
+ *  - **3b** (frei): KEIN Einkommens-Abzug, Auszahlung steuerfrei. Prämien
+ *    sind aber budgetrelevant (gehen vom Cashflow ab).
+ * Konten gibt's nur in 3a (3b ist keine vergleichbare Konto-Form).
+ */
+export type SaeuleDreiSubTyp = "3a" | "3b";
 
 export interface SaeuleDreiEntry {
   id: string;
   type: SaeuleDreiTyp;
+  /**
+   * Sub-Typ 3a oder 3b. Konten sind immer 3a. Versicherungen können beides
+   * sein — User wählt im UI. Default 3a.
+   */
+  saeule: SaeuleDreiSubTyp;
   beschreibung: string;
   // Konto:
   aktuellerWert: number | null;
@@ -1296,6 +1310,9 @@ export const usePlanStore = create<PlanState>()(
           const neu: SaeuleDreiEntry = {
             id: newId(),
             type,
+            // Default 3a (Konten gibt's nur in 3a, Versicherung Default 3a).
+            // User kann bei Versicherung auf 3b umstellen.
+            saeule: initial?.saeule ?? "3a",
             beschreibung: initial?.beschreibung ?? "",
             aktuellerWert: initial?.aktuellerWert ?? null,
             auszahlungsjahr: initial?.auszahlungsjahr ?? naechstesJahr,
@@ -1750,21 +1767,58 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v35",
-      version: 35,
+      name: "cuira-plan-v36",
+      version: 36,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
-        if (fromVersion >= 35) return persistedState;
-        const old = persistedState as Record<string, unknown> & {
+        let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
+          saeuleDrei?: { p1: SaeuleDreiEntry[]; p2: SaeuleDreiEntry[] };
+          plaene?: PlaeneRegister;
         };
-        const planA = extractVariant(old as unknown as PlanState);
-        const planB =
-          old.szenarioB?.aktiv === true ? cloneVariant(planA) : null;
-        return {
-          ...old,
-          aktiverPlan: "a",
-          plaene: { a: planA, b: planB, c: null },
-        };
+        // v34 → v35: Top-Level → plaene
+        if (fromVersion < 35) {
+          const planA = extractVariant(state as unknown as PlanState);
+          const planB =
+            state.szenarioB?.aktiv === true ? cloneVariant(planA) : null;
+          state = {
+            ...state,
+            aktiverPlan: "a",
+            plaene: { a: planA, b: planB, c: null },
+          };
+        }
+        // v35 → v36: SaeuleDreiEntry.saeule Default "3a" für Bestands-Items
+        if (fromVersion < 36) {
+          const addSaeule = (entries: SaeuleDreiEntry[]): SaeuleDreiEntry[] =>
+            entries.map((e) => {
+              const raw = e as unknown as Record<string, unknown>;
+              if ("saeule" in raw) return e;
+              return { ...e, saeule: "3a" as const };
+            });
+          if (state.saeuleDrei) {
+            state.saeuleDrei = {
+              p1: addSaeule(state.saeuleDrei.p1),
+              p2: addSaeule(state.saeuleDrei.p2),
+            };
+          }
+          if (state.plaene) {
+            const fix = (v: PlanVariantData | null) =>
+              v
+                ? {
+                    ...v,
+                    saeuleDrei: {
+                      p1: addSaeule(v.saeuleDrei.p1),
+                      p2: addSaeule(v.saeuleDrei.p2),
+                    },
+                  }
+                : null;
+            state.plaene = {
+              a: fix(state.plaene.a) as PlanVariantData,
+              b: fix(state.plaene.b),
+              c: fix(state.plaene.c),
+            };
+          }
+        }
+        return state;
       },
       // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
       // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
