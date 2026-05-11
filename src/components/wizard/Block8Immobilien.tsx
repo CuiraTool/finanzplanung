@@ -16,6 +16,7 @@ import { formatChf } from "@/lib/format";
 import { Field } from "@/components/ui/Field";
 import { KpiPill } from "@/components/ui/KpiPill";
 import { inputClass } from "@/components/ui/styles";
+import { lookupPlz } from "@/lib/plz-lookup";
 import { TragbarkeitPanel } from "./TragbarkeitPanel";
 
 const TYPEN: { value: ImmobilienTyp; label: string; sub: string }[] = [
@@ -191,6 +192,8 @@ function ImmobilieCard({
           ))}
         </div>
       </div>
+
+      <ImmobilieAdresseField item={item} onUpdate={onUpdate} />
 
       <Field label="Verkehrswert (CHF)">
         <input
@@ -382,7 +385,9 @@ function VerkaufsErloesPanel({
   netto: number | null;
   hypoSumme: number;
 }) {
-  const kantonCode = usePlanStore((s) => s.adresse.kanton);
+  const wohnsitzKanton = usePlanStore((s) => s.adresse.kanton);
+  // Liegenschafts-Kanton hat Vorrang für GGSt — fallback auf Wohnsitz
+  const kantonCode = item.adresse?.kanton || wohnsitzKanton;
   if (netto == null) return null;
 
   // Bei "behalten" einfach Netto-Wert heute
@@ -575,6 +580,159 @@ function HypothekenListe({
       >
         + Hypothek-Tranche hinzufügen
       </button>
+    </div>
+  );
+}
+
+/**
+ * Adress-Feld der Liegenschaft.
+ * Default: leer → Mandant-Wohnsitz (aus Block 1) wird genutzt.
+ * Klick auf "Abweichende Adresse" → eigene PLZ + Ort + Kanton (Auto-Lookup).
+ * Für Ferienwohnung, Renditeliegenschaft in anderem Kanton — Voraussetzung
+ * für interkantonale Steuerausscheidung.
+ */
+function ImmobilieAdresseField({
+  item,
+  onUpdate,
+}: {
+  item: Immobilie;
+  onUpdate: (p: Partial<Omit<Immobilie, "id" | "hypotheken">>) => void;
+}) {
+  const mandantAdresse = usePlanStore((s) => s.adresse);
+  const hatEigene = item.adresse != null;
+
+  function setEigene(plz: string) {
+    const cleaned = plz.replace(/\D/g, "");
+    if (cleaned.length === 4) {
+      const matches = lookupPlz(cleaned);
+      if (matches.length > 0) {
+        const m = matches[0]!;
+        onUpdate({
+          adresse: {
+            plz: cleaned,
+            ort: m.ort,
+            kanton: m.kanton,
+            gemeindeBfsId: m.gemeindeBfsId,
+            gemeindeName: m.gemeindeName,
+          },
+        });
+        return;
+      }
+    }
+    onUpdate({
+      adresse: {
+        plz: cleaned,
+        ort: item.adresse?.ort ?? "",
+        kanton: item.adresse?.kanton ?? "",
+        gemeindeBfsId: item.adresse?.gemeindeBfsId ?? null,
+        gemeindeName: item.adresse?.gemeindeName ?? "",
+      },
+    });
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/50 p-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-slate-700">
+            Standort der Liegenschaft
+          </div>
+          <div className="text-xs text-slate-400">
+            Bei Ferienwohnung / Renditeliegenschaft in anderem Kanton — sonst
+            Wohnsitz des Mandanten
+          </div>
+        </div>
+        {!hatEigene && (
+          <button
+            type="button"
+            onClick={() =>
+              onUpdate({
+                adresse: {
+                  plz: "",
+                  ort: "",
+                  kanton: "",
+                  gemeindeBfsId: null,
+                  gemeindeName: "",
+                },
+              })
+            }
+            className="text-xs text-blue-600 hover:underline"
+          >
+            + abweichende Adresse
+          </button>
+        )}
+        {hatEigene && (
+          <button
+            type="button"
+            onClick={() => onUpdate({ adresse: null })}
+            className="text-xs text-red-600 hover:underline"
+          >
+            ✕ zurück zu Wohnsitz
+          </button>
+        )}
+      </div>
+
+      {!hatEigene && (
+        <div className="rounded-sm border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+          <span className="font-semibold tabular-nums">
+            {mandantAdresse.plz || "—"} {mandantAdresse.ort || ""}
+          </span>
+          <span className="ml-2 text-slate-400">
+            ({mandantAdresse.kanton || "—"} — Default aus Wohnsitz)
+          </span>
+        </div>
+      )}
+
+      {hatEigene && (
+        <div className="grid grid-cols-[100px_1fr] gap-2">
+          <Field label="PLZ">
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              value={item.adresse?.plz ?? ""}
+              onChange={(e) => setEigene(e.target.value)}
+              placeholder="3920"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Ort / Gemeinde">
+            <input
+              type="text"
+              value={item.adresse?.ort ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  adresse: {
+                    plz: item.adresse?.plz ?? "",
+                    ort: e.target.value,
+                    kanton: item.adresse?.kanton ?? "",
+                    gemeindeBfsId: item.adresse?.gemeindeBfsId ?? null,
+                    gemeindeName: item.adresse?.gemeindeName ?? "",
+                  },
+                })
+              }
+              placeholder="Zermatt"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      )}
+      {hatEigene && item.adresse?.kanton && (
+        <div className="text-[11px] text-slate-500">
+          Kanton: <span className="font-semibold">{item.adresse.kanton}</span>
+          {item.adresse.gemeindeName && (
+            <span className="text-slate-400">
+              {" "}
+              · Gemeinde {item.adresse.gemeindeName}
+            </span>
+          )}
+          {item.adresse.kanton !== mandantAdresse.kanton && (
+            <span className="ml-2 text-amber-700">
+              ⚠ anderer Kanton als Wohnsitz → Steuerausscheidung wirkt
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

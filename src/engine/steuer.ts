@@ -263,6 +263,129 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
 }
 
 /**
+ * Anteil einer ausserkantonalen Liegenschaft für die interkantonale
+ * Steuerausscheidung (Sprint 2.1).
+ */
+export interface FremdKantonAnteil {
+  /** ISO-Kanton-Code (z.B. "VS", "GR"). */
+  kanton: string;
+  /** BfsId der Gemeinde — wichtig für Gemeinde-Multiplikator. */
+  bfsId?: number;
+  /**
+   * Mieteinnahmen aus dieser Liegenschaft im Jahr (CHF). Bei Renditeliegen-
+   * schaft brutto, bei Eigenheim 0 (Eigenmietwert nicht modelliert).
+   */
+  mietenJahr: number;
+  /**
+   * Netto-Vermögen (Verkehrswert − Hypothek dieser Liegenschaft) im Jahr.
+   * Wird im Liegenschafts-Kanton versteuert.
+   */
+  vermoegenNetto: number;
+}
+
+/**
+ * Interkantonale Steuerausscheidung — vereinfachte Implementation.
+ *
+ * Regel (CH-Steuerrecht, vereinfacht):
+ *  - Bundessteuer: am Wohnsitz, auf Gesamteinkommen
+ *  - Kantonale Einkommensteuer: Erwerb + Renten am Wohnsitz, Mieten am
+ *    Liegenschafts-Kanton (quotal)
+ *  - Vermögenssteuer: Bewegliches am Wohnsitz, Liegenschaft am Liegenschafts-
+ *    Kanton
+ *  - Tarif-Progression: streng würde der Wohnsitz mit Gesamteinkommen
+ *    rechnen und Steuer dann quotal aufteilen ("Satzbestimmend"). V1
+ *    vereinfacht: Wohnsitz rechnet auf reduziertem Einkommen → leichte
+ *    Unterschätzung der Wohnsitz-Steuer (konservativ).
+ *  - Schuldzinsen-Aufteilung quotal: nicht modelliert (Schuldzinsabzug
+ *    ist eh deaktiviert wegen Reform 2028).
+ *
+ * Wenn `fremdAnteile` leer ist → äquivalent zu steuerProJahr.
+ */
+export function steuerProJahrIK(
+  input: SteuerInput,
+  fremdAnteile: FremdKantonAnteil[]
+): SteuerOutput {
+  if (fremdAnteile.length === 0) {
+    return steuerProJahr(input);
+  }
+
+  const fremdMietenTotal = fremdAnteile.reduce(
+    (s, a) => s + Math.max(0, a.mietenJahr),
+    0
+  );
+  const fremdVermoegenTotal = fremdAnteile.reduce(
+    (s, a) => s + Math.max(0, a.vermoegenNetto),
+    0
+  );
+
+  // 1. Voll-Aufruf für Bund-Anteil (Gesamteinkommen-Tarif)
+  const voll = steuerProJahr(input);
+
+  // 2. Wohnsitz-Kanton auf reduziertes Einkommen + Vermögen
+  const wohnsitzReduziert = steuerProJahr({
+    ...input,
+    einkommenJahr: Math.max(0, input.einkommenJahr - fremdMietenTotal),
+    vermoegenJahr: Math.max(0, input.vermoegenJahr - fremdVermoegenTotal),
+    // Anker neutralisieren — sonst wird er auf reduziertes Einkommen
+    // skaliert (würde 2× wirken, einmal hier einmal in Bund)
+    ankerSteuernHeute: null,
+    ankerEinkommenHeute: null,
+  });
+
+  // 3. Pro Fremdkanton: nur Mieten + Liegenschafts-Netto
+  let fremdEinkKtTotal = 0;
+  let fremdVermKtTotal = 0;
+  const heuteJahr = input.jahr ?? new Date().getFullYear();
+  const steuerjahr: SteuerJahr = heuteJahr <= 2025 ? 2025 : 2026;
+  const fallart = input.fallart === "paar" ? "paar" : "einzel";
+  const religion = input.religion;
+
+  for (const a of fremdAnteile) {
+    const fkKanton = a.kanton in KANTON_INFO ? (a.kanton as KantonCode) : null;
+    if (!fkKanton) continue;
+    if (a.mietenJahr > 0) {
+      const r = einkommensteuerKanton(Math.max(0, a.mietenJahr), {
+        kanton: fkKanton,
+        bfsId: a.bfsId,
+        fallart,
+        religion,
+        jahr: steuerjahr,
+      });
+      fremdEinkKtTotal += r.total;
+    }
+    if (a.vermoegenNetto > 0) {
+      const r = vermoegensteuerKanton(Math.max(0, a.vermoegenNetto), {
+        kanton: fkKanton,
+        bfsId: a.bfsId,
+        fallart,
+        religion,
+        jahr: steuerjahr,
+      });
+      fremdVermKtTotal += r.total;
+    }
+  }
+
+  const einkommenBund = voll.einkommenBund;
+  const einkommenKanton = wohnsitzReduziert.einkommenKanton + fremdEinkKtTotal;
+  const einkommenTotal = einkommenBund + einkommenKanton;
+  const vermoegen = wohnsitzReduziert.vermoegen + fremdVermKtTotal;
+
+  return {
+    einkommen: Math.round(einkommenTotal),
+    einkommenBund: Math.round(einkommenBund),
+    einkommenKanton: Math.round(einkommenKanton),
+    vermoegen: Math.round(vermoegen),
+    kapital: voll.kapital,
+    kapitalBund: voll.kapitalBund,
+    kapitalKanton: voll.kapitalKanton,
+    total: Math.round(einkommenTotal + vermoegen + voll.kapital),
+    kalibriert: voll.kalibriert,
+    abzuegeDbg: voll.abzuegeDbg,
+    abzuegeKanton: voll.abzuegeKanton,
+  };
+}
+
+/**
  * Indikative Jahressteuer heute (Block 3 Anzeige). Nutzt die simple Approx,
  * weil hier kein Detail-Kontext vorhanden ist.
  */

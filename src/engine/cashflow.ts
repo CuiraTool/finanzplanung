@@ -38,7 +38,7 @@ import {
 } from "./ahv";
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
 import { saeuleDreiAuszahlung } from "./saeule3";
-import { steuerProJahr } from "./steuer";
+import { steuerProJahr, steuerProJahrIK, type FremdKantonAnteil } from "./steuer";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
 
@@ -344,7 +344,30 @@ export function cashflowReihe(
       block7DarlehenJahresanfang -
       hypoJahresanfang;
 
-    const steuern = steuerProJahr({
+    // Interkantonale Steuerausscheidung: pro ausserkantonaler Liegenschaft
+    // einen FremdKantonAnteil bauen. Wenn keine fremde Liegenschaft → Array
+    // bleibt leer, steuerProJahrIK fällt auf steuerProJahr zurück.
+    const fremdAnteile: FremdKantonAnteil[] = [];
+    const wohnsitzKt = state.adresse.kanton;
+    for (const im of state.immobilien.items) {
+      if (!im.adresse?.kanton) continue;
+      if (im.adresse.kanton === wohnsitzKt) continue;
+      // Liegenschaft schon verkauft? Wirkt erst ab Verkaufsjahr.
+      if (im.plan === "verkaufen" && im.verkaufsjahr <= jahr) continue;
+      const mietenImm =
+        im.typ === "rendite" ? im.jaehrlicheMieteinnahmen ?? 0 : 0;
+      const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+      const wert = im.verkehrswert ?? 0;
+      const netto = Math.max(0, wert - hypo);
+      fremdAnteile.push({
+        kanton: im.adresse.kanton,
+        bfsId: im.adresse.gemeindeBfsId ?? undefined,
+        mietenJahr: mietenImm,
+        vermoegenNetto: netto,
+      });
+    }
+
+    const steuern = steuerProJahrIK({
       einkommenJahr: einnahmenErwerb + einnahmenMieten + einnahmenAhv + einnahmenBvgRente,
       vermoegenJahr: vermoegenJahresanfang,
       kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
@@ -374,7 +397,7 @@ export function cashflowReihe(
       // Kinder + 3a + DDV. Konsistent mit dem im Block 5 separat
       // erfassten BVG-Beitrag.
       einkommenIstNetto: true,
-    });
+    }, fremdAnteile);
     const ausgabenSteuern = steuern.total;
 
     // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
@@ -785,7 +808,9 @@ function kapitalauszahlungenJahr(
         anlagekosten: im.anlagekosten,
         wertvermehrendeInvestitionen: im.wertvermehrendeInvestitionen,
       },
-      state.adresse.kanton ?? ""
+      // GGSt fällt am Liegenschafts-Kanton an (eigene Adresse) — fallback
+      // auf Wohnsitz wenn keine eigene Adresse erfasst.
+      im.adresse?.kanton || state.adresse.kanton || ""
     );
     if (auszahlung) total += auszahlung.netto;
   }

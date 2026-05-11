@@ -272,6 +272,20 @@ export interface Immobilie {
    * Bei null/undefined: Default 1.5%.
    */
   wertsteigerungProzent?: number | null;
+  /**
+   * Eigene Adresse der Liegenschaft (für interkantonale Steuerausscheidung
+   * und GGSt-Kanton). Wenn null/undefined: Wohnsitz des Mandanten (state.adresse)
+   * wird als Default angenommen — typisch für Eigenheim am Wohnsitz.
+   * Bei Ferienwohnung, Renditeliegenschaft etc. wird hier eine abweichende
+   * Adresse erfasst, damit die Steuer-Engine korrekt nach IK-Quote aufteilt.
+   */
+  adresse?: {
+    plz: string;
+    ort: string;
+    kanton: string;
+    gemeindeBfsId: number | null;
+    gemeindeName: string;
+  } | null;
 }
 
 export interface ImmobilienInput {
@@ -1230,6 +1244,7 @@ export const usePlanStore = create<PlanState>()(
             anlagekosten: initial?.anlagekosten ?? null,
             wertvermehrendeInvestitionen:
               initial?.wertvermehrendeInvestitionen ?? null,
+            adresse: initial?.adresse ?? null,
           };
           return { immobilien: { items: [...s.immobilien.items, neu] } };
         }),
@@ -1406,7 +1421,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v33",
+      name: "cuira-plan-v34",
     }
   )
 );
