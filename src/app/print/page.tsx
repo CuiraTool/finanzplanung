@@ -1546,15 +1546,20 @@ function TragbarkeitBox({
       ? "bg-emerald-50 border-emerald-200 text-emerald-700"
       : status === "grenzwertig"
         ? "bg-amber-50 border-amber-200 text-amber-700"
-        : "bg-rose-50 border-rose-200 text-rose-700";
+        : status === "unbekannt"
+          ? "bg-slate-50 border-slate-200 text-slate-500"
+          : "bg-rose-50 border-rose-200 text-rose-700";
+  const unbekannt = status === "unbekannt" || verhaeltnis < 0;
   return (
     <div className={`rounded-md border p-3 ${farbe}`}>
       <div className="text-xs uppercase tracking-wider">{titel}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">
-        {(verhaeltnis * 100).toFixed(1)} %
+        {unbekannt ? "—" : `${(verhaeltnis * 100).toFixed(1)} %`}
       </div>
       <div className="text-xs text-slate-600">
-        Wohnkosten {formatChf(kosten)} / Jahr · {status.replace("_", " ")}
+        {unbekannt
+          ? "kein Pensionseinkommen erfasst — Tragbarkeit nicht berechenbar"
+          : `Wohnkosten ${formatChf(kosten)} / Jahr · ${status.replace("_", " ")}`}
       </div>
     </div>
   );

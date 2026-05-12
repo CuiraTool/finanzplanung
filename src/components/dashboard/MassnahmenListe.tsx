@@ -162,8 +162,23 @@ export function MassnahmenListe({
           {/* Reminder-Sektion (chronologisch) */}
           {reminder.length > 0 && (
             <div>
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                📅 Termine & Reminder
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  📅 Termine & Reminder
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { buildIcsFromMassnahmen, downloadIcs } =
+                      await import("@/lib/ics-export");
+                    const ics = buildIcsFromMassnahmen(reminder);
+                    downloadIcs(ics, "cuira-termine.ics");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 transition hover:bg-blue-100"
+                  title="Termine als .ics-Datei herunterladen (iPhone/Samsung-Kalender, Outlook, Google)"
+                >
+                  📥 In Kalender hinzufügen (.ics)
+                </button>
               </div>
               {view === "liste" ? (
                 <ul className="divide-y divide-slate-100">

@@ -221,7 +221,7 @@ function TragbarkeitsKarte({
 }) {
   const farbe = statusFarbe(result.status);
   const verhaeltnisProzent =
-    result.verhaeltnis === Infinity
+    result.verhaeltnis < 0 || result.verhaeltnis === Infinity
       ? "—"
       : `${(result.verhaeltnis * 100).toFixed(1)} %`;
 
@@ -277,7 +277,7 @@ function KleineKarte({
 }) {
   const farbe = statusFarbe(result.status);
   const verhaeltnisProzent =
-    result.verhaeltnis === Infinity
+    result.verhaeltnis < 0 || result.verhaeltnis === Infinity
       ? "—"
       : `${(result.verhaeltnis * 100).toFixed(0)} %`;
   return (

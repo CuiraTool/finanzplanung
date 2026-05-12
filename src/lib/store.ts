@@ -1264,22 +1264,37 @@ export const usePlanStore = create<PlanState>()(
           laufendeAusgaben: s.laufendeAusgaben.filter((a) => a.id !== id),
         })),
       addEinkommensperiode: () =>
-        set((s) => ({
-          budget: {
-            ...s.budget,
-            einkommen: [
-              ...s.budget.einkommen,
-              {
-                id: newId(),
-                beschreibung: "",
-                personIdx: 1,
-                betragMonatlich: null,
-                von: currentYearMonth(),
-                bis: "",
-              },
-            ],
-          },
-        })),
+        set((s) => {
+          // Tiago-Fix: Bis-Datum aus Wunsch-Pensionierung vorbefüllen
+          // (Block 2 bezugsalterP1 → Geburtsjahr + alter). Übersteuerbar.
+          const gjStr = s.person1.geburtsdatum.slice(0, 4);
+          const gj = parseInt(gjStr, 10);
+          const bezAlter = s.ziele.bezugsalterP1 ?? 65;
+          const pensionsjahr = Number.isFinite(gj)
+            ? gj + Math.floor(bezAlter)
+            : null;
+          // Bis-Monat: anhand Geburtsmonat berechnen (1 Monat vor Pensionsmonat)
+          const gMonat = parseInt(s.person1.geburtsdatum.slice(5, 7), 10);
+          const bisStr = pensionsjahr
+            ? `${pensionsjahr}-${String(gMonat || 12).padStart(2, "0")}`
+            : "";
+          return {
+            budget: {
+              ...s.budget,
+              einkommen: [
+                ...s.budget.einkommen,
+                {
+                  id: newId(),
+                  beschreibung: "",
+                  personIdx: 1,
+                  betragMonatlich: null,
+                  von: currentYearMonth(),
+                  bis: bisStr,
+                },
+              ],
+            },
+          };
+        }),
       updateEinkommensperiode: (id, patch) =>
         set((s) => ({
           budget: {

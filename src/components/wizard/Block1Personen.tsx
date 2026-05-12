@@ -66,17 +66,22 @@ export function Block1Personen() {
 
       {/* Zivilstand */}
       <Section title="Zivilstand">
-        <select
-          value={zivilstand}
-          onChange={(e) => setZivilstand(e.target.value as Zivilstand)}
-          className={selectClass}
-        >
-          {zivilstandOptions.map((z) => (
-            <option key={z.value} value={z.value}>
-              {z.label}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-3">
+          <select
+            value={zivilstand}
+            onChange={(e) => setZivilstand(e.target.value as Zivilstand)}
+            className={selectClass}
+          >
+            {zivilstandOptions.map((z) => (
+              <option key={z.value} value={z.value}>
+                {z.label}
+              </option>
+            ))}
+          </select>
+          {(zivilstand === "verheiratet" || zivilstand === "konkubinat") && (
+            <ZivilstandSeitJahrInput />
+          )}
+        </div>
       </Section>
 
       {/* Person 1 (oder einzelne Person) */}
@@ -514,6 +519,39 @@ function ReligionPanel() {
         ))}
       </div>
     </Section>
+  );
+}
+
+/**
+ * Tiago-Feedback Fix 3: Eingabe "verheiratet/konkubinat seit Jahr".
+ * Wird für AHV-Witwen-5-J-Anspruchs-Check + Hinterlassenen-Card genutzt.
+ */
+function ZivilstandSeitJahrInput() {
+  const erweitert = usePlanStore((s) => s.erweitert);
+  const setErweitert = usePlanStore((s) => s.setErweitert);
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-slate-600">
+        Seit Jahr
+      </label>
+      <input
+        type="number"
+        min={1950}
+        max={new Date().getFullYear()}
+        value={erweitert.zivilstandSeitJahr ?? ""}
+        onChange={(e) =>
+          setErweitert({
+            zivilstandSeitJahr:
+              e.target.value === "" ? null : Number(e.target.value),
+          })
+        }
+        placeholder="z.B. 2015"
+        className={`${selectClass} w-32 tabular-nums`}
+      />
+      <p className="mt-1 text-xs text-slate-500">
+        Relevant für AHV-Witwen-Anspruch (5+ J. Ehe) + Hinterlassenen-Berechnung.
+      </p>
+    </div>
   );
 }
 

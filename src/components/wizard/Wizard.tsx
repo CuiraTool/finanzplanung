@@ -530,6 +530,44 @@ function ActiveBlock({ aktiverBlock }: { aktiverBlock: number }) {
       {aktiverBlock === 8 && <Block8Immobilien />}
       {aktiverBlock === 9 && <Block9Firma />}
       {aktiverBlock === 10 && <Block10Nachlass />}
+      <BlockNavFooter aktiverBlock={aktiverBlock} />
+    </div>
+  );
+}
+
+/**
+ * Navigation-Footer unten in jedem Block (Tiago-Feedback): Zurück / Nächste.
+ * Verhindert dass User nach oben scrollen muss.
+ */
+function BlockNavFooter({ aktiverBlock }: { aktiverBlock: number }) {
+  const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
+  const min = 1;
+  const max = 10;
+  const istErster = aktiverBlock === min;
+  const istLetzter = aktiverBlock === max;
+  return (
+    <div className="mt-8 flex items-center justify-between border-t pt-4" style={{ borderColor: "var(--border)" }}>
+      <button
+        type="button"
+        disabled={istErster}
+        onClick={() => setAktiverBlock(aktiverBlock - 1)}
+        className="cui-btn"
+        style={{ opacity: istErster ? 0.4 : 1 }}
+      >
+        ← Zurück
+      </button>
+      <span className="text-xs" style={{ color: "var(--ink-3)" }}>
+        Block {aktiverBlock} / {max}
+      </span>
+      <button
+        type="button"
+        disabled={istLetzter}
+        onClick={() => setAktiverBlock(aktiverBlock + 1)}
+        className="cui-btn cui-btn-primary"
+        style={{ opacity: istLetzter ? 0.4 : 1 }}
+      >
+        Nächste →
+      </button>
     </div>
   );
 }

@@ -54,14 +54,14 @@ describe("Tragbarkeit — Schweizer Bankenformel", () => {
     expect(r.status).toBe("grenzwertig");
   });
 
-  it("Einkommen = 0 → Infinity-Verhältnis, nicht tragbar", () => {
+  it("Einkommen = 0 → Status unbekannt (Tiago-Fix: kein Infinity-Display)", () => {
     const r = tragbarkeit({
       verkehrswert: 500_000,
       hypothekTotal: 300_000,
       einkommenJahr: 0,
     });
-    expect(r.verhaeltnis).toBe(Infinity);
-    expect(r.status).toBe("nicht_tragbar");
+    expect(r.verhaeltnis).toBe(-1); // Marker für UI ("—")
+    expect(r.status).toBe("unbekannt");
   });
 
   it("Kein Eigenheim (verkehrswert 0) → Verhältnis 0", () => {

@@ -39,7 +39,7 @@ export const SCHWELLE_GELB = 0.4;
 export const BELEHNUNG_HYPO_1 = 0.65; // 65% Verkehrswert
 export const AMORTISATION_2_HYPO_JAHRE = 15; // 1/15 pro Jahr
 
-export type TragbarkeitStatus = "tragbar" | "grenzwertig" | "nicht_tragbar";
+export type TragbarkeitStatus = "tragbar" | "grenzwertig" | "nicht_tragbar" | "unbekannt";
 
 export interface TragbarkeitResult {
   /** Hypothek-Total auf dieser Immobilie. */
@@ -87,10 +87,14 @@ export function tragbarkeit(input: TragbarkeitInput): TragbarkeitResult {
   const nebenkosten = verkehrswert * nebenkostenSatz;
   const kostenJahr = zinsKosten + amortisation2Hypo + nebenkosten;
 
-  const verhaeltnis = einkommenJahr > 0 ? kostenJahr / einkommenJahr : Infinity;
+  // Tiago-Fix: bei einkommen=0 darf nicht Infinity angezeigt werden.
+  // Status "unbekannt" + verhaeltnis -1 als Marker für UI ("—").
+  const hatEinkommen = einkommenJahr > 0;
+  const verhaeltnis = hatEinkommen ? kostenJahr / einkommenJahr : -1;
 
   let status: TragbarkeitStatus;
-  if (verhaeltnis <= SCHWELLE_GRUEN) status = "tragbar";
+  if (!hatEinkommen) status = "unbekannt";
+  else if (verhaeltnis <= SCHWELLE_GRUEN) status = "tragbar";
   else if (verhaeltnis <= SCHWELLE_GELB) status = "grenzwertig";
   else status = "nicht_tragbar";
 
@@ -163,6 +167,7 @@ export function statusLabel(status: TragbarkeitStatus): string {
     tragbar: "tragbar",
     grenzwertig: "grenzwertig",
     nicht_tragbar: "nicht tragbar",
+    unbekannt: "—",
   }[status];
 }
 
@@ -193,6 +198,13 @@ export function statusFarbe(status: TragbarkeitStatus): {
         bg: "bg-rose-50",
         text: "text-rose-700",
         dot: "bg-rose-500",
+      };
+    case "unbekannt":
+      return {
+        border: "border-slate-200",
+        bg: "bg-slate-50",
+        text: "text-slate-500",
+        dot: "bg-slate-400",
       };
   }
 }
