@@ -164,7 +164,7 @@ function PersonAhvForm({
 
       <Field
         label="AHV-Bezugsalter"
-        hint="63/64 = Vorbezug, 65 = ordentlich, 66–70 = Aufschub"
+        hint="Monatsschritte gemäss BSV-Merkblatt 3.04 'Flexibler Rentenbezug' (AHV21). 63/64 = Vorbezug, 65 = ordentlich, 66–70 = Aufschub."
         info={
           <KiHinweis
             begriff="AHV-Vorbezug und Aufschub"
@@ -172,20 +172,43 @@ function PersonAhvForm({
           />
         }
       >
-        <div className="flex items-center gap-3">
-          <select
-            value={ahvBezugsalter}
-            onChange={(e) =>
-              onPatch({ ahvBezugsalter: Number(e.target.value) })
-            }
-            className={`${selectClass} w-24 text-center tabular-nums`}
-          >
-            {alterOptionen().map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <select
+              value={Math.floor(ahvBezugsalter)}
+              onChange={(e) => {
+                const j = Number(e.target.value);
+                const m = Math.round((ahvBezugsalter - Math.floor(ahvBezugsalter)) * 12);
+                onPatch({ ahvBezugsalter: combineAlter(j, m) });
+              }}
+              className={`${selectClass} w-20 text-center tabular-nums`}
+              aria-label="Bezugsalter Jahre"
+            >
+              {jahreOptionen().map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500">Jahre</span>
+            <select
+              value={Math.round((ahvBezugsalter - Math.floor(ahvBezugsalter)) * 12)}
+              onChange={(e) => {
+                const j = Math.floor(ahvBezugsalter);
+                const m = Number(e.target.value);
+                onPatch({ ahvBezugsalter: combineAlter(j, m) });
+              }}
+              className={`${selectClass} w-20 text-center tabular-nums`}
+              aria-label="Bezugsalter Monate"
+            >
+              {monateOptionen().map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500">Monate</span>
+          </div>
           <BezugsalterHint alter={ahvBezugsalter} />
         </div>
       </Field>
@@ -234,10 +257,26 @@ function PersonAhvForm({
   );
 }
 
-function alterOptionen(): number[] {
+function jahreOptionen(): number[] {
   const out: number[] = [];
   for (let a = AHV_ALTER_MIN; a <= AHV_ALTER_MAX; a++) out.push(a);
   return out;
+}
+
+function monateOptionen(): number[] {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+}
+
+/**
+ * Kombiniert Jahre + Monate zu dezimalem Bezugsalter und clamped innerhalb
+ * der erlaubten Range (63 Jahre 0 Mt bis 70 Jahre 0 Mt). Aufschub > 70 oder
+ * Vorbezug < 63 werden geklamped.
+ */
+function combineAlter(jahre: number, monate: number): number {
+  const raw = jahre + monate / 12;
+  const min = AHV_ALTER_MIN;
+  const max = AHV_ALTER_MAX;
+  return Math.max(min, Math.min(max, raw));
 }
 
 function BezugsalterHint({ alter }: { alter: number }) {
@@ -251,18 +290,26 @@ function BezugsalterHint({ alter }: { alter: number }) {
   const faktor = bezugsfaktor(alter);
   const pct = ((faktor - 1) * 100).toFixed(1);
   if (alter < ORDENTLICHES_AHV_ALTER) {
-    const jahre = ORDENTLICHES_AHV_ALTER - alter;
+    const monate = Math.round((ORDENTLICHES_AHV_ALTER - alter) * 12);
     return (
       <span className="text-xs text-amber-700">
-        Vorbezug {jahre} J. · {pct}% · Faktor {faktor.toFixed(3)}
+        Vorbezug {formatJahreMonate(monate)} · {pct}% · Faktor {faktor.toFixed(3)}
       </span>
     );
   }
-  const jahre = alter - ORDENTLICHES_AHV_ALTER;
+  const monate = Math.round((alter - ORDENTLICHES_AHV_ALTER) * 12);
   return (
     <span className="text-xs text-emerald-700">
-      Aufschub {jahre} J. · +{pct}% · Faktor {faktor.toFixed(3)}
+      Aufschub {formatJahreMonate(monate)} · +{pct}% · Faktor {faktor.toFixed(3)}
     </span>
   );
+}
+
+function formatJahreMonate(monate: number): string {
+  const j = Math.floor(monate / 12);
+  const m = monate % 12;
+  if (j === 0) return `${m} Mt`;
+  if (m === 0) return `${j} J`;
+  return `${j} J ${m} Mt`;
 }
 

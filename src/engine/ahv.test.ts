@@ -4,6 +4,8 @@ import {
   ahvCouplePension,
   ahvMaxCouplePension,
   ahvJahresrenteEinzel,
+  ahvBezugsstart,
+  ahvJahresFaktor,
   bezugsfaktor,
   dreizehnteAhvFaktor,
   ordentlichesAhvAlter,
@@ -204,6 +206,78 @@ describe("AHV — Ehepaar Plafonierung (Stand 2025 + 13. AHV)", () => {
     });
     expect(out.plafoniert).toBe(false);
     expect(out.haushaltsRente).toBeLessThan(45_360);
+  });
+});
+
+describe("AHV — Bezugsstart-Monat (BSV-Merkblatt 3.04 'Flexibler Rentenbezug')", () => {
+  it("ordentlich 65: Folgemonat nach 65. Geburtstag", () => {
+    // Geb. Juli 1967 → 65. Geb. Juli 2032 → AHV ab August 2032
+    expect(ahvBezugsstart("1967-07-29", 65)).toEqual({ jahr: 2032, monat: 8 });
+    // Geb. Januar 1980 → 65. Geb. Jan 2045 → AHV ab Februar 2045
+    expect(ahvBezugsstart("1980-01-15", 65)).toEqual({ jahr: 2045, monat: 2 });
+    // Geb. Dezember 1960 → 65. Geb. Dez 2025 → AHV ab Januar 2026
+    expect(ahvBezugsstart("1960-12-01", 65)).toEqual({ jahr: 2026, monat: 1 });
+  });
+
+  it("Vorbezug volle Jahre", () => {
+    // 1 Jahr Vorbezug: bezugsalter 64 → AHV ab Folgemonat des 64. Geb.
+    expect(ahvBezugsstart("1967-07-29", 64)).toEqual({ jahr: 2031, monat: 8 });
+    // 2 Jahre Vorbezug: bezugsalter 63
+    expect(ahvBezugsstart("1967-07-29", 63)).toEqual({ jahr: 2030, monat: 8 });
+  });
+
+  it("Vorbezug monatsweise (AHV21 flexibel)", () => {
+    // 6 Mt Vorbezug: bezugsalter 64.5 → erreicht Jan 2032 → AHV ab Feb 2032
+    expect(ahvBezugsstart("1967-07-29", 64.5)).toEqual({ jahr: 2032, monat: 2 });
+    // 3 Mt Vorbezug: bezugsalter 64.75 → erreicht Apr 2032 → AHV ab Mai 2032
+    expect(ahvBezugsstart("1967-07-29", 64.75)).toEqual({ jahr: 2032, monat: 5 });
+  });
+
+  it("Aufschub monatsweise", () => {
+    // 1 J 6 Mt Aufschub: bezugsalter 66.5 → erreicht Jan 2034 → AHV ab Feb 2034
+    expect(ahvBezugsstart("1967-07-29", 66.5)).toEqual({ jahr: 2034, monat: 2 });
+    // 5 J Aufschub: bezugsalter 70 → erreicht Juli 2037 → AHV ab Aug 2037
+    expect(ahvBezugsstart("1967-07-29", 70)).toEqual({ jahr: 2037, monat: 8 });
+  });
+
+  it("liefert null bei ungültigem Datum", () => {
+    expect(ahvBezugsstart("", 65)).toBeNull();
+    expect(ahvBezugsstart("invalid", 65)).toBeNull();
+    expect(ahvBezugsstart("1900-13-01", 65)).toBeNull();
+  });
+});
+
+describe("AHV — Jahres-Faktor (Pro-Rata im Bezugsstart-Jahr)", () => {
+  it("vor Bezugsstart: 0", () => {
+    const start = { jahr: 2032, monat: 8 };
+    expect(ahvJahresFaktor(2030, start)).toBe(0);
+    expect(ahvJahresFaktor(2031, start)).toBe(0);
+  });
+
+  it("nach Bezugsstart: 1 (volles Jahr)", () => {
+    const start = { jahr: 2032, monat: 8 };
+    expect(ahvJahresFaktor(2033, start)).toBe(1);
+    expect(ahvJahresFaktor(2050, start)).toBe(1);
+  });
+
+  it("Bezugsstart-Jahr nach 2026: anteilig mit 13. AHV (Divisor 13)", () => {
+    // Start Aug 2032: 5 ord. Monate Aug-Dez + 1 × 13. AHV Dez = 6/13
+    expect(ahvJahresFaktor(2032, { jahr: 2032, monat: 8 })).toBeCloseTo(6 / 13, 5);
+    // Start Jan: voller Anspruch im Bezugsjahr (12 + 1 = 13/13 = 1)
+    expect(ahvJahresFaktor(2030, { jahr: 2030, monat: 1 })).toBe(1);
+    // Start Dezember: nur 1 ord. + 1 × 13. AHV = 2/13
+    expect(ahvJahresFaktor(2032, { jahr: 2032, monat: 12 })).toBeCloseTo(2 / 13, 5);
+  });
+
+  it("Bezugsstart-Jahr vor 2026: anteilig ohne 13. AHV (Divisor 12)", () => {
+    // Start Aug 2024 → 5/12
+    expect(ahvJahresFaktor(2024, { jahr: 2024, monat: 8 })).toBeCloseTo(5 / 12, 5);
+    // Start Jan 2025: 12/12 = 1
+    expect(ahvJahresFaktor(2025, { jahr: 2025, monat: 1 })).toBe(1);
+  });
+
+  it("liefert 0 bei null-Start", () => {
+    expect(ahvJahresFaktor(2030, null)).toBe(0);
   });
 });
 

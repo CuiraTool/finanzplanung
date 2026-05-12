@@ -359,3 +359,105 @@ export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
 export function ahvMaxCouplePension(year: number): number {
   return Math.round(MAX_RENTE_EHEPAAR * dreizehnteAhvFaktor(year));
 }
+
+/**
+ * Bezugs-Startmonat der AHV-Rente.
+ *
+ * Per BSV-Merkblatt 3.04 "Flexibler Rentenbezug" (ab AHV21, 1.1.2024):
+ * - Ordentliche Rente: Auszahlung ab dem Folgemonat nach Erreichen des
+ *   Referenzalters (65 für Männer und Frauen ab Jg. 1964).
+ * - Vorbezug: monatsweise möglich (1–24 Monate vor Referenzalter).
+ *   Pro Monat 0.567% Kürzung (= 6.8%/Jahr).
+ * - Aufschub: monatsweise möglich (12–60 Monate nach Referenzalter).
+ *   Zuschlag gestaffelt gemäss BSV-Tabelle.
+ *
+ * `bezugsalter` ist als Dezimalzahl interpretiert: ganze Jahre + Monate/12.
+ * Beispiele:
+ *   - 65.0   → 65 Jahre 0 Monate (ordentlich)
+ *   - 64.5   → 64 Jahre 6 Monate (Vorbezug 6 Mt)
+ *   - 66.25  → 66 Jahre 3 Monate (Aufschub 1 J 3 Mt)
+ *
+ * Liefert null bei ungültigem Geburtsdatum.
+ *
+ * @example
+ *   ahvBezugsstart("1967-07-29", 65)    → { jahr: 2032, monat: 8 }
+ *   ahvBezugsstart("1967-07-29", 64)    → { jahr: 2031, monat: 8 }
+ *   ahvBezugsstart("1967-07-29", 64.5)  → { jahr: 2032, monat: 2 }
+ *   ahvBezugsstart("1967-12-15", 65)    → { jahr: 2033, monat: 1 }
+ */
+export interface AhvBezugsStart {
+  jahr: number;
+  monat: number; // 1..12
+}
+
+export function ahvBezugsstart(
+  geburtsdatum: string,
+  bezugsalter: number
+): AhvBezugsStart | null {
+  if (!geburtsdatum) return null;
+  const parts = geburtsdatum.slice(0, 10).split("-").map(Number);
+  if (parts.length < 2) return null;
+  const [gj, gm] = parts as [number, number, number];
+  if (
+    !Number.isFinite(gj) ||
+    !Number.isFinite(gm) ||
+    gj < 1900 ||
+    gj > 2100 ||
+    gm < 1 ||
+    gm > 12
+  ) {
+    return null;
+  }
+
+  // Bezugsalter zerlegen in ganze Jahre + Monate
+  const jahreInt = Math.floor(bezugsalter);
+  const monateExtra = Math.round((bezugsalter - jahreInt) * 12);
+
+  // Monat, in dem das Bezugsalter erreicht wird
+  const reachTotalMonth0 = gm - 1 + monateExtra; // 0-basiert
+  const reachJahr = gj + jahreInt + Math.floor(reachTotalMonth0 / 12);
+  const reachMonatIdx = ((reachTotalMonth0 % 12) + 12) % 12; // 0..11
+  const reachMonat = reachMonatIdx + 1; // 1..12
+
+  // AHV-Beginn = Folgemonat
+  let startJahr = reachJahr;
+  let startMonat = reachMonat + 1;
+  if (startMonat > 12) {
+    startJahr += 1;
+    startMonat = 1;
+  }
+
+  return { jahr: startJahr, monat: startMonat };
+}
+
+/**
+ * Jahres-Faktor für AHV-Auszahlung in einem gegebenen Kalenderjahr.
+ *
+ * - Vor Bezugsstart: 0
+ * - Nach Bezugsstart (volles Jahr): 1
+ * - Bezugsstart-Jahr: anteilig basierend auf Anzahl Monate Bezug.
+ *
+ * Berücksichtigt 13. AHV (ab Bezugsjahr ≥ 2026): die jährliche Vollrente
+ * entspricht 13 Monaten (12 ordentliche + 1 Zuschlag im Dezember).
+ *
+ * Beispiel: Bezugsstart August 2032 (5 ordentliche Mt + 1× 13. AHV Dez)
+ *   → Faktor = 6 / 13 ≈ 0.4615
+ *
+ * Vor 2026 (keine 13. AHV): 12 ordentliche Monate.
+ * Bezugsstart August → Faktor = 5 / 12 ≈ 0.4167
+ */
+export function ahvJahresFaktor(
+  jahr: number,
+  start: AhvBezugsStart | null
+): number {
+  if (!start) return 0;
+  if (jahr < start.jahr) return 0;
+  if (jahr > start.jahr) return 1;
+  // Bezugsstart-Jahr: anteilig
+  const ordentlicheMonate = 13 - start.monat; // start.monat ..12 inklusiv
+  if (jahr >= ERSTES_JAHR_13TE_AHV) {
+    // 13. AHV im Dez auch wenn nur Teiljahres-Bezug
+    return (ordentlicheMonate + 1) / 13;
+  }
+  return ordentlicheMonate / 12;
+}

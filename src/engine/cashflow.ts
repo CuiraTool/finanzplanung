@@ -32,9 +32,12 @@ import type {
 import {
   ahvJahresrenteEinzel,
   ahvCouplePension,
+  ahvBezugsstart,
+  ahvJahresFaktor,
   ORDENTLICHES_AHV_ALTER,
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
+  type AhvBezugsStart,
 } from "./ahv";
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
 import { saeuleDreiAuszahlung } from "./saeule3";
@@ -207,14 +210,21 @@ export function cashflowReihe(
   const result: CashflowZeile[] = [];
 
   // Vorab-Berechnungen
-  const ahvBezugsjahrP1 = pensionsjahr(
+  // AHV-Bezugsstart ist monatsgenau (BSV-Merkblatt 3.04 "Flexibler Rentenbezug"):
+  // Folgemonat nach Erreichen des Bezugsalters. Pro-Rata im Bezugsjahr.
+  const ahvStartP1: AhvBezugsStart | null = ahvBezugsstart(
     state.person1.geburtsdatum,
     clampAhvAlter(state.ahv.ahvBezugsalterP1)
   );
-  const ahvBezugsjahrP2 =
+  const ahvStartP2: AhvBezugsStart | null =
     state.fallart === "paar"
-      ? pensionsjahr(state.person2.geburtsdatum, clampAhvAlter(state.ahv.ahvBezugsalterP2))
+      ? ahvBezugsstart(
+          state.person2.geburtsdatum,
+          clampAhvAlter(state.ahv.ahvBezugsalterP2)
+        )
       : null;
+  const ahvBezugsjahrP1 = ahvStartP1?.jahr ?? null;
+  const ahvBezugsjahrP2 = ahvStartP2?.jahr ?? null;
   const pkBezugsjahrP1 = pensionsjahr(state.person1.geburtsdatum, state.ziele.bezugsalterP1);
   const pkBezugsjahrP2 =
     state.fallart === "paar"
@@ -295,27 +305,32 @@ export function cashflowReihe(
     //  - wächst PK-Saldo via bvgGesamtkapitalBeiBezug (schon vorhanden)
     const pkEinkaufJahr = pkEinkaufSummeJahr(state, jahr);
 
-    // AHV-Einnahmen je nach Pensionierungsstatus:
-    //  • beide pensioniert → Ehepaarrente (Splitting + Plafond)
-    //  • nur einer pensioniert → seine eigene Einzelrente (kein Plafond,
-    //    kein Splitting — beides erst ab gemeinsamer Pensionierung)
+    // AHV-Einnahmen mit Monats-genauer Pro-Rata-Logik:
+    //  • Bezugsstart-Jahr → anteilig (Folgemonat nach Erreichen des Bezugsalters)
+    //  • Folgejahre → volle Jahresrente
+    //  • Plafonierung Ehepaar greift sobald BEIDE Ehegatten im Bezug sind
+    //    (Vereinfachung: Übergangsjahr nutzt plafonierte Rate × max-Faktor).
+    const ahvFaktorP1 = ahvJahresFaktor(jahr, ahvStartP1);
+    const ahvFaktorP2 =
+      state.fallart === "paar" ? ahvJahresFaktor(jahr, ahvStartP2) : 0;
+    const p1AhvBezieht = ahvFaktorP1 > 0;
+    const p2AhvBezieht = ahvFaktorP2 > 0;
     let einnahmenAhv = 0;
-    const p1AhvBezieht =
-      ahvBezugsjahrP1 != null && jahr >= ahvBezugsjahrP1;
-    const p2AhvBezieht =
-      state.fallart === "paar" &&
-      ahvBezugsjahrP2 != null &&
-      jahr >= ahvBezugsjahrP2;
     if (state.fallart === "paar") {
       if (p1AhvBezieht && p2AhvBezieht) {
-        einnahmenAhv = ahvRenteHaushalt.haushalt;
+        // Beide im Bezug → Plafond aktiv. Bei unterschiedlichen Startmonaten
+        // pro-rate konservativ mit max-Faktor (entspricht "Plafond ab dem
+        // Monat, in dem beide beziehen"). Im stabilen Vollbezugs-Jahr = 1.
+        einnahmenAhv = Math.round(
+          ahvRenteHaushalt.haushalt * Math.max(ahvFaktorP1, ahvFaktorP2)
+        );
       } else if (p1AhvBezieht) {
-        einnahmenAhv = ahvRenteHaushalt.p1Einzel;
+        einnahmenAhv = Math.round(ahvRenteHaushalt.p1Einzel * ahvFaktorP1);
       } else if (p2AhvBezieht) {
-        einnahmenAhv = ahvRenteHaushalt.p2Einzel;
+        einnahmenAhv = Math.round(ahvRenteHaushalt.p2Einzel * ahvFaktorP2);
       }
     } else if (p1AhvBezieht) {
-      einnahmenAhv = ahvRenteHaushalt.haushalt;
+      einnahmenAhv = Math.round(ahvRenteHaushalt.haushalt * ahvFaktorP1);
     }
 
     let einnahmenBvgRente = 0;
