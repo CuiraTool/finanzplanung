@@ -326,6 +326,15 @@ export interface Immobilie {
    * abstimmung Sept 2025 angenommen).
    */
   eigenmietwertProzent?: number | null;
+  /**
+   * Steuerwert (für Vermögenssteuer) — typischerweise 60-85% des Verkehrs-
+   * werts, kantonsabhängig. Wenn null/undefined: Engine berechnet via
+   * Verkehrswert × Kanton-Faktor (siehe src/engine/repartition.ts). Wenn
+   * explizit erfasst (z.B. aus Steuerveranlagung), wird dieser Wert
+   * verwendet. Nur Vermögenssteuer-relevant — Verkehrswert bleibt das
+   * Mass für Belehnungsquote, Tragbarkeit und Verkaufserlös.
+   */
+  steuerwert?: number | null;
 }
 
 export interface ImmobilienInput {
@@ -1839,8 +1848,8 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v40",
-      version: 40,
+      name: "cuira-plan-v41",
+      version: 41,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };

@@ -647,13 +647,10 @@ describe("SSM-Vergleich: Franziska Werrn (Single, geschieden, ZH Niederglatt)", 
     console.log(
       `[AUDIT Franziska] 2026 Steuern: Cuira=${z.ausgabenSteuern} (Eink=${z.ausgabenSteuernEinkommen}, Verm=${z.ausgabenSteuernVermoegen}), SSM=${ssmSt}, Drift=${d.toFixed(1)}%`
     );
-    // Drift: Anker greift exakt für Einkommenssteuer (5'900 == SSM), aber
-    // Cuira-Vermögenssteuer-Engine ignoriert Schulden-Abzug — bei 96k Aktiva
-    // und 772k Hypothek müsste st.barer Vermögen = 0 sein, Cuira berechnet
-    // trotzdem ~2'600.
+    // E2-6-Fix: Steuerwert-Lookup statt Verkehrswert reduziert Vermsteuer
+    // von ~2'600 auf ~900 CHF. Drift jetzt < 25%.
     expect(z.ausgabenSteuernEinkommen).toBeCloseTo(ssmSt, -2);
-    // Total mit Vermögensdrift: noch immer < 50% Drift
-    expect(Math.abs(d)).toBeLessThan(50);
+    expect(Math.abs(d)).toBeLessThan(25);
   });
 
   it("2030: Einkommenssteuer steigt wenn Eigenmietwert+Schuldzinsabzug entfallen (Reform 2030)", () => {

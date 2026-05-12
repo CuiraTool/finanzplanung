@@ -49,6 +49,7 @@ import {
 } from "./steuer";
 import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
 import { IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT } from "./economy-defaults";
+import { effektiverSteuerwert } from "./repartition";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
 
@@ -437,6 +438,16 @@ export function cashflowReihe(
       block7DarlehenJahresanfang -
       hypoJahresanfang;
 
+    // Vermögenssteuer-Bemessung: Immobilien zum Steuerwert (E2-6), nicht
+    // zum Verkehrswert. Sonst werden Eigenheimer in Kantonen mit tiefem
+    // Steuerwert (z.B. ZH ~70%) überbesteuert.
+    const immoSteuerwertJahresanfang = immoSteuerwertAmJahresende(state, jahr - 1);
+    const vermoegenSteuerwertJahresanfang =
+      block7AktivaJahresanfang +
+      immoSteuerwertJahresanfang -
+      block7DarlehenJahresanfang -
+      hypoJahresanfang;
+
     // Interkantonale Steuerausscheidung: pro ausserkantonaler Liegenschaft
     // einen FremdKantonAnteil bauen. Wenn keine fremde Liegenschaft → Array
     // bleibt leer, steuerProJahrIK fällt auf steuerProJahr zurück.
@@ -469,7 +480,7 @@ export function cashflowReihe(
         einnahmenAhv +
         einnahmenBvgRente +
         einnahmenAlimente,
-      vermoegenJahr: vermoegenJahresanfang,
+      vermoegenJahr: vermoegenSteuerwertJahresanfang,
       kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
       kanton: state.adresse.kanton,
       bfsId: state.adresse.gemeindeBfsId ?? undefined,
@@ -1475,6 +1486,31 @@ function immobilienWertAmJahresende(
   jahr: number
 ): number {
   return immobilienBilanzAmJahresende(state, jahr).aktiva;
+}
+
+/**
+ * Summe der Immobilien-Steuerwerte zum Jahresende (E2-6 / Y-1c-Audit).
+ * Wird für Vermögenssteuer-Bemessung verwendet — typischerweise tiefer
+ * als der Verkehrswert (Kanton-Faktor 0.70-0.85).
+ */
+function immoSteuerwertAmJahresende(
+  state: CashflowInput,
+  jahr: number
+): number {
+  const heute = new Date().getFullYear();
+  let total = 0;
+  for (const im of state.immobilien.items) {
+    if (im.verkehrswert == null) continue;
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
+    const baseWert = immobilieWert(im, jahr, heute);
+    // Steuerwert: User-Override oder Kanton-Faktor × Verkehrswert (mit Wertsteigerung)
+    const wefSumme = wefSummeFuerImmoBis(state, im.id, jahr);
+    const aktivBeitrag = baseWert + Math.max(0, wefSumme - im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0));
+    const kanton = im.adresse?.kanton ?? state.adresse.kanton;
+    total += effektiverSteuerwert(aktivBeitrag, im.steuerwert ?? null, kanton);
+  }
+  return total;
 }
 
 function hypothekenAmJahresende(

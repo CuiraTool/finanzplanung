@@ -295,6 +295,28 @@ function ImmobilieCard({
         </div>
       </Field>
 
+      <Field
+        label="Steuerwert (CHF, optional)"
+        hint="aus Steuerveranlagung — typ. 60–85 % vom Verkehrswert. Leer lassen für Kanton-Default (ZH ~70 %)."
+      >
+        <input
+          type="number"
+          inputMode="numeric"
+          value={item.steuerwert ?? ""}
+          onChange={(e) =>
+            onUpdate({
+              steuerwert: e.target.value === "" ? null : Number(e.target.value),
+            })
+          }
+          placeholder={
+            item.verkehrswert
+              ? `Default: ${Math.round(item.verkehrswert * 0.7).toLocaleString("de-CH")}`
+              : "z.B. 1'400'000"
+          }
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
+
       <HypothekenListe
         hypotheken={item.hypotheken}
         onAdd={onAddHypothek}
