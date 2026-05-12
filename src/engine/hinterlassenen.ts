@@ -69,6 +69,21 @@ export interface HinterlassenenInput {
   halbwaisen: number;
   /** Vollwaisen (beide Eltern tot). Selten. */
   vollwaisen?: number;
+  /**
+   * V7: Reglement-Override BVG-Witwen-/Waisenrente in % der Altersrente.
+   * Wenn null/undefined: BVG-Minimum (60/20/40).
+   */
+  bvgWitwenrenteProzent?: number | null;
+  bvgHalbwaisenrenteProzent?: number | null;
+  bvgVollwaisenrenteProzent?: number | null;
+  /**
+   * V7: Konkubinatspartner BVG-berechtigt (Reglement-spezifisch).
+   * Wenn true UND Konkubinat (ehejahre=0, kein Kind): BVG-Witwenrente
+   * trotzdem gezahlt.
+   */
+  konkubinatBerechtigt?: boolean;
+  /** True wenn überlebende Person im Konkubinat lebt (statt Ehe). */
+  istKonkubinat?: boolean;
 }
 
 export interface HinterlassenenOutput {
@@ -96,7 +111,11 @@ export function berechneHinterlassenen(
   const hatKind = input.halbwaisen > 0 || (input.vollwaisen ?? 0) > 0;
   const erfueltDauerEhe = input.ehejahre >= 5;
   const erfueltAlter = input.alterUeberlebender >= 45;
-  const ahvAnspruchsberechtigt = hatKind || (erfueltDauerEhe && erfueltAlter);
+  // V7: bei Konkubinat KEIN AHV-Witwenanspruch — AHV-Witwenrente ist auf
+  // Ehe + eingetragene Partnerschaft beschränkt. Lebensgemeinschaft zählt nur
+  // im BVG-Reglement (siehe bvgBerechtigt unten).
+  const ahvAnspruchsberechtigt =
+    !input.istKonkubinat && (hatKind || (erfueltDauerEhe && erfueltAlter));
 
   // AHV-Witwenrente — 80 % der hypothetischen Altersrente des Verstorbenen.
   // Kein zusätzlicher Plafond (natürliches Max ergibt sich aus Skala 44).
@@ -136,18 +155,47 @@ export function berechneHinterlassenen(
     (input.halbwaisen * AHV_HALBWAISEN_PROZENT +
       (input.vollwaisen ?? 0) * AHV_VOLLWAISEN_PROZENT);
 
-  // BVG-Witwenrente (Reglement-Annahme: gleicher Voraussetzungs-Block)
-  const bvgWitwenrente = ahvAnspruchsberechtigt
-    ? input.bvgAltersrenteVerstorbener * BVG_WITWEN_PROZENT
+  // BVG-Reglement-konfigurierbare Sätze (V7), Default = BVG-Minimum.
+  const bvgWitwenSatz =
+    input.bvgWitwenrenteProzent != null
+      ? input.bvgWitwenrenteProzent / 100
+      : BVG_WITWEN_PROZENT;
+  const bvgHalbwaisenSatz =
+    input.bvgHalbwaisenrenteProzent != null
+      ? input.bvgHalbwaisenrenteProzent / 100
+      : BVG_HALBWAISEN_PROZENT;
+  const bvgVollwaisenSatz =
+    input.bvgVollwaisenrenteProzent != null
+      ? input.bvgVollwaisenrenteProzent / 100
+      : BVG_VOLLWAISEN_PROZENT;
+
+  // BVG-Witwenrente (Reglement-Annahme: gleicher Voraussetzungs-Block wie AHV
+  // ODER bei Konkubinat: Reglement-Sonderregel).
+  const bvgBerechtigt =
+    ahvAnspruchsberechtigt ||
+    (!!input.istKonkubinat && !!input.konkubinatBerechtigt && (hatKind || input.ehejahre >= 5));
+  const bvgWitwenrente = bvgBerechtigt
+    ? input.bvgAltersrenteVerstorbener * bvgWitwenSatz
     : 0;
+  if (input.istKonkubinat) {
+    if (input.konkubinatBerechtigt) {
+      hinweise.push(
+        "Konkubinat + PK-Reglement zahlt Lebenspartner: BVG-Witwenrente wird gewährt (Voraussetzung 5+ J Lebensgemeinschaft oder gemeinsames Kind, Begünstigungs-Meldung an PK)."
+      );
+    } else {
+      hinweise.push(
+        "Konkubinat: BVG-Witwenrente nur wenn das PK-Reglement Lebenspartner explizit zulässt (Reglement prüfen + Begünstigung melden)."
+      );
+    }
+  }
 
   // BVG-Waisenrenten
   const bvgWaisenrenten =
     input.bvgAltersrenteVerstorbener *
-    (input.halbwaisen * BVG_HALBWAISEN_PROZENT +
-      (input.vollwaisen ?? 0) * BVG_VOLLWAISEN_PROZENT);
+    (input.halbwaisen * bvgHalbwaisenSatz +
+      (input.vollwaisen ?? 0) * bvgVollwaisenSatz);
 
-  if (input.ehejahre === 0 && !hatKind) {
+  if (input.ehejahre === 0 && !hatKind && !input.istKonkubinat) {
     hinweise.push(
       "Konkubinat ohne Kinder: keine AHV-Hinterlassenenrente, BVG nur wenn Reglement Lebenspartner zulässt."
     );

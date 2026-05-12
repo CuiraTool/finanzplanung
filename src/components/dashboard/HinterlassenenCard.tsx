@@ -44,24 +44,36 @@ export function HinterlassenenCard() {
 
   const anzahlKinder = state.kinder.length;
 
-  // Tod P1: P2 als Überlebende
+  const istKonkubinat = state.zivilstand === "konkubinat";
+
+  // Tod P1: P2 als Überlebende — Reglement-Sätze aus P1's BVG
   const todP1 = berechneHinterlassenen({
     ahvAltersrenteVerstorbener: pensP1.ahv,
     bvgAltersrenteVerstorbener: pensP1.bvg,
     alterUeberlebender: alterP2,
-    ehejahre,
+    ehejahre: istKonkubinat ? 0 : ehejahre,
     halbwaisen: anzahlKinder,
     eigeneAhvAltersrente: pensP2.ahv > 0 ? pensP2.ahv : undefined,
+    bvgWitwenrenteProzent: state.bvg.p1.witwenrenteProzent,
+    bvgHalbwaisenrenteProzent: state.bvg.p1.halbwaisenrenteProzent,
+    bvgVollwaisenrenteProzent: state.bvg.p1.vollwaisenrenteProzent,
+    konkubinatBerechtigt: state.bvg.p1.konkubinatBerechtigt,
+    istKonkubinat,
   });
 
-  // Tod P2: P1 als Überlebende
+  // Tod P2: P1 als Überlebende — Reglement-Sätze aus P2's BVG
   const todP2 = berechneHinterlassenen({
     ahvAltersrenteVerstorbener: pensP2.ahv,
     bvgAltersrenteVerstorbener: pensP2.bvg,
     alterUeberlebender: alterP1,
-    ehejahre,
+    ehejahre: istKonkubinat ? 0 : ehejahre,
     halbwaisen: anzahlKinder,
     eigeneAhvAltersrente: pensP1.ahv > 0 ? pensP1.ahv : undefined,
+    bvgWitwenrenteProzent: state.bvg.p2.witwenrenteProzent,
+    bvgHalbwaisenrenteProzent: state.bvg.p2.halbwaisenrenteProzent,
+    bvgVollwaisenrenteProzent: state.bvg.p2.vollwaisenrenteProzent,
+    konkubinatBerechtigt: state.bvg.p2.konkubinatBerechtigt,
+    istKonkubinat,
   });
 
   return (

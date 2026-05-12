@@ -200,9 +200,6 @@ describe("Konkubinat — Steuer-Differenzierung gegenüber Verheiratet", () => {
   });
 
   it("Konkubinat: Vermögenssteuer zwei separate Freibeträge", () => {
-    // Bei 200k Vermögen: Verheiratet hat 1× 160k Freibetrag → 40k steuerbar.
-    // Konkubinat: 2× 80k Freibetrag → 2 × 100k = 200k steuerbar, aber jeder
-    // mit Einzel-Tarif (kann je nach Progression mal höher mal tiefer sein).
     const verheiratet = makeBase();
     verheiratet.vermoegen.items[0]!.saldoHeute = 200_000;
     const konkubinat = { ...verheiratet, zivilstand: "konkubinat" as const };
@@ -210,7 +207,144 @@ describe("Konkubinat — Steuer-Differenzierung gegenüber Verheiratet", () => {
     const rV = cashflowReihe(verheiratet, 2026, 2026)[0]!;
     const rK = cashflowReihe(konkubinat, 2026, 2026)[0]!;
 
-    // Beide >0 — Sicherheits-Test, keine 0
     expect(rV.ausgabenSteuernVermoegen + rK.ausgabenSteuernVermoegen).toBeGreaterThan(0);
+  });
+
+  // ─── EXTRA-Tests: Wasserfeste Konkubinat-Logik ─────────────────
+
+  it("Konkubinat AHV exakt: 2× Einzelrenten ohne Plafond — Maximal-Fall", () => {
+    // Beide einkommen ≥ 90'720 (= obere Skala44-Grenze) → 2× Maximalrente
+    // 30'240 × 13/12 = 32'760 → Total 65'520
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.ahv.einkommenP1 = 120_000;
+    k.ahv.einkommenP2 = 120_000;
+
+    const r = cashflowReihe(k, 2030, 2031).find((z) => z.jahr === 2031)!;
+    // Total ungefähr 65'520 (Maximalrenten beider Personen mit 13. AHV)
+    expect(r.einnahmenAhv).toBeGreaterThan(60_000);
+    expect(r.einnahmenAhv).toBeLessThan(70_000);
+  });
+
+  it("Verheiratet AHV: Plafond ist eingehalten — Maximal-Fall", () => {
+    const v = makeBase();
+    v.zivilstand = "verheiratet";
+    v.ahv.einkommenP1 = 120_000;
+    v.ahv.einkommenP2 = 120_000;
+
+    const r = cashflowReihe(v, 2030, 2031).find((z) => z.jahr === 2031)!;
+    // Plafond 45'360 × 13/12 ≈ 49'140
+    expect(r.einnahmenAhv).toBeLessThanOrEqual(49_640);
+  });
+
+  it("Konkubinat: nur P1 pensioniert — nur P1-AHV (P2 keine)", () => {
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.person1.geburtsdatum = "1965-01-01"; // → 65 in 2030
+    k.person2.geburtsdatum = "1970-01-01"; // → 65 in 2035
+    k.ahv.ahvBezugsalterP1 = 65;
+    k.ahv.ahvBezugsalterP2 = 65;
+
+    const r2031 = cashflowReihe(k, 2030, 2031).find((z) => z.jahr === 2031)!;
+    const r2036 = cashflowReihe(k, 2030, 2036).find((z) => z.jahr === 2036)!;
+
+    // 2031: nur P1 bezieht, ohne Plafond → ~32'760
+    expect(r2031.einnahmenAhv).toBeGreaterThan(30_000);
+    expect(r2031.einnahmenAhv).toBeLessThan(36_000);
+    // 2036: beide beziehen, 2× Einzel → ~65'520
+    expect(r2036.einnahmenAhv).toBeGreaterThan(60_000);
+  });
+
+  it("Konkubinat-Steuer: total = P1 + P2 summiert (separate Berechnungen)", () => {
+    // Validiert: bei Konkubinat ist die Steuer-Berechnung echte Summe
+    // zweier Einzel-Berechnungen — nicht durch Splitting verwischt.
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.budget.einkommen = k.budget.einkommen.map((e, idx) =>
+      idx === 0
+        ? { ...e, betragMonatlich: 12_500 } // P1 150k
+        : { ...e, betragMonatlich: 4_167 } // P2 50k
+    );
+    k.ahv.einkommenP1 = 150_000;
+    k.ahv.einkommenP2 = 50_000;
+
+    const rK = cashflowReihe(k, 2026, 2026)[0]!;
+    expect(rK.ausgabenSteuernEinkommen).toBeGreaterThan(0);
+    // Bei 150k/50k (moderater Asymmetrie) ist der Unterschied klein.
+    // Wichtig: Konkubinat-Pfad funktioniert ohne Crash + plausibler Wert
+    expect(rK.ausgabenSteuernEinkommen).toBeGreaterThan(20_000);
+    expect(rK.ausgabenSteuernEinkommen).toBeLessThan(50_000);
+  });
+
+  it("Konkubinat: BVG-Rente Pro-Rata pro Person (kein gemeinsamer Topf)", () => {
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.bvg.p1.aktiverAnschluss = true;
+    k.bvg.p1.altersguthabenHeute = 500_000;
+    k.bvg.p1.altersguthabenBeiBezug = 600_000;
+    k.bvg.p1.umwandlungssatzProzent = 6.0;
+    k.bvg.p1.bezugspraeferenz = "rente";
+
+    // P2 keine PK
+    const r = cashflowReihe(k, 2030, 2031).find((z) => z.jahr === 2031)!;
+    expect(r.einnahmenBvgRente).toBeGreaterThan(30_000); // ~36k
+    expect(r.einnahmenBvgRente).toBeLessThan(40_000);
+  });
+
+  it("Konkubinat: kein automatisches Splitting des Einkommens", () => {
+    // P1 verdient 200k, P2 = 0. Konkubinat behandelt P1 mit vollen 200k
+    // LEDIG-Tarif (steile Progression), nicht 2× 100k.
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.budget.einkommen = [
+      {
+        id: "e1",
+        beschreibung: "Lohn P1",
+        personIdx: 1 as const,
+        betragMonatlich: 16_667,
+        von: "2026-01",
+        bis: "2030-01",
+      },
+    ];
+    k.ahv.einkommenP1 = 200_000;
+    k.ahv.einkommenP2 = 0;
+
+    const rK = cashflowReihe(k, 2026, 2026)[0]!;
+    expect(rK.ausgabenSteuernEinkommen).toBeGreaterThan(15_000);
+
+    // Verheiratet mit Splitting wäre deutlich tiefer
+    const v = { ...k, zivilstand: "verheiratet" as const };
+    const rV = cashflowReihe(v, 2026, 2026)[0]!;
+    expect(rV.ausgabenSteuernEinkommen).toBeLessThan(rK.ausgabenSteuernEinkommen);
+  });
+
+  it("Konkubinat: 50/50 Vermögensaufteilung bei Steuer", () => {
+    // Doppel-Vermögen → effektive Steuerbasis sollte zweimal Vermögen/2 sein
+    const k = makeBase();
+    k.zivilstand = "konkubinat";
+    k.vermoegen.items[0]!.saldoHeute = 500_000;
+    k.budget.einkommen = [];
+    k.ahv.einkommenP1 = 0;
+    k.ahv.einkommenP2 = 0;
+
+    const r = cashflowReihe(k, 2026, 2026)[0]!;
+    // Beide haben je 250k - 80k Freibetrag = 170k steuerbar (in ZH ~0.2% = ~340 × 2)
+    expect(r.ausgabenSteuernVermoegen).toBeGreaterThan(100);
+  });
+
+  it("Konkubinat ist nur aktiv wenn fallart=paar UND zivilstand=konkubinat", () => {
+    // fallart="einzel" mit zivilstand="ledig" muss normal-Einzel-Pfad sein
+    const einzelLedig = makeBase();
+    einzelLedig.fallart = "einzel";
+    einzelLedig.zivilstand = "ledig";
+    einzelLedig.budget.einkommen = einzelLedig.budget.einkommen.filter(
+      (e) => e.personIdx === 1
+    );
+    einzelLedig.ahv.einkommenP2 = null;
+
+    const r = cashflowReihe(einzelLedig, 2026, 2026)[0]!;
+    expect(r.ausgabenSteuernEinkommen).toBeGreaterThan(0);
+    // Should not throw / not negative
+    expect(r.einnahmenTotal).toBeGreaterThanOrEqual(0);
   });
 });

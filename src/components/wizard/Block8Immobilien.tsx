@@ -22,6 +22,7 @@ import { TragbarkeitPanel } from "./TragbarkeitPanel";
 const TYPEN: { value: ImmobilienTyp; label: string; sub: string }[] = [
   { value: "selbstbewohnt", label: "Selbstbewohnt", sub: "Eigenheim, Ferienhaus" },
   { value: "rendite", label: "Renditeliegenschaft", sub: "vermietet" },
+  { value: "sonstiges", label: "Sonstiges", sub: "Bauland, Ausland-Immobilie" },
 ];
 
 const PLAENE: { value: ImmobilienPlan; label: string; sub: string }[] = [

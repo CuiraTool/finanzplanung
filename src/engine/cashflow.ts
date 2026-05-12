@@ -1012,6 +1012,9 @@ function computeAhvRente(
   const fehljahreP1 = state.ahv.hatFehljahreP1 ? state.ahv.fehljahreAnzahlP1 : 0;
   const bezugsalterP1 = clampAhvAlter(state.ahv.ahvBezugsalterP1);
 
+  const gjP1 = state.person1.geburtsdatum
+    ? Number.parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
+    : undefined;
   const p1Einzel =
     override1 != null && override1 > 0
       ? override1
@@ -1021,6 +1024,8 @@ function computeAhvRente(
             fehljahre: fehljahreP1,
             bezugsalter: bezugsalterP1,
             bezugsjahr: bezugsjahrP1 ?? new Date().getFullYear(),
+            geburtsjahr: gjP1,
+            geschlecht: state.person1.geschlecht,
           }).jahresrente
         : 0;
 
@@ -1032,6 +1037,9 @@ function computeAhvRente(
   const fehljahreP2 = state.ahv.hatFehljahreP2 ? state.ahv.fehljahreAnzahlP2 : 0;
   const bezugsalterP2 = clampAhvAlter(state.ahv.ahvBezugsalterP2);
 
+  const gjP2 = state.person2.geburtsdatum
+    ? Number.parseInt(state.person2.geburtsdatum.slice(0, 4), 10)
+    : undefined;
   const p2Einzel =
     override2 != null && override2 > 0
       ? override2
@@ -1041,6 +1049,8 @@ function computeAhvRente(
             fehljahre: fehljahreP2,
             bezugsalter: bezugsalterP2,
             bezugsjahr: bezugsjahrP2 ?? new Date().getFullYear(),
+            geburtsjahr: gjP2,
+            geschlecht: state.person2.geschlecht,
           }).jahresrente
         : 0;
 

@@ -10,6 +10,7 @@ import {
   dreizehnteAhvFaktor,
   ordentlichesAhvAlter,
   istAhv21Uebergangsjahrgang,
+  vorbezugKuerzungProJahrAhv21,
   ORDENTLICHES_AHV_ALTER,
   ERSTES_JAHR_13TE_AHV,
 } from "./ahv";
@@ -332,5 +333,55 @@ describe("AHV21 — Frauen-Übergangsalter (Stufenplan)", () => {
     expect(istAhv21Uebergangsjahrgang(1960, "w")).toBe(false);
     expect(istAhv21Uebergangsjahrgang(1964, "w")).toBe(false);
     expect(istAhv21Uebergangsjahrgang(1962, "m")).toBe(false);
+  });
+});
+
+describe("V4 — AHV21 Vorbezug-Kürzung reduzierte Sätze (Übergangsfrauen)", () => {
+  it("Männer + Frauen ausserhalb 1961-63: Standard 6.8 % / J", () => {
+    expect(vorbezugKuerzungProJahrAhv21(1965, "m", 50_000)).toBe(0.068);
+    expect(vorbezugKuerzungProJahrAhv21(1960, "w", 50_000)).toBe(0.068);
+    expect(vorbezugKuerzungProJahrAhv21(1964, "w", 50_000)).toBe(0.068);
+  });
+
+  it("Frau Jg 1961, tiefes Einkommen (≤60'480): 0 % Kürzung", () => {
+    expect(vorbezugKuerzungProJahrAhv21(1961, "w", 50_000)).toBe(0.0);
+    expect(vorbezugKuerzungProJahrAhv21(1961, "w", 60_480)).toBe(0.0);
+  });
+
+  it("Frau Jg 1961, mittleres Einkommen: 2.5 % Kürzung", () => {
+    expect(vorbezugKuerzungProJahrAhv21(1961, "w", 70_000)).toBe(0.025);
+  });
+
+  it("Frau Jg 1961, hohes Einkommen (>90'720): voller Satz 6.8 %", () => {
+    expect(vorbezugKuerzungProJahrAhv21(1961, "w", 100_000)).toBe(0.068);
+  });
+
+  it("Frau Jg 1962: weniger Rabatt als Jg 1961 bei gleichem Einkommen", () => {
+    const k1961 = vorbezugKuerzungProJahrAhv21(1961, "w", 50_000);
+    const k1962 = vorbezugKuerzungProJahrAhv21(1962, "w", 50_000);
+    expect(k1962).toBeGreaterThan(k1961);
+  });
+
+  it("Frau Jg 1963: weniger Rabatt als Jg 1962", () => {
+    const k1962 = vorbezugKuerzungProJahrAhv21(1962, "w", 50_000);
+    const k1963 = vorbezugKuerzungProJahrAhv21(1963, "w", 50_000);
+    expect(k1963).toBeGreaterThan(k1962);
+  });
+
+  it("ahvJahresrenteEinzel: Frau Jg 1961 mit Vorbezug bekommt höhere Rente", () => {
+    const standard = ahvJahresrenteEinzel({
+      massgebendesEinkommen: 50_000,
+      bezugsalter: 63, // 1 Jahr Vorbezug von 64 (Ord-Alter 1961)
+      bezugsjahr: 2025,
+    });
+    const ahv21 = ahvJahresrenteEinzel({
+      massgebendesEinkommen: 50_000,
+      bezugsalter: 63,
+      bezugsjahr: 2025,
+      geburtsjahr: 1961,
+      geschlecht: "w",
+    });
+    // Mit AHV21-Rabatt (0 % bei tiefem Einkommen) ist Rente höher
+    expect(ahv21.jahresrente).toBeGreaterThan(standard.jahresrente);
   });
 });

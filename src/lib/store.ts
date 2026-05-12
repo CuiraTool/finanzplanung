@@ -187,6 +187,23 @@ export interface BvgPersonInput {
   einkaeufe: EinkaufEntry[];
   /** WEF-Vorbezüge für Eigenheim. */
   wefVorbezuege?: WefVorbezugEntry[];
+  /**
+   * V7: BVG-Reglement Witwen/Waisenrente in % der Altersrente.
+   * Defaults: Witwen 60%, Halbwaisen 20%, Vollwaisen 40% (BVG-Minimum
+   * Art. 19/20). Reglement-Plus möglich (z.B. 65% / 25% / 45%).
+   */
+  witwenrenteProzent?: number | null;
+  halbwaisenrenteProzent?: number | null;
+  vollwaisenrenteProzent?: number | null;
+  /**
+   * Konkubinatspartner-Berechtigung im BVG-Reglement. Heute zahlen viele
+   * PKs (Reglement-abhängig) auch Konkubinatspartner Witwenrenten, wenn:
+   *  - 5+ Jahre Lebensgemeinschaft am Sterbedatum ODER
+   *  - mind. ein gemeinsames Kind
+   *  - Schriftliche Begünstigungs-Meldung an PK
+   * Default false (sicherheitshalber).
+   */
+  konkubinatBerechtigt?: boolean;
 }
 
 export interface BvgInput {
@@ -252,7 +269,16 @@ export interface VermoegenInput {
 }
 
 /** Immobilien — Block 8. */
-export type ImmobilienTyp = "selbstbewohnt" | "rendite";
+/**
+ * Immobilien-Typ:
+ *  - selbstbewohnt: Eigenheim, Eigenmietwert wirksam, kein Mieteinkommen
+ *  - rendite: vermietete Liegenschaft, Mieteinkommen, kein Eigenmietwert
+ *  - sonstiges: Bauland, Ausland-Immobilien, leerstehende Erbschaftsobjekte —
+ *    Verkehrswert wirkt im Vermögen, KEIN Eigenmietwert, KEIN Mieteinkommen
+ *    (Steuer: nur Vermögenssteuer; bei Ausland: meist Steueranrechnung
+ *    via Doppelbesteuerungsabkommen, hier vereinfacht als CH-Vermögen).
+ */
+export type ImmobilienTyp = "selbstbewohnt" | "rendite" | "sonstiges";
 export type ImmobilienPlan = "behalten" | "verkaufen";
 
 export interface Hypothek {

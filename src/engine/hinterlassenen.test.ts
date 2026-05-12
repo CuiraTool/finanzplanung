@@ -101,4 +101,74 @@ describe("Hinterlassenen-Leistungen", () => {
     expect(r.ahvAnspruchsberechtigt).toBe(false);
     expect(r.hinweise.some((h) => h.includes("Konkubinat"))).toBe(true);
   });
+
+  // ─── V7: Reglement-konfigurierbarkeit ─────────────────
+
+  it("V7: Reglement-Override Witwenrente 65 % (über BVG-Minimum 60 %)", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 30_240,
+      bvgAltersrenteVerstorbener: 24_000,
+      alterUeberlebender: 50,
+      ehejahre: 20,
+      halbwaisen: 0,
+      bvgWitwenrenteProzent: 65, // Reglement zahlt 65 % statt 60 %
+    });
+    expect(r.bvgWitwenrente).toBe(15_600); // 65 % × 24'000
+  });
+
+  it("V7: Reglement-Override Waisenrente 25 % statt 20 %", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 20_000,
+      bvgAltersrenteVerstorbener: 18_000,
+      alterUeberlebender: 40,
+      ehejahre: 10,
+      halbwaisen: 2,
+      bvgHalbwaisenrenteProzent: 25,
+    });
+    // 2 × 25 % × 18'000 = 9'000
+    expect(r.bvgWaisenrenten).toBe(9_000);
+  });
+
+  it("V7: Konkubinat + Reglement-Berechtigung 5+ J → BVG-Witwenrente fliesst", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 30_000,
+      bvgAltersrenteVerstorbener: 20_000,
+      alterUeberlebender: 50,
+      ehejahre: 6, // wird als Lebensgemeinschafts-Dauer gewertet
+      halbwaisen: 0,
+      istKonkubinat: true,
+      konkubinatBerechtigt: true,
+    });
+    expect(r.bvgWitwenrente).toBe(12_000); // 60 % × 20'000
+    expect(r.ahvWitwenrente).toBe(0); // AHV kennt kein Konkubinat
+    expect(r.hinweise.some((h) => h.includes("Lebenspartner"))).toBe(true);
+  });
+
+  it("V7: Konkubinat OHNE Reglement-Berechtigung → keine BVG-Witwenrente", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 30_000,
+      bvgAltersrenteVerstorbener: 20_000,
+      alterUeberlebender: 50,
+      ehejahre: 6,
+      halbwaisen: 0,
+      istKonkubinat: true,
+      konkubinatBerechtigt: false,
+    });
+    expect(r.bvgWitwenrente).toBe(0);
+    expect(r.hinweise.some((h) => h.includes("Reglement"))).toBe(true);
+  });
+
+  it("V7: Konkubinat mit Kind → BVG-Berechtigung auch ohne 5 J", () => {
+    const r = berechneHinterlassenen({
+      ahvAltersrenteVerstorbener: 30_000,
+      bvgAltersrenteVerstorbener: 20_000,
+      alterUeberlebender: 35,
+      ehejahre: 2,
+      halbwaisen: 1,
+      istKonkubinat: true,
+      konkubinatBerechtigt: true,
+    });
+    expect(r.bvgWitwenrente).toBe(12_000);
+    expect(r.bvgWaisenrenten).toBe(4_000); // 1 × 20 % × 20'000
+  });
 });

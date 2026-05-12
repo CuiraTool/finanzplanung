@@ -105,6 +105,57 @@ export function istAhv21Uebergangsjahrgang(
   return geschlecht === "w" && geburtsjahr >= 1961 && geburtsjahr <= 1963;
 }
 
+/**
+ * Reduzierte Vorbezug-Kürzungssätze für AHV21-Übergangsfrauen
+ * (Jg 1961-1963), Quelle: BSV-Merkblatt 3.04 v01.01.2025 "Flexibler
+ * Rentenbezug", Anhang 1.
+ *
+ * Bei Vorbezug erhalten Übergangsfrauen einkommensabhängige
+ * Erleichterung. Tabelle gibt prozentuale jährliche Kürzung zurück:
+ *  - tieferes Einkommen → tiefere Kürzung (oder gar 0%)
+ *  - höheres Einkommen → bis Standard 6.8% (kein Rabatt)
+ *
+ * Vereinfacht: 3 Brackets nach mittlerem Einkommen (BSV-Tabelle ist
+ * granular auf CHF 1'512 — hier approximiert via Brackets):
+ *
+ * Vorbezugs-Kürzung pro Jahr Vorbezug (über Übergangs-Schwelle hinaus):
+ * Massg. Eink.    | Jg 1961 | Jg 1962 | Jg 1963
+ * ≤ 60'480        | 0.0%    | 2.5%    | 4.0%
+ * 60'480-75'600   | 2.5%    | 4.0%    | 5.5%
+ * 75'600-90'720   | 4.5%    | 5.5%    | 6.0%
+ * > 90'720        | 6.8%    | 6.8%    | 6.8%
+ */
+export function vorbezugKuerzungProJahrAhv21(
+  geburtsjahr: number,
+  geschlecht: "m" | "w" | "andere" | null | undefined,
+  massgebendesEinkommen: number
+): number {
+  // Nur Frauen Jg 1961-1963 bekommen Rabatt
+  if (!istAhv21Uebergangsjahrgang(geburtsjahr, geschlecht)) {
+    return VORBEZUG_KUERZUNG_PRO_JAHR; // 6.8 %
+  }
+
+  const e = massgebendesEinkommen;
+  // BSV-Tabelle (vereinfacht — Etappe 1.5 ist genauer)
+  if (geburtsjahr === 1961) {
+    if (e <= 60_480) return 0.0;
+    if (e <= 75_600) return 0.025;
+    if (e <= 90_720) return 0.045;
+    return 0.068;
+  }
+  if (geburtsjahr === 1962) {
+    if (e <= 60_480) return 0.025;
+    if (e <= 75_600) return 0.04;
+    if (e <= 90_720) return 0.055;
+    return 0.068;
+  }
+  // 1963
+  if (e <= 60_480) return 0.04;
+  if (e <= 75_600) return 0.055;
+  if (e <= 90_720) return 0.06;
+  return 0.068;
+}
+
 const AUFSCHUB_ZUSCHLAG_TABELLE: { monate: number; zuschlag: number }[] = [
   { monate: 0, zuschlag: 0 },
   { monate: 12, zuschlag: 0.052 },
@@ -207,7 +258,12 @@ export function dreizehnteAhvFaktor(bezugsjahr: number): number {
  */
 export function bezugsfaktor(
   bezugsalter: number,
-  ordentlich: number = ORDENTLICHES_AHV_ALTER
+  ordentlich: number = ORDENTLICHES_AHV_ALTER,
+  ahv21Context?: {
+    geburtsjahr: number;
+    geschlecht: "m" | "w" | "andere" | null | undefined;
+    massgebendesEinkommen: number;
+  }
 ): number {
   // Defensiver Clamp: garantiert legale Eingabe (z.B. nach Korrupt-LocalStorage
   // oder vor expliziter Validierung in der UI).
@@ -221,7 +277,15 @@ export function bezugsfaktor(
 
   if (monateAbweichung < 0) {
     const monateVorbezug = -monateAbweichung;
-    const kuerzungProMonat = VORBEZUG_KUERZUNG_PRO_JAHR / 12;
+    // V4: AHV21-Übergangsfrauen Jg 1961-1963 bekommen reduzierte Kürzung
+    const kuerzungProJahr = ahv21Context
+      ? vorbezugKuerzungProJahrAhv21(
+          ahv21Context.geburtsjahr,
+          ahv21Context.geschlecht,
+          ahv21Context.massgebendesEinkommen
+        )
+      : VORBEZUG_KUERZUNG_PRO_JAHR;
+    const kuerzungProMonat = kuerzungProJahr / 12;
     return 1 - monateVorbezug * kuerzungProMonat;
   }
 
@@ -246,6 +310,9 @@ export interface AhvJahresrenteInput {
   fehljahre?: number;
   bezugsalter?: number;
   bezugsjahr?: number;
+  /** Für V4: AHV21-Übergangsfrauen Jg 1961-1963 reduzierte Vorbezug-Kürzung */
+  geburtsjahr?: number;
+  geschlecht?: "m" | "w" | "andere" | null;
 }
 
 export interface AhvJahresrenteOutput {
@@ -267,7 +334,15 @@ export function ahvJahresrenteEinzel(
   const bezugsjahr = input.bezugsjahr ?? new Date().getFullYear();
 
   const basisrente = vollrenteEinzelSkala44(input.massgebendesEinkommen, fehljahre);
-  const bf = bezugsfaktor(bezugsalter);
+  const ahv21Context =
+    input.geburtsjahr != null && input.geschlecht !== undefined
+      ? {
+          geburtsjahr: input.geburtsjahr,
+          geschlecht: input.geschlecht,
+          massgebendesEinkommen: input.massgebendesEinkommen,
+        }
+      : undefined;
+  const bf = bezugsfaktor(bezugsalter, ORDENTLICHES_AHV_ALTER, ahv21Context);
   const df = dreizehnteAhvFaktor(bezugsjahr);
   const hat13te = df > 1;
 
