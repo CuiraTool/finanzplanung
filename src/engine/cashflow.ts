@@ -35,6 +35,7 @@ import {
   ahvBezugsstart,
   ahvJahresFaktor,
   ahvKinderrente,
+  dreizehnteAhvFaktor,
   ORDENTLICHES_AHV_ALTER,
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
@@ -1129,11 +1130,20 @@ function computeAhvRente(
   }
 
   // Ehepaar-Rente: wenn beide Override haben, einfach summieren mit Plafond
-  // CHF 45'360 (150% Max). Sonst Standard-Berechnung mit Splitting.
+  // CHF 45'360 (150% Max einzelne Rente) × 13/12 ab 2026 (13. AHV).
+  // BSV-Praxis: Override-Werte aus IK-Auszug sind bereits die nach Splitting
+  // korrigierten Renten — Cuira plafondiert auf gemeinsamen Ehepaar-Cap.
   let haushalt: number;
   if (override1 != null && override1 > 0 && override2 != null && override2 > 0) {
-    const PLAFOND_EHEPAAR = 45_360;
-    haushalt = Math.min(PLAFOND_EHEPAAR, override1 + override2);
+    const refJahr = Math.max(
+      bezugsjahrP1 ?? new Date().getFullYear(),
+      bezugsjahrP2 ?? new Date().getFullYear()
+    );
+    // Plafond inkl. 13. AHV ab 2026 + Konkubinat-Klammer
+    const plafond = istKonkubinat(state)
+      ? Number.POSITIVE_INFINITY // bei Konkubinat kein Plafond (bereits oben behandelt)
+      : 45_360 * dreizehnteAhvFaktor(refJahr);
+    haushalt = Math.min(plafond, override1 + override2);
   } else if (e1 != null && e2 != null) {
     const refJahr = Math.max(
       bezugsjahrP1 ?? new Date().getFullYear(),
@@ -1514,39 +1524,66 @@ function pkSaldoSparphase(
   if (bezugsjahr != null && jahr >= bezugsjahr) return 0;
 
   const wefSumme = wefSummeBis(p, jahr);
+  // Tiago-Fix: PK-Einkäufe bis zum aktuellen Jahr inkl. addieren (sichtbar
+  // im Vorsorge-Vermögen statt nur im Bezugsjahr).
+  const einkaufSummeBis = einkaufSummeBisJahr(p.einkaeufe, jahr);
 
   if (bezugsjahr == null || beiBezug == null) {
-    return Math.max(0, (heute ?? beiBezug ?? 0) - wefSumme);
+    return Math.max(0, (heute ?? beiBezug ?? 0) - wefSumme + einkaufSummeBis);
   }
   if (heute == null) return Math.max(0, beiBezug - wefSumme);
   if (bezugsjahr <= jetzt) return Math.max(0, beiBezug - wefSumme);
-  if (jahr <= jetzt) return Math.max(0, heute - wefSumme);
+  if (jahr <= jetzt) return Math.max(0, heute - wefSumme + einkaufSummeBis);
 
   // Versicherungsmathematischer Hochlauf
   const n = bezugsjahr - jetzt;
   const k = jahr - jetzt;
   const r = BVG_MINDESTZINS;
 
-  // Y-1a H-1 Guard: n=0 wäre Division-durch-0; n<=0 sollte oben gefangen sein,
-  // ist hier defensiv. Wenn jetzt == bezugsjahr → Saldo = beiBezug (kein Hochlauf).
+  // Y-1a H-1 Guard: n=0 wäre Division-durch-0; n<=0 sollte oben gefangen sein.
   if (n <= 0) return Math.max(0, beiBezug - wefSumme);
 
   // Sparbeitrag S rückwärts aus FV / PV / n / r ableiten
   const pvAufgezinst = heute * Math.pow(1 + r, n);
   const annuitaetsFaktor = (r as number) === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
   const rohSparBeitrag = (beiBezug - pvAufgezinst) / annuitaetsFaktor;
-  // Y-1a H-1 Guard: bei sehr hohem PV (Vermögen schrumpft auf BeiBezug) wäre
-  // sparBeitrag negativ → PK-Kurve würde absinken statt wachsen, was real
-  // nicht stimmt (kein "Abzug" aus PK in Sparphase). Auf 0 clampen — Saldo
-  // hochlaufen lassen via PV-Compound, finale Ankunft = BeiBezug ist dann
-  // approximativ (User gab inkonsistente Werte ein, dokumentiert).
   const sparBeitrag = Math.max(0, rohSparBeitrag);
 
   // Saldo nach k Jahren
   const compoundedPv = heute * Math.pow(1 + r, k);
   const kompoFaktorK = (r as number) === 0 ? k : (Math.pow(1 + r, k) - 1) / r;
-  const saldoOhneWef = Math.round(compoundedPv + sparBeitrag * kompoFaktorK);
-  return Math.max(0, saldoOhneWef - wefSumme);
+  const saldoOhneEinkauf = Math.round(compoundedPv + sparBeitrag * kompoFaktorK);
+  // Tiago-Fix: PK-Einkäufe bis jahr zusätzlich addiert (Mindestzins-verzinst
+  // ab Einkauf-Jahr). Macht Vorsorge-Sprung im Cashflow sichtbar.
+  return Math.max(0, saldoOhneEinkauf - wefSumme + einkaufSummeBis);
+}
+
+/**
+ * Summe aller PK-Einkäufe bis und mit Jahr (inkl.) — mit Mindestzins
+ * ab Einkauf-Jahr bis aktuelles Jahr verzinst.
+ */
+function einkaufSummeBisJahr(
+  einkaeufe: import("@/lib/store").EinkaufEntry[],
+  jahr: number
+): number {
+  const r = BVG_MINDESTZINS;
+  let total = 0;
+  for (const e of einkaeufe) {
+    if (e.betrag == null || e.betrag <= 0) continue;
+    if (!e.serie) {
+      if (e.jahr <= jahr) {
+        const verzinsungsJahre = Math.max(0, jahr - e.jahr);
+        total += e.betrag * Math.pow(1 + r, verzinsungsJahre);
+      }
+    } else {
+      const bis = e.bisJahr ?? e.jahr;
+      for (let j = e.jahr; j <= bis && j <= jahr; j++) {
+        const verzinsungsJahre = Math.max(0, jahr - j);
+        total += e.betrag * Math.pow(1 + r, verzinsungsJahre);
+      }
+    }
+  }
+  return Math.round(total);
 }
 
 function vorsorgeVermoegenAmJahresende(

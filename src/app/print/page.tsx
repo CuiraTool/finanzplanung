@@ -348,14 +348,14 @@ export default function PrintPage() {
               Auslegeordnung Pensionsplanung
             </div>
             <h1
-              className="text-[44px] font-semibold leading-tight tracking-tight"
+              className="text-[40px] font-semibold leading-tight tracking-tight"
               style={{ color: "#0a2540" }}
             >
               {kundeName || "Mandant"}
               {kundeName2 && (
                 <>
                   <br />
-                  <span className="text-[28px] font-normal" style={{ color: "#4b566b" }}>
+                  <span className="text-[40px] font-semibold" style={{ color: "#0a2540" }}>
                     &amp; {kundeName2}
                   </span>
                 </>

@@ -1265,16 +1265,24 @@ export const usePlanStore = create<PlanState>()(
         })),
       addEinkommensperiode: () =>
         set((s) => {
-          // Tiago-Fix: Bis-Datum aus Wunsch-Pensionierung vorbefüllen
-          // (Block 2 bezugsalterP1 → Geburtsjahr + alter). Übersteuerbar.
-          const gjStr = s.person1.geburtsdatum.slice(0, 4);
+          // Person-Default: alterniert. Wenn letzter Eintrag P1, neuer = P2 (bei Paar).
+          // Sonst: P1. Verhindert User-Frust wenn er mehrere Lohn-Perioden für
+          // beide Personen erfasst.
+          const last = s.budget.einkommen[s.budget.einkommen.length - 1];
+          const defaultPersonIdx: 1 | 2 =
+            s.fallart === "paar" && last?.personIdx === 1 ? 2 : 1;
+          // Geburtsdatum + Pensionsalter der zugewiesenen Person für Bis-Datum
+          const p = defaultPersonIdx === 1 ? s.person1 : s.person2;
+          const bezAlter =
+            defaultPersonIdx === 1
+              ? s.ziele.bezugsalterP1 ?? 65
+              : s.ziele.bezugsalterP2 ?? 65;
+          const gjStr = p.geburtsdatum.slice(0, 4);
           const gj = parseInt(gjStr, 10);
-          const bezAlter = s.ziele.bezugsalterP1 ?? 65;
           const pensionsjahr = Number.isFinite(gj)
             ? gj + Math.floor(bezAlter)
             : null;
-          // Bis-Monat: anhand Geburtsmonat berechnen (1 Monat vor Pensionsmonat)
-          const gMonat = parseInt(s.person1.geburtsdatum.slice(5, 7), 10);
+          const gMonat = parseInt(p.geburtsdatum.slice(5, 7), 10);
           const bisStr = pensionsjahr
             ? `${pensionsjahr}-${String(gMonat || 12).padStart(2, "0")}`
             : "";
@@ -1286,7 +1294,7 @@ export const usePlanStore = create<PlanState>()(
                 {
                   id: newId(),
                   beschreibung: "",
-                  personIdx: 1,
+                  personIdx: defaultPersonIdx,
                   betragMonatlich: null,
                   von: currentYearMonth(),
                   bis: bisStr,

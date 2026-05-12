@@ -33,16 +33,13 @@ export function SteuerDetailCard({ cashflow }: Props) {
   const heuteJahr = new Date().getFullYear();
   const heuteZeile = cashflow.find((z) => z.jahr === heuteJahr) ?? cashflow[0]!;
 
-  // Effektivsteuersatz heute
+  // Tiago-Fix: Effektivsteuersatz entfernt (machte für Mandant keinen Sinn).
+  // Nur Grenzsteuersatz + Lebenszeit + Sondertarif sind die relevanten KPIs.
   const einkommenHeuteJahr =
     heuteZeile.einnahmenErwerb +
     heuteZeile.einnahmenAhv +
     heuteZeile.einnahmenBvgRente +
     heuteZeile.einnahmenMieten;
-  const effektivProzent =
-    einkommenHeuteJahr > 0
-      ? (heuteZeile.ausgabenSteuern / einkommenHeuteJahr) * 100
-      : 0;
 
   // Grenzsteuersatz: extra-Berechnung mit Einkommen + 1'000
   const grenzProzent = berechneGrenzsteuersatz(
@@ -73,29 +70,23 @@ export function SteuerDetailCard({ cashflow }: Props) {
           <div className="text-base font-semibold text-slate-700">
             Steuer-Detail
           </div>
-          <div className="text-xs text-slate-400">
-            Effektivsatz heute · Grenzsteuersatz · Lebenszeit-Last · Sondertarif-Jahre
+          <div className="text-xs text-slate-500">
+            Grenzsteuersatz (aktuelles Jahr) · Lebenszeit-Last · Sondertarif-Jahre
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <KpiTile
-          label="Effektivsteuersatz heute"
-          value={`${effektivProzent.toFixed(1)} %`}
-          sub={`${formatChf(heuteZeile.ausgabenSteuern)} ÷ ${formatChf(einkommenHeuteJahr)}`}
-          accent="blue"
-        />
-        <KpiTile
-          label="Grenzsteuersatz"
+          label="Grenzsteuersatz (aktuelles Jahr)"
           value={`${grenzProzent.toFixed(1)} %`}
-          sub="auf +1'000 CHF Mehreinkommen"
+          sub="auf +1'000 CHF Mehreinkommen heute"
           accent="amber"
         />
         <KpiTile
           label="Lebenszeit-Steuern"
           value={formatChf(lebenszeitSteuern)}
-          sub={`Σ ${cashflow.length} Jahre`}
+          sub={`Σ ${cashflow.length} Jahre Planung`}
           accent="slate"
         />
         <KpiTile
@@ -113,7 +104,10 @@ export function SteuerDetailCard({ cashflow }: Props) {
       {kapitalJahre.length > 0 && (
         <div className="mt-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Kapitalbezüge (Sondertarif)
+            Kapitalbezüge (Sondertarif) — alle Bezüge pro Jahr summiert
+          </div>
+          <div className="mb-2 text-[11px] text-slate-500">
+            Eine Zeile pro Bezugs-Jahr. Wenn PK + 3a im gleichen Jahr → Beträge summiert (Steuer-Sondertarif progressiv auf Total).
           </div>
           <div className="overflow-hidden rounded-md border border-slate-100">
             <table className="w-full text-xs">
