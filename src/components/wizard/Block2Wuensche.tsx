@@ -18,6 +18,8 @@ export function Block2Wuensche() {
   const addAusgabe = usePlanStore((s) => s.addEinmaligAusgabe);
   const updateAusgabe = usePlanStore((s) => s.updateEinmaligAusgabe);
   const removeAusgabe = usePlanStore((s) => s.removeEinmaligAusgabe);
+  const wohnortPlan = usePlanStore((s) => s.wohnortPlan);
+  const setWohnortPlan = usePlanStore((s) => s.setWohnortPlan);
 
   return (
     <div className="space-y-6">
@@ -128,6 +130,52 @@ export function Block2Wuensche() {
         >
           + Ausgabe hinzufügen
         </button>
+      </fieldset>
+
+      {/* Sub-Block 3: Umzug / Kantonswechsel */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">
+          Umzug / Kantonswechsel
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            vor oder in der Pension geplant
+          </span>
+        </legend>
+
+        <Field label="Status">
+          <select
+            value={wohnortPlan.umzugStatus ?? ""}
+            onChange={(e) =>
+              setWohnortPlan({
+                umzugStatus:
+                  e.target.value === ""
+                    ? null
+                    : (e.target.value as "ja" | "moeglich" | "nein"),
+              })
+            }
+            className={selectClass}
+          >
+            <option value="">— wählen —</option>
+            <option value="ja">Ja, geplant</option>
+            <option value="moeglich">Möglich</option>
+            <option value="nein">Nein</option>
+          </select>
+        </Field>
+
+        {(wohnortPlan.umzugStatus === "ja" ||
+          wohnortPlan.umzugStatus === "moeglich") && (
+          <Field
+            label="Ziel"
+            hint="Kanton, Gemeinde oder Land — frei beschreibbar"
+          >
+            <input
+              type="text"
+              value={wohnortPlan.umzugZiel}
+              onChange={(e) => setWohnortPlan({ umzugZiel: e.target.value })}
+              placeholder="z.B. Zug, Schwyz oder Portugal"
+              className={inputClass}
+            />
+          </Field>
+        )}
       </fieldset>
     </div>
   );
