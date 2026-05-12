@@ -522,6 +522,20 @@ export default function PrintPage() {
         </Section>
         </div>
 
+        {/* ── Aktiva/Passiva-Bilanz (eigene Seite) ─────────────── */}
+        {cashflow.length > 0 && (
+          <div className="page-break-before pt-4 print-bilanz">
+            <Section titel="Vermögensbilanz heute">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Aufschlüsselung der Aktiva nach Vermögensklasse und Schulden —
+                hilft Klumpen-Risiken (z.B. Eigenheim &gt; 50 %) und Liquiditäts-
+                Engpässe sofort zu erkennen.
+              </p>
+              <BilanzDonut zeile={cashflow[0]!} />
+            </Section>
+          </div>
+        )}
+
         {/* ── 3-Säulen-Übersicht (eigene Seite) ────────────────── */}
         <div className="page-break-before pt-4 print-drei-saeulen">
           <Section titel="3-Säulen-Übersicht bei Pensionierung">
@@ -1388,6 +1402,138 @@ function Row({ k, v }: { k: string; v: string }) {
       <td className="py-1.5 text-slate-500">{k}</td>
       <td className="py-1.5 text-right font-medium text-slate-800">{v}</td>
     </tr>
+  );
+}
+
+/**
+ * Aktiva-Passiva-Bilanz-Donut (Y-3 Audit Pflicht-Lücke #1).
+ *
+ * Aktiva-Donut: Liquidität / Wertschriften / Vorsorge / Immobilien / Firma.
+ * Plus eine Tabelle mit allen Komponenten + Schulden + Netto.
+ */
+function BilanzDonut({ zeile }: { zeile: import("@/engine/cashflow").CashflowZeile }) {
+  const segments = [
+    { label: "Liquidität", value: zeile.vermoegenLiquiditaet, color: "#3b82f6" },
+    { label: "Wertschriften", value: zeile.vermoegenWertschriften, color: "#8b5cf6" },
+    { label: "Vorsorge (PK/3a/FZ)", value: zeile.vermoegenVorsorge, color: "#10b981" },
+    { label: "Immobilien", value: zeile.vermoegenImmobilien, color: "#f59e0b" },
+    { label: "Firma", value: zeile.vermoegenFirma, color: "#6b7280" },
+  ].filter((s) => s.value > 0);
+
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (total === 0) {
+    return <p className="text-xs text-slate-500">Keine Aktiva erfasst.</p>;
+  }
+
+  // Donut SVG mit cumulative angle
+  const cx = 90;
+  const cy = 90;
+  const rOuter = 80;
+  const rInner = 50;
+  let startAngle = -Math.PI / 2; // Start oben
+  const paths = segments.map((seg, i) => {
+    const angle = (seg.value / total) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const x1 = cx + rOuter * Math.cos(startAngle);
+    const y1 = cy + rOuter * Math.sin(startAngle);
+    const x2 = cx + rOuter * Math.cos(endAngle);
+    const y2 = cy + rOuter * Math.sin(endAngle);
+    const x3 = cx + rInner * Math.cos(endAngle);
+    const y3 = cy + rInner * Math.sin(endAngle);
+    const x4 = cx + rInner * Math.cos(startAngle);
+    const y4 = cy + rInner * Math.sin(startAngle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const d = `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+    startAngle = endAngle;
+    return <path key={i} d={d} fill={seg.color} stroke="white" strokeWidth={1} />;
+  });
+
+  return (
+    <div className="grid grid-cols-[200px_1fr] gap-6">
+      <div>
+        <svg
+          viewBox="0 0 180 180"
+          width="180"
+          height="180"
+          role="img"
+          aria-label={`Vermögensbilanz: Aktiva total ${formatChf(total)} CHF`}
+        >
+          {paths}
+          <text
+            x={cx}
+            y={cy - 6}
+            textAnchor="middle"
+            fontSize="11"
+            fill="#4b566b"
+          >
+            Aktiva
+          </text>
+          <text
+            x={cx}
+            y={cy + 10}
+            textAnchor="middle"
+            fontSize="14"
+            fontWeight="600"
+            fill="#0a2540"
+          >
+            {formatChf(total)}
+          </text>
+        </svg>
+      </div>
+      <div>
+        <table className="w-full text-xs">
+          <tbody>
+            {segments.map((s) => (
+              <tr key={s.label} className="border-b border-slate-100">
+                <td className="py-1.5">
+                  <span
+                    className="mr-2 inline-block size-2 rounded-full align-middle"
+                    style={{ background: s.color }}
+                  />
+                  {s.label}
+                </td>
+                <td className="py-1.5 text-right tabular-nums text-slate-700">
+                  {formatChf(s.value)}
+                </td>
+                <td className="py-1.5 pl-2 text-right tabular-nums text-slate-400">
+                  {((s.value / total) * 100).toFixed(0)} %
+                </td>
+              </tr>
+            ))}
+            <tr className="border-b-2 border-slate-300">
+              <td className="py-1.5 font-semibold">Aktiva Total</td>
+              <td className="py-1.5 text-right font-semibold tabular-nums">
+                {formatChf(total)}
+              </td>
+              <td className="py-1.5" />
+            </tr>
+            <tr>
+              <td className="py-1.5 text-rose-700">− Schulden (Hypo + Darlehen)</td>
+              <td className="py-1.5 text-right tabular-nums text-rose-700">
+                −{formatChf(zeile.vermoegenSchulden)}
+              </td>
+              <td className="py-1.5" />
+            </tr>
+            <tr className="border-t border-slate-300">
+              <td className="py-2 text-sm font-semibold text-slate-800">
+                Nettovermögen
+              </td>
+              <td className="py-2 text-right text-sm font-semibold tabular-nums text-slate-800">
+                {formatChf(zeile.vermoegenNetto)}
+              </td>
+              <td className="py-2" />
+            </tr>
+          </tbody>
+        </table>
+        {zeile.vermoegenImmobilien > 0 &&
+          zeile.vermoegenImmobilien / total > 0.5 && (
+            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+              ⚖ Klumpen-Risiko: über 50 % des Vermögens sind in Immobilien
+              gebunden. Bei Bedarf Liquiditätspuffer prüfen.
+            </p>
+          )}
+      </div>
+    </div>
   );
 }
 
