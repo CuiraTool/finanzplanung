@@ -99,11 +99,12 @@ describe("Property 2: Einkommenssteuer-Plausibilität (Total-Sanity)", () => {
 // ─── Property 3: AHV-Rente-Range ───────────────────────────────────
 
 describe("Property 3: AHV-Rente innerhalb BSV-Plafond", () => {
-  it("einnahmenAhv ≤ 45'360 × 13/12 + Toleranz (Plafond Ehepaar + 13. AHV)", () => {
-    // 13. AHV: ab 2026 Faktor 13/12. Plafond Ehepaar = 150% Maximalrente
-    // (CHF 45'360 bei BSV 2025). Max = 45'360 × 13/12 ≈ 49'140.
-    // Toleranz: +500 CHF für Rundung / BSV-Approx.
-    const MAX_AHV_HAUSHALT = Math.ceil((45_360 * 13) / 12) + 500;
+  it("einnahmenAhv ≤ Plafond × Aufschub-Max × 13/12 + Kinderrente + Toleranz", () => {
+    // V3: Plafond Ehepaar 45'360, mit max Aufschub-Faktor 1.315 (5 J).
+    // 13. AHV ab 2026 = × 13/12. Plus Kinderrente bis zum Plafond
+    // (totalAusgabe AHV bis ~150% Maximalrente Einzel).
+    // Konservativ: 45'360 × 1.315 × 13/12 + Toleranz.
+    const MAX_AHV_HAUSHALT = Math.ceil((45_360 * 1.315 * 13) / 12) + 500;
     fc.assert(
       propRunner((reihe) => {
         for (const z of reihe) {

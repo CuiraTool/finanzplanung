@@ -336,6 +336,57 @@ describe("AHV21 — Frauen-Übergangsalter (Stufenplan)", () => {
   });
 });
 
+describe("V3 — AHV-Aufschub Ehepaar: Plafond × Aufschub-Faktor", () => {
+  it("Aufschub beider 2 J: Plafond erhöht auf 45'360 × 1.108", () => {
+    const ohne = ahvCouplePension({
+      einkommenP1: 120_000,
+      einkommenP2: 120_000,
+      bezugsalterP1: 65,
+      bezugsalterP2: 65,
+      bezugsjahr: 2025,
+    });
+    const mitAufschub = ahvCouplePension({
+      einkommenP1: 120_000,
+      einkommenP2: 120_000,
+      bezugsalterP1: 67,
+      bezugsalterP2: 67,
+      bezugsjahr: 2025,
+    });
+    // Ohne Aufschub: Plafond 45'360
+    expect(ohne.haushaltsRente).toBe(45_360);
+    // Mit 2 J Aufschub: 45'360 × 1.108 ≈ 50'259
+    expect(mitAufschub.haushaltsRente).toBeGreaterThan(48_000);
+    expect(mitAufschub.haushaltsRente).toBeLessThan(52_000);
+  });
+
+  it("Asymmetrischer Aufschub: höherer der beiden Faktoren wirkt auf Plafond", () => {
+    const r = ahvCouplePension({
+      einkommenP1: 120_000,
+      einkommenP2: 120_000,
+      bezugsalterP1: 65, // ord.
+      bezugsalterP2: 70, // 5 J Aufschub, Faktor 1.315
+      bezugsjahr: 2025,
+    });
+    // Plafond = 45'360 × 1.315 ≈ 59'648
+    expect(r.haushaltsRente).toBeGreaterThan(50_000);
+    expect(r.haushaltsRente).toBeLessThan(60_000);
+  });
+
+  it("Vorbezug: Plafond bleibt 45'360 (clamp ≥ 1)", () => {
+    const r = ahvCouplePension({
+      einkommenP1: 120_000,
+      einkommenP2: 120_000,
+      bezugsalterP1: 63,
+      bezugsalterP2: 63,
+      bezugsjahr: 2025,
+    });
+    // Beide max einkommen → summe Vor13 > 45'360 trotz Vorbezug-Kürzung
+    // (max × 2 × 0.864 = 52'255 > 45'360) → plafoniert auf 45'360
+    expect(r.haushaltsRente).toBe(45_360);
+    expect(r.plafoniert).toBe(true);
+  });
+});
+
 describe("V4 — AHV21 Vorbezug-Kürzung reduzierte Sätze (Übergangsfrauen)", () => {
   it("Männer + Frauen ausserhalb 1961-63: Standard 6.8 % / J", () => {
     expect(vorbezugKuerzungProJahrAhv21(1965, "m", 50_000)).toBe(0.068);

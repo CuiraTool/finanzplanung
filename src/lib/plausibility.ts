@@ -60,6 +60,25 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
         text: "Fallart Paar — Vorname Person 2 fehlt.",
       });
     }
+    // Y-1c Hinweis: bei Verheirateten/Geschiedenen + Einkommen-Asymmetrie
+    // empfehlen IK-Auszug-Override für genaue AHV-Berechnung.
+    if (
+      state.zivilstand === "verheiratet" &&
+      state.ahv.einkommenP1 != null &&
+      state.ahv.einkommenP2 != null &&
+      Math.abs(state.ahv.einkommenP1 - state.ahv.einkommenP2) > 50_000 &&
+      state.ahv.ahvRenteJahrEffektivP1 == null &&
+      state.ahv.ahvRenteJahrEffektivP2 == null
+    ) {
+      out.push({
+        id: "ahv-splitting-empfehlung",
+        block: "4 AHV",
+        schwere: "info",
+        text:
+          "Grosse Einkommens-Asymmetrie zwischen P1/P2 — Cuira-AHV nutzt symmetrisches Splitting über alle Karriere-Jahre (Vereinfachung). Für exakte Werte: AHV-Rente aus IK-Auszug direkt eingeben (Override-Feld in Block 4).",
+      });
+    }
+
     // Konkubinat-Info: kein AHV-Splitting/Plafond, kein Verheirateten-Tarif.
     if (state.zivilstand === "konkubinat") {
       out.push({

@@ -34,6 +34,7 @@ import {
   ahvCouplePension,
   ahvBezugsstart,
   ahvJahresFaktor,
+  ahvKinderrente,
   ORDENTLICHES_AHV_ALTER,
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
@@ -73,6 +74,8 @@ export type CashflowInput = Pick<
 > & {
   /** Optional — wird für Erbschaft/Schenkung-Engine verwendet wenn vorhanden. */
   erbschaft?: PlanState["erbschaft"];
+  /** Temporäre laufende Ausgaben mit Von/Bis (Studium, Schulden, etc.). */
+  laufendeAusgaben?: PlanState["laufendeAusgaben"];
 };
 
 /**
@@ -359,6 +362,20 @@ export function cashflowReihe(
       einnahmenAhv = Math.round(ahvRenteHaushalt.haushalt * ahvFaktorP1);
     }
 
+    // V2: AHV-Kinderrente — pensionierter Elternteil + Kind < 18 (oder < 25 in Ausbildung).
+    // Plafondierung gegen Haushalts-Altersrente (max ~49'140 inkl. 13. AHV).
+    // Bei Paar mit beiden Max-Renten: Plafond schon erreicht → 0 Kinderrente.
+    const anzahlKinderAhvRente = anzahlAhvKinderrentenberechtigt(state.kinder, jahr);
+    let einnahmenAhvKinderrente = 0;
+    if (anzahlKinderAhvRente > 0 && einnahmenAhv > 0) {
+      einnahmenAhvKinderrente = ahvKinderrente(
+        einnahmenAhv,
+        anzahlKinderAhvRente,
+        jahr
+      );
+    }
+    einnahmenAhv += einnahmenAhvKinderrente;
+
     // BVG-Rente mit Pro-Rata im Bezugsstart-Jahr (Folgemonat nach Erreichen
     // des PK-Bezugsalters). PK kennt keine 13. Rente, daher Divisor 12.
     // Kapital-Auszahlungen sind separat (einmaliger Stichtags-Bezug).
@@ -422,6 +439,12 @@ export function cashflowReihe(
       pkBezugsjahrP1 != null && jahr >= pkBezugsjahrP1;
     const ausgabenHaushalt = haushaltsausgabenJahr(state.budget, istPensioniert);
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
+    const ausgabenLaufend = laufendeAusgabenJahr(state.laufendeAusgaben, jahr);
+    // V5: Selbständigkeits-AHV-Mehraufwand (10 % statt 5.3 % AN-Anteil)
+    const ausgabenSelbstaendigAhv = selbstaendigAhvMehraufwandJahr(
+      state.budget.einkommen,
+      jahr
+    );
     const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
     const ausgabenSchenkung = schenkungAusgabeJahr(state, jahr);
     // Alimente-Variablen (ausgabenAlimente, einnahmenAlimente, alimenteBetrag,
@@ -683,6 +706,8 @@ export function cashflowReihe(
       ausgabenHaushalt +
       ausgabenSteuern +
       ausgabenEinmalig +
+      ausgabenLaufend +
+      ausgabenSelbstaendigAhv +
       ausgabenSozialBvg +
       ausgabenVorsorge3a +
       ausgabenPkEinkauf +
@@ -851,6 +876,48 @@ function erwerbseinkommenJahrPerson(
     total += p.betragMonatlich * aktivMonate;
   }
   return total;
+}
+
+/**
+ * V5: Selbständigkeits-Einkommen im Jahr (Σ aktive Perioden mit typ="selbstaendigkeit").
+ * Wird für zusätzlichen AHV-Beitrags-Cashflow verwendet.
+ */
+function selbstaendigEinkommenJahr(
+  perioden: Einkommensperiode[],
+  jahr: number
+): number {
+  let total = 0;
+  for (const p of perioden) {
+    if (p.typ !== "selbstaendigkeit") continue;
+    if (p.betragMonatlich == null) continue;
+    const von = parseYearMonth(p.von);
+    const bis = parseYearMonth(p.bis);
+    const aktivMonate = aktiveMonateImJahr(jahr, von, bis);
+    total += p.betragMonatlich * aktivMonate;
+  }
+  return total;
+}
+
+/**
+ * V5: AHV/IV/EO-Beitrags-Mehraufwand für Selbständige.
+ * Stand 2025: Selbständige zahlen 10.0 % AHV + 1.4 % IV + 0.5 % EO = 11.9 %
+ * direkt selbst (statt nur 5.3 % bei AN-Anstellung). Differenz ~5.85 %
+ * wird als zusätzliche Cashflow-Ausgabe gebucht (ja, Engine modelliert
+ * Erwerb als "Netto" → bei Selbständigkeit muss Brutto-AHV-Last sichtbar
+ * werden).
+ *
+ * Bei sehr tiefem Einkommen (< CHF 9'800) gilt absoluter Mindestbeitrag,
+ * hier vereinfacht.
+ */
+const SELBSTAENDIG_AHV_MEHRSATZ = 0.0585;
+
+function selbstaendigAhvMehraufwandJahr(
+  perioden: Einkommensperiode[],
+  jahr: number
+): number {
+  return Math.round(
+    selbstaendigEinkommenJahr(perioden, jahr) * SELBSTAENDIG_AHV_MEHRSATZ
+  );
 }
 
 /** Total 3a- oder 3b-Einzahlungen einer Person im Jahr — filterbar per
@@ -1307,6 +1374,26 @@ function einmaligeAusgabenJahr(
   return total;
 }
 
+/**
+ * Laufende temporäre Ausgaben pro Jahr (Studium, Schulden, Ausbildung).
+ * Wirkt Pro-Rata pro Monat aktiv (von/bis). Leer = ganzes Jahr.
+ */
+function laufendeAusgabenJahr(
+  ausgaben: CashflowInput["laufendeAusgaben"] | undefined,
+  jahr: number
+): number {
+  if (!ausgaben) return 0;
+  let total = 0;
+  for (const a of ausgaben) {
+    if (a.betragMonatlich == null) continue;
+    const von = parseYearMonth(a.von);
+    const bis = parseYearMonth(a.bis);
+    const aktivMonate = aktiveMonateImJahr(jahr, von, bis);
+    total += a.betragMonatlich * aktivMonate;
+  }
+  return total;
+}
+
 // ─── Bucket-Helper für die Vermögens-Granularisierung ──────────────
 
 /**
@@ -1689,6 +1776,31 @@ function anzahlKinderAbzugsfaehig(
     if (alter < 18) {
       count++;
     } else if (k.ausbildungBisJahr != null && k.ausbildungBisJahr >= jahr) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * V2: Anzahl Kinder mit Anspruch auf AHV-Kinderrente.
+ * Art. 22ter AHVG: < 18, oder < 25 + Ausbildung.
+ */
+function anzahlAhvKinderrentenberechtigt(
+  kinder: CashflowInput["kinder"],
+  jahr: number
+): number {
+  let count = 0;
+  for (const k of kinder) {
+    const geburtsjahr = parseInt((k.geburtsdatum || "").slice(0, 4), 10);
+    if (!Number.isFinite(geburtsjahr)) continue;
+    const alter = jahr - geburtsjahr;
+    if (alter < 18) count++;
+    else if (
+      alter < 25 &&
+      k.ausbildungBisJahr != null &&
+      k.ausbildungBisJahr >= jahr
+    ) {
       count++;
     }
   }

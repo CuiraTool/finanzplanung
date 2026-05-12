@@ -426,6 +426,7 @@ export type PlanSlot = "a" | "b" | "c";
 export interface PlanVariantData {
   ziele: ZieleWuensche;
   einmaligeAusgaben: EinmaligAusgabe[];
+  laufendeAusgaben: LaufendeAusgabe[];
   budget: Budget;
   ahv: AhvInput;
   bvg: BvgInput;
@@ -611,10 +612,33 @@ export interface EinmaligAusgabe {
   beschreibung: string;
 }
 
+/**
+ * Laufende temporäre Ausgaben mit Von/Bis-Periode.
+ *
+ * Beispiele:
+ *  - Studium-Unterstützung Kind 2025-2030: CHF 2'000/Mt
+ *  - Schulden-Rückzahlung 2026-2032: CHF 1'500/Mt
+ *  - Ausbildungs-Kurs 2026-2028: CHF 800/Mt
+ *  - Übergangs-Mietkosten vor Eigenheim-Kauf 2025-2026
+ *
+ * Im Gegensatz zu `EinmaligAusgabe` (1 Jahr) und `ausgabenTotal` (dauerhaft)
+ * wirken diese nur in der Periode von/bis. Pro-rata pro Monat.
+ */
+export interface LaufendeAusgabe {
+  id: string;
+  beschreibung: string;
+  betragMonatlich: number | null;
+  von: string; // ISO YYYY-MM, leer = offen ab heute
+  bis: string; // ISO YYYY-MM, leer = offen / bis Pension
+  kategorie?: "studium" | "schulden" | "ausbildung" | "wohnen" | "andere";
+}
+
 export interface ZieleWuensche {
   bezugsalterP1: number;
   bezugsalterP2: number;
 }
+
+export type EinkommensTyp = "anstellung" | "selbstaendigkeit";
 
 export interface Einkommensperiode {
   id: string;
@@ -623,6 +647,12 @@ export interface Einkommensperiode {
   betragMonatlich: number | null;
   von: string; // ISO YYYY-MM, leer = offen
   bis: string; // ISO YYYY-MM, leer = offen / bis Pension
+  /**
+   * V5: Einkommens-Typ. Selbständigkeit hat höhere AHV-Beiträge (~10 %
+   * statt 5.3 % bei Anstellung), die als Cashflow-Ausgabe modelliert werden.
+   * Default: "anstellung".
+   */
+  typ?: EinkommensTyp;
 }
 
 export type AusgabenModus = "total" | "detailliert";
@@ -699,6 +729,8 @@ export interface PlanState {
   kinder: Kind[];
   ziele: ZieleWuensche;
   einmaligeAusgaben: EinmaligAusgabe[];
+  /** Temporäre laufende Ausgaben mit Von/Bis (z.B. Studium-Kind, Schulden, Ausbildung). */
+  laufendeAusgaben: LaufendeAusgabe[];
   budget: Budget;
   ahv: AhvInput;
   bvg: BvgInput;
@@ -732,6 +764,9 @@ export interface PlanState {
   addEinmaligAusgabe: () => void;
   updateEinmaligAusgabe: (id: string, patch: Partial<EinmaligAusgabe>) => void;
   removeEinmaligAusgabe: (id: string) => void;
+  addLaufendeAusgabe: () => void;
+  updateLaufendeAusgabe: (id: string, patch: Partial<LaufendeAusgabe>) => void;
+  removeLaufendeAusgabe: (id: string) => void;
   addEinkommensperiode: () => void;
   updateEinkommensperiode: (id: string, patch: Partial<Einkommensperiode>) => void;
   removeEinkommensperiode: (id: string) => void;
@@ -940,6 +975,7 @@ function extractVariant(state: PlanState): PlanVariantData {
   return {
     ziele: state.ziele,
     einmaligeAusgaben: state.einmaligeAusgaben,
+    laufendeAusgaben: state.laufendeAusgaben ?? [],
     budget: state.budget,
     ahv: state.ahv,
     bvg: state.bvg,
@@ -976,6 +1012,7 @@ export const usePlanStore = create<PlanState>()(
       kinder: [],
       ziele: { ...initialZiele },
       einmaligeAusgaben: [],
+      laufendeAusgaben: [],
       budget: { ...initialBudget },
       ahv: { ...initialAhv },
       bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
@@ -1059,6 +1096,7 @@ export const usePlanStore = create<PlanState>()(
         a: {
           ziele: initialZiele,
           einmaligeAusgaben: [],
+      laufendeAusgaben: [],
           budget: initialBudget,
           ahv: {
             einkommenP1: null,
@@ -1196,6 +1234,34 @@ export const usePlanStore = create<PlanState>()(
       removeEinmaligAusgabe: (id) =>
         set((s) => ({
           einmaligeAusgaben: s.einmaligeAusgaben.filter((a) => a.id !== id),
+        })),
+      addLaufendeAusgabe: () =>
+        set((s) => {
+          const heute = new Date();
+          const von = `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, "0")}`;
+          return {
+            laufendeAusgaben: [
+              ...s.laufendeAusgaben,
+              {
+                id: newId(),
+                beschreibung: "",
+                betragMonatlich: null,
+                von,
+                bis: "",
+                kategorie: "andere" as const,
+              },
+            ],
+          };
+        }),
+      updateLaufendeAusgabe: (id, patch) =>
+        set((s) => ({
+          laufendeAusgaben: s.laufendeAusgaben.map((a) =>
+            a.id === id ? { ...a, ...patch } : a
+          ),
+        })),
+      removeLaufendeAusgabe: (id) =>
+        set((s) => ({
+          laufendeAusgaben: s.laufendeAusgaben.filter((a) => a.id !== id),
         })),
       addEinkommensperiode: () =>
         set((s) => ({
@@ -1725,6 +1791,7 @@ export const usePlanStore = create<PlanState>()(
           kinder: [],
           ziele: { ...initialZiele },
           einmaligeAusgaben: [],
+      laufendeAusgaben: [],
           budget: { ...initialBudget },
           ahv: { ...initialAhv },
           bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
@@ -1809,6 +1876,7 @@ export const usePlanStore = create<PlanState>()(
               kinder: [],
               ziele: { ...initialZiele },
               einmaligeAusgaben: [],
+      laufendeAusgaben: [],
               budget: { ...initialBudget },
               ahv: { ...initialAhv },
               bvg: { p1: { ...initialBvgPerson }, p2: { ...initialBvgPerson } },
@@ -1881,8 +1949,8 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v41",
-      version: 41,
+      name: "cuira-plan-v42",
+      version: 42,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
@@ -2007,6 +2075,25 @@ export const usePlanStore = create<PlanState>()(
               a: fix2(state.plaene.a) as PlanVariantData,
               b: fix2(state.plaene.b),
               c: fix2(state.plaene.c),
+            };
+          }
+        }
+
+        // v41 → v42: laufendeAusgaben[] hinzugefügt — temporäre Budget-Ausgaben
+        // mit Von/Bis-Periode (Studium, Schulden-Rückzahlung, Ausbildung).
+        if (fromVersion < 42) {
+          if ((state as { laufendeAusgaben?: unknown }).laufendeAusgaben == null) {
+            (state as { laufendeAusgaben: LaufendeAusgabe[] }).laufendeAusgaben = [];
+          }
+          if (state.plaene) {
+            const fix42 = (v: PlanVariantData | null): PlanVariantData | null =>
+              v
+                ? { ...v, laufendeAusgaben: (v as PlanVariantData & { laufendeAusgaben?: LaufendeAusgabe[] }).laufendeAusgaben ?? [] }
+                : null;
+            state.plaene = {
+              a: fix42(state.plaene.a) as PlanVariantData,
+              b: fix42(state.plaene.b),
+              c: fix42(state.plaene.c),
             };
           }
         }

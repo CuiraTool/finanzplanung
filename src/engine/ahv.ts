@@ -385,7 +385,17 @@ export interface AhvCoupleOutput {
  *
  * Vereinfachung: symmetrisches Einkommens-Splitting (eheliche Berechtigung
  * über die ganze Karriere). Real berücksichtigt nur Beitragsjahre während
- * der Ehe — kommt in Etappe 1.5.
+ * der Ehe — Override via `ahvRenteJahrEffektivP1/P2` deckt komplexe Fälle
+ * wie Geschiedene mit IK-Auszug-Splitting, Witwer/Witwen mit eigener
+ * Karriere vor Ehe, oder asymmetrische Beitragsjahre ab.
+ *
+ * BSV-genaue Splitting-Berechnung (Beitragsjahre vor/während/nach Ehe):
+ *  - Vor Ehe: jeder zählt eigenes massgebendes Einkommen
+ *  - Während Ehe: hälftiges Splitting beider Einkommen pro Beitragsjahr
+ *  - Nach Ehe (Scheidung/Tod): jeder zählt eigenes Einkommen ohne Splitting
+ *
+ * Cuira-Approximation: voll-symmetrisch über alle 44 Beitragsjahre.
+ * Für exakte Werte: IK-Auszug + Override-Feld nutzen.
  */
 export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
   const splitEinkommen = (input.einkommenP1 + input.einkommenP2) / 2;
@@ -401,7 +411,14 @@ export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
   const renteP1Vor13 = basisP1 * bfP1;
   const renteP2Vor13 = basisP2 * bfP2;
   const summeVor13 = renteP1Vor13 + renteP2Vor13;
-  const plafoniert = summeVor13 > MAX_RENTE_EHEPAAR;
+
+  // V3: Plafond bei Aufschub angepasst — Maximum-Ehepaarrente erhält
+  // den höheren der beiden Aufschub-Faktoren. Vorbezug wirkt nur auf
+  // individuelle Renten, nicht auf Plafond (clamp ≥ 1).
+  // Quelle: BSV-Merkblatt 3.04 + AHV-Praxis.
+  const aufschubPlafondMultiplikator = Math.max(1, bfP1, bfP2);
+  const effektiverPlafond = MAX_RENTE_EHEPAAR * aufschubPlafondMultiplikator;
+  const plafoniert = summeVor13 > effektiverPlafond;
 
   if (!plafoniert) {
     const renteP1 = Math.round(renteP1Vor13 * df);
@@ -416,7 +433,7 @@ export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
     };
   }
 
-  const haushalt = Math.round(MAX_RENTE_EHEPAAR * df);
+  const haushalt = Math.round(effektiverPlafond * df);
   return {
     rentenP1: Math.round(haushalt / 2),
     rentenP2: Math.round(haushalt / 2),
@@ -433,6 +450,38 @@ export function ahvCouplePension(input: AhvCoupleInput): AhvCoupleOutput {
  */
 export function ahvMaxCouplePension(year: number): number {
   return Math.round(MAX_RENTE_EHEPAAR * dreizehnteAhvFaktor(year));
+}
+
+/**
+ * V2: AHV-Kinderrente (Art. 22ter AHVG).
+ *
+ * Bezieht eine pensionierte Person AHV-Altersrente UND hat Kind:
+ *  - unter 18 ODER
+ *  - unter 25 UND in Ausbildung
+ * → Anspruch auf Kinderrente von 40 % der eigenen Altersrente pro Kind.
+ *
+ * Plafond: zusammen mit Altersrente max. 150 % der Maximalrente einzeln
+ * (entspricht ca. CHF 45'360 × 13/12 ≈ 49'140 bei 2026+ inkl. 13. AHV).
+ *
+ * Bei Ehepaar: pro Kind max. 1 Kinderrente (höhere der beiden), nicht 2.
+ *
+ * @param altersrente — eigene AHV-Altersrente p.a.
+ * @param anzahlAnspruchsberechtigteKinder — Kinder < 18 oder < 25 + Ausbildung
+ * @param jahr — für 13.-AHV-Plafond-Berechnung
+ * @returns Kinderrente p.a. (kumuliert über alle Kinder, plafoniert)
+ */
+export function ahvKinderrente(
+  altersrente: number,
+  anzahlAnspruchsberechtigteKinder: number,
+  jahr: number
+): number {
+  if (altersrente <= 0 || anzahlAnspruchsberechtigteKinder <= 0) return 0;
+  const rohKinderrente = altersrente * 0.4 * anzahlAnspruchsberechtigteKinder;
+  // Plafond: Alters- + Kinderrenten max. 150 % Einzelrente-Max
+  // (gleich wie Ehepaar-Plafond 45'360, inkl. 13. AHV-Faktor).
+  const plafond = MAX_RENTE_EHEPAAR * dreizehnteAhvFaktor(jahr);
+  const verfuegbar = Math.max(0, plafond - altersrente);
+  return Math.round(Math.min(rohKinderrente, verfuegbar));
 }
 
 /**

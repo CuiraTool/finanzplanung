@@ -244,6 +244,7 @@ export function extractVariantFromState(s: PlanState): PlanVariantData {
   return {
     ziele: s.ziele,
     einmaligeAusgaben: s.einmaligeAusgaben,
+    laufendeAusgaben: s.laufendeAusgaben ?? [],
     budget: s.budget,
     ahv: s.ahv,
     bvg: s.bvg,

@@ -155,6 +155,9 @@ export function Block3Budget() {
         )}
       </fieldset>
 
+      {/* Temporäre laufende Ausgaben — Von/Bis-Perioden */}
+      <TemporaereAusgaben />
+
       {/* Wunsch in Pension */}
       <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
         <legend className="px-1 text-sm font-semibold text-slate-700">
@@ -498,5 +501,104 @@ function EinkommenInlineListe({
         + Weitere Einnahme hinzufügen
       </button>
     </div>
+  );
+}
+
+function TemporaereAusgaben() {
+  const laufendeAusgaben = usePlanStore((s) => s.laufendeAusgaben ?? []);
+  const addLaufendeAusgabe = usePlanStore((s) => s.addLaufendeAusgabe);
+  const updateLaufendeAusgabe = usePlanStore((s) => s.updateLaufendeAusgabe);
+  const removeLaufendeAusgabe = usePlanStore((s) => s.removeLaufendeAusgabe);
+
+  return (
+    <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      <legend className="px-1 text-sm font-semibold text-slate-700">
+        Temporäre Ausgaben
+        <span className="ml-2 text-xs font-normal text-slate-500">
+          mit Von/Bis (z.B. Studium-Unterstützung Kind, Schulden-Rückzahlung,
+          Ausbildung, Übergangs-Miete)
+        </span>
+      </legend>
+
+      {laufendeAusgaben.length === 0 && (
+        <p className="text-xs text-slate-500">
+          Noch keine temporären Ausgaben erfasst.
+        </p>
+      )}
+
+      <ul className="space-y-2">
+        {laufendeAusgaben.map((a) => (
+          <li
+            key={a.id}
+            className="grid grid-cols-[1fr_auto] gap-2 rounded-md border border-slate-200 bg-white p-3"
+          >
+            <div className="grid grid-cols-[1fr_120px_100px_100px] gap-2 items-end">
+              <Field label="Beschreibung">
+                <input
+                  type="text"
+                  value={a.beschreibung}
+                  onChange={(e) =>
+                    updateLaufendeAusgabe(a.id, { beschreibung: e.target.value })
+                  }
+                  placeholder="z.B. Studium Kind"
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="CHF/Mt">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={a.betragMonatlich ?? ""}
+                  onChange={(e) =>
+                    updateLaufendeAusgabe(a.id, {
+                      betragMonatlich:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="2'000"
+                  className={`${inputClass} tabular-nums`}
+                />
+              </Field>
+              <Field label="Von">
+                <input
+                  type="month"
+                  value={a.von}
+                  onChange={(e) =>
+                    updateLaufendeAusgabe(a.id, { von: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Bis">
+                <input
+                  type="month"
+                  value={a.bis}
+                  onChange={(e) =>
+                    updateLaufendeAusgabe(a.id, { bis: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeLaufendeAusgabe(a.id)}
+              className="self-end text-xs text-rose-600 hover:underline"
+              aria-label="Entfernen"
+            >
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={addLaufendeAusgabe}
+        className="w-full rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:text-slate-800"
+      >
+        + Temporäre Ausgabe hinzufügen
+      </button>
+    </fieldset>
   );
 }
