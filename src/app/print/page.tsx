@@ -118,6 +118,39 @@ export default function PrintPage() {
     );
   }, []);
 
+  // PDF-Profile (E2-2): Kurz / Standard / Vollständig
+  type PdfProfile = "kurz" | "standard" | "voll";
+  const [pdfProfile, setPdfProfile] = useState<PdfProfile>("standard");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("cuira-pdf-profile") as PdfProfile | null;
+    if (stored === "kurz" || stored === "standard" || stored === "voll") {
+      setPdfProfile(stored);
+    }
+  }, []);
+  const setPdfProfileAndStore = (p: PdfProfile) => {
+    setPdfProfile(p);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("cuira-pdf-profile", p);
+    }
+  };
+
+  // Section-Sichtbarkeit pro Profil. Standard = alle ausser Detail-Liq + Stress
+  // (Detail-Liq weiterhin via User-Toggle). Kurz = nur Cover + Exec + Massnahmen.
+  const showInProfile = (key:
+    | "bilanz" | "drei-saeulen" | "hinterlassen" | "vermoegens-chart"
+    | "cashflow-chart" | "detail-liq" | "sankey" | "steuer-chart"
+    | "tragbarkeit" | "stress" | "ki" | "optimierungen" | "reminder"
+    | "berater" | "plausi" | "varianten-diff" | "narrativ" | "jahres-tabellen"): boolean => {
+    if (pdfProfile === "voll") return true;
+    if (pdfProfile === "kurz") {
+      return key === "optimierungen" || key === "berater";
+    }
+    // standard: minus Detail-Liq + Stress + Sankey + Jahres-Tabellen
+    if (key === "detail-liq" || key === "stress" || key === "jahres-tabellen") return false;
+    return true;
+  };
+
   // KI-Massnahmen aus LocalStorage laden (vom Dashboard generiert)
   const [kiMassnahmen, setKiMassnahmen] = useState<
     null | { massnahmen: KiMassnahmePrint[]; generatedAt: string }
@@ -242,11 +275,35 @@ export default function PrintPage() {
   return (
     <main className="bg-white print:bg-white">
       {/* Toolbar nur am Bildschirm sichtbar */}
-      <div className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 text-sm shadow-sm print:hidden">
+      <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3 text-sm shadow-sm print:hidden">
         <div className="text-slate-600">
           📄 Druckversion — Cmd/Ctrl+P oder Knopf rechts
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
+            <span className="px-2 text-slate-500">Profil:</span>
+            {(["kurz", "standard", "voll"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPdfProfileAndStore(p)}
+                className={`rounded px-2.5 py-1 transition ${
+                  pdfProfile === p
+                    ? "bg-[var(--color-cuira-deep)] text-white"
+                    : "text-slate-600 hover:bg-white"
+                }`}
+                title={
+                  p === "kurz"
+                    ? "Cover + Executive Summary + Top-Massnahmen (≈4 Seiten)"
+                    : p === "standard"
+                      ? "Standard ohne Detail-Liq + Stress (≈10 Seiten)"
+                      : "Alle Sections (≈22 Seiten)"
+                }
+              >
+                {p === "kurz" ? "Kurz" : p === "standard" ? "Standard" : "Vollständig"}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => window.history.back()}
@@ -364,8 +421,23 @@ export default function PrintPage() {
           </footer>
         </div>
 
+        {/* ── Executive Summary (Kurz-Profil: nach Cover) ──────── */}
+        {cashflow.length > 0 && (
+          <div className="page-break-before pt-6">
+            <Section titel="Executive Summary">
+              <ExecutiveSummary
+                verdict={verdict}
+                cashflow={cashflow}
+                massnahmen={optimierungen.slice(0, 3)}
+                fullState={fullState}
+                ordPensionsjahr={ordPensionsjahr}
+              />
+            </Section>
+          </div>
+        )}
+
         {/* ── Plan-Varianten Δ-Vergleich (eigene Seite, nur wenn ≥1 Vergleich) ── */}
-        {vergleichsSlots.length > 0 && (
+        {showInProfile("varianten-diff") && vergleichsSlots.length > 0 && (
           <div className="page-break-before pt-6">
             <header
               className="mb-5 flex items-start justify-between border-b pb-3"
@@ -523,7 +595,7 @@ export default function PrintPage() {
         </div>
 
         {/* ── Aktiva/Passiva-Bilanz (eigene Seite) ─────────────── */}
-        {cashflow.length > 0 && (
+        {showInProfile("bilanz") && cashflow.length > 0 && (
           <div className="page-break-before pt-4 print-bilanz">
             <Section titel="Vermögensbilanz heute">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -537,14 +609,16 @@ export default function PrintPage() {
         )}
 
         {/* ── 3-Säulen-Übersicht (eigene Seite) ────────────────── */}
-        <div className="page-break-before pt-4 print-drei-saeulen">
-          <Section titel="3-Säulen-Übersicht bei Pensionierung">
-            <DreiSaeulenKpi />
-          </Section>
-        </div>
+        {showInProfile("drei-saeulen") && (
+          <div className="page-break-before pt-4 print-drei-saeulen">
+            <Section titel="3-Säulen-Übersicht bei Pensionierung">
+              <DreiSaeulenKpi />
+            </Section>
+          </div>
+        )}
 
         {/* ── Hinterlassenen-Leistungen (eigene Seite, nur bei Paar) ── */}
-        {fullState.fallart === "paar" && (
+        {showInProfile("hinterlassen") && fullState.fallart === "paar" && (
           <div className="page-break-before pt-4 print-hinterlassenen">
             <Section titel="Hinterlassenen-Leistungen">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -557,41 +631,45 @@ export default function PrintPage() {
         )}
 
         {/* ── Vermögensentwicklung-Chart (eigene Seite) ───────── */}
-        <div className="page-break-before pt-4 chart-section">
-          <Section titel="Vermögensentwicklung">
-            <div className="chart-wrap chart-wrap--tall">
-              {cashflow.length > 0 && (
-                <VermoegensChart
-                  daten={cashflow}
-                  datenB={null}
-                  pensionsjahr={ordPensionsjahr}
-                  wunschPensionsjahr={null}
-                  fallart={fullState.fallart}
-                />
-              )}
-            </div>
-          </Section>
-        </div>
+        {showInProfile("vermoegens-chart") && (
+          <div className="page-break-before pt-4 chart-section">
+            <Section titel="Vermögensentwicklung">
+              <div className="chart-wrap chart-wrap--tall">
+                {cashflow.length > 0 && (
+                  <VermoegensChart
+                    daten={cashflow}
+                    datenB={null}
+                    pensionsjahr={ordPensionsjahr}
+                    wunschPensionsjahr={null}
+                    fallart={fullState.fallart}
+                  />
+                )}
+              </div>
+            </Section>
+          </div>
+        )}
 
         {/* ── Cashflow-Chart (eigene Seite) ───────────────────── */}
-        <div className="page-break-before pt-4 chart-section">
-          <Section titel="Cashflow Jahr für Jahr">
-            <div className="chart-wrap chart-wrap--tall">
-              {cashflow.length > 0 && (
-                <EinnahmenAusgabenChart
-                  daten={cashflow}
-                  datenB={null}
-                  pensionsjahr={ordPensionsjahr}
-                  wunschPensionsjahr={null}
-                  fallart={fullState.fallart}
-                />
-              )}
-            </div>
-          </Section>
-        </div>
+        {showInProfile("cashflow-chart") && (
+          <div className="page-break-before pt-4 chart-section">
+            <Section titel="Cashflow Jahr für Jahr">
+              <div className="chart-wrap chart-wrap--tall">
+                {cashflow.length > 0 && (
+                  <EinnahmenAusgabenChart
+                    daten={cashflow}
+                    datenB={null}
+                    pensionsjahr={ordPensionsjahr}
+                    wunschPensionsjahr={null}
+                    fallart={fullState.fallart}
+                  />
+                )}
+              </div>
+            </Section>
+          </div>
+        )}
 
-        {/* ── Detail-Liquidität pro Jahr — nur wenn User-Toggle aktiv ── */}
-        {showDetailLiq && cashflow.length > 0 && (
+        {/* ── Detail-Liquidität pro Jahr — User-Toggle + Profil ── */}
+        {showInProfile("detail-liq") && showDetailLiq && cashflow.length > 0 && (
           <div className="page-break-before pt-4 print-detail-liq">
             <Section titel="Detail-Liquidität pro Jahr">
               <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
@@ -606,7 +684,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Geldfluss-Diagramme (heute + Pension) ────────── */}
-        {cashflow.length > 0 && (
+        {showInProfile("sankey") && cashflow.length > 0 && (
           <div className="page-break-before pt-4">
             <Section titel="Geldfluss-Diagramme">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -638,7 +716,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Steuerentwicklung-Chart + Detail-Card (eigene Seite) ──── */}
-        {cashflow.length > 0 && (
+        {showInProfile("steuer-chart") && cashflow.length > 0 && (
           <div className="page-break-before pt-4 chart-section">
             <Section titel="Steuerentwicklung">
               <div className="chart-wrap chart-wrap--tall">
@@ -679,7 +757,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Tragbarkeit ────────────────────────────────────── */}
-        {(tragbarkeitHeute || tragbarkeitPension) && (
+        {showInProfile("tragbarkeit") && (tragbarkeitHeute || tragbarkeitPension) && (
           <div className="page-break-before pt-4">
             <Section titel="Tragbarkeit Eigenheim">
               <div className="grid grid-cols-2 gap-3">
@@ -709,7 +787,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Stress-Tests ──────────────────────────────────── */}
-        {stressTests.length > 0 && (
+        {showInProfile("stress") && stressTests.length > 0 && (
           <div className="page-break-before pt-4">
             <Section titel="Stress-Tests — Was wäre wenn?">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -823,7 +901,7 @@ export default function PrintPage() {
         )}
 
         {/* ── KI-Empfehlungen (wenn im Dashboard generiert) ──── */}
-        {kiMassnahmen && kiMassnahmen.massnahmen.length > 0 && (
+        {showInProfile("ki") && kiMassnahmen && kiMassnahmen.massnahmen.length > 0 && (
           <div className="page-break-before pt-4">
             <Section titel="KI-Empfehlungen">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -898,7 +976,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Optimierungs-Massnahmen ────────────────────────── */}
-        {optimierungen.length > 0 && (
+        {showInProfile("optimierungen") && optimierungen.length > 0 && (
           <div className="page-break-before pt-4">
             <Section titel="Optimierungs-Empfehlungen">
               <ul className="space-y-2">
@@ -926,7 +1004,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Termine — SSM-Style 3-Spalten Tabelle ─────────────── */}
-        {reminder.length > 0 && (
+        {showInProfile("reminder") && reminder.length > 0 && (
           <Section titel="Termine & Reminder">
             <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
               Chronologische Liste — Wann / Wer / Was. Konkrete Zeitpunkte für
@@ -947,6 +1025,7 @@ export default function PrintPage() {
         )}
 
         {/* ── Berater-Block ───────────────────────────────────── */}
+        {showInProfile("berater") && (
         <div className="page-break-before pt-4">
           <Section titel="Ihr Cuira-Berater">
             <div
@@ -1005,9 +1084,10 @@ export default function PrintPage() {
             </div>
           </Section>
         </div>
+        )}
 
         {/* ── Plausibilitäts-Hinweise (wenn vorhanden) ──────────── */}
-        {plausiHinweise.length > 0 && (
+        {showInProfile("plausi") && plausiHinweise.length > 0 && (
           <div className="mt-8 print-plausi">
             <div
               className="rounded-md border p-3"
@@ -1391,6 +1471,121 @@ function TragbarkeitBox({
       </div>
       <div className="text-xs text-slate-600">
         Wohnkosten {formatChf(kosten)} / Jahr · {status.replace("_", " ")}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Executive Summary — 1 Seite, ideal als Mandanten-Zusammenfassung.
+ * Verdict + 3 KPIs + Top-3-Massnahmen + Eckdaten in einer Box.
+ */
+function ExecutiveSummary({
+  verdict,
+  cashflow,
+  massnahmen,
+  fullState,
+  ordPensionsjahr,
+}: {
+  verdict: { type: string; titel: string; text: string };
+  cashflow: import("@/engine/cashflow").CashflowZeile[];
+  massnahmen: import("@/engine/massnahmen").Massnahme[];
+  fullState: import("@/lib/store").PlanState;
+  ordPensionsjahr: number | null;
+}) {
+  const heute = cashflow[0];
+  const bezugJahr = ordPensionsjahr ?? cashflow[0]?.jahr ?? 0;
+  const beiPension = cashflow.find((z) => z.jahr === bezugJahr) ?? cashflow[Math.floor(cashflow.length / 2)];
+  const letzte = cashflow[cashflow.length - 1];
+  if (!heute || !beiPension || !letzte) return null;
+
+  return (
+    <div className="space-y-5">
+      {/* Verdict-Block */}
+      <div
+        className="rounded-lg border-l-4 px-5 py-4"
+        style={{
+          borderColor:
+            verdict.type === "ok"
+              ? "#10b981"
+              : verdict.type === "knapp"
+                ? "#f59e0b"
+                : verdict.type === "kritisch"
+                  ? "#e11d48"
+                  : "#94a3b8",
+          background:
+            verdict.type === "ok"
+              ? "#ecfdf5"
+              : verdict.type === "knapp"
+                ? "#fefce8"
+                : verdict.type === "kritisch"
+                  ? "#fef2f2"
+                  : "#f8fafc",
+        }}
+      >
+        <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "#4b566b" }}>
+          Verdict
+        </div>
+        <div className="mt-1 text-lg font-semibold" style={{ color: "#0a2540" }}>
+          {verdict.titel}
+        </div>
+        <p className="mt-1 text-sm" style={{ color: "#4b566b" }}>
+          {verdict.text}
+        </p>
+      </div>
+
+      {/* 3 KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        <KpiBox label="Heute" value={formatChf(heute.vermoegenNetto)} subtext={`im Jahr ${heute.jahr}`} />
+        <KpiBox
+          label="Bei Pensionierung"
+          value={formatChf(beiPension.vermoegenNetto)}
+          subtext={`im Jahr ${beiPension.jahr}`}
+        />
+        <KpiBox label="Mit 85 Jahren" value={formatChf(letzte.vermoegenNetto)} subtext={`im Jahr ${letzte.jahr}`} />
+      </div>
+
+      {/* Top-3-Massnahmen */}
+      {massnahmen.length > 0 && (
+        <div>
+          <div className="mb-2 text-sm font-semibold" style={{ color: "#0a2540" }}>
+            Top-{Math.min(3, massnahmen.length)} Massnahmen für die nächsten 12 Monate
+          </div>
+          <ol className="space-y-2 text-sm" style={{ color: "#0a2540" }}>
+            {massnahmen.map((m, i) => (
+              <li key={m.id} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-cuira-deep)] text-[10px] font-semibold text-white">
+                  {i + 1}
+                </span>
+                <span className="font-medium">{m.titel}</span>
+                {m.geschaetzteErsparnis != null && m.geschaetzteErsparnis > 0 && (
+                  <span className="ml-2 text-xs text-emerald-700">
+                    · ~{formatChf(m.geschaetzteErsparnis)} / J Steuerersparnis
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Eckdaten Kompakt */}
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs" style={{ color: "#4b566b" }}>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <strong className="text-slate-700">Stand:</strong> {new Date().toLocaleDateString("de-CH")}
+          </div>
+          <div>
+            <strong className="text-slate-700">Wohnsitz:</strong> {fullState.adresse.kanton}
+            {fullState.adresse.gemeindeName ? `, ${fullState.adresse.gemeindeName}` : ""}
+          </div>
+          <div>
+            <strong className="text-slate-700">Fall:</strong> {fallartLabel(fullState.fallart)}
+          </div>
+          <div>
+            <strong className="text-slate-700">Pensionierung:</strong> {ordPensionsjahr ?? "—"}
+          </div>
+        </div>
       </div>
     </div>
   );

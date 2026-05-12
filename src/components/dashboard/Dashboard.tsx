@@ -22,6 +22,7 @@ import { StressTests } from "./StressTests";
 import { InflationToggle } from "./InflationToggle";
 
 const SHOW_DETAIL_LIQ_KEY = "cuira-show-detail-liq";
+const DASHBOARD_TAB_KEY = "cuira-dashboard-tab";
 import { massnahmenAusState } from "@/engine/massnahmen";
 import { useInflation, deflationiereReihe } from "@/lib/inflation";
 
@@ -182,6 +183,27 @@ export function Dashboard() {
     });
   };
 
+  // Tab-Navigation (E2-1) — persistiert in LocalStorage
+  const [aktiverTab, setAktiverTabState] = useState<DashboardTab>("ueberblick");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(DASHBOARD_TAB_KEY) as DashboardTab | null;
+    if (
+      stored === "ueberblick" ||
+      stored === "charts" ||
+      stored === "stress-ki" ||
+      stored === "massnahmen"
+    ) {
+      setAktiverTabState(stored);
+    }
+  }, []);
+  const setAktiverTab = (t: DashboardTab) => {
+    setAktiverTabState(t);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DASHBOARD_TAB_KEY, t);
+    }
+  };
+
   const diff85 = useMemo(() => {
     if (!cashflowB) return null;
     const aLetzte = cashflowA[cashflowA.length - 1];
@@ -239,125 +261,179 @@ export function Dashboard() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <KpiCard
-          label="Nettovermögen heute"
-          jahr={heutigesJahr}
-          value={formatChf(bilanz.heute)}
-          hint="Summe aller eingegebenen Aktiva minus Schulden"
-        />
-        <KpiCard
-          label="Nettovermögen bei Pension"
-          jahr={bilanz.pensionierungsjahr}
-          value={
-            bilanz.pensionierungsjahr == null
-              ? "—"
-              : formatChf(bilanz.beiPensionierung)
-          }
-          hint={
-            bilanz.pensionierungsjahr == null
-              ? "Geburtsdatum + Pensionsalter eingeben"
-              : "PK-Kapitalanteil + 3a/FZ-Auszahlungen + Rest-Vermögen"
-          }
-          diff={diffPension}
-        />
-        <KpiCard
-          label="Nettovermögen mit 85"
-          jahr={bilanz.zwanzigJahreReferenzjahr}
-          value={
-            bilanz.zwanzigJahreReferenzjahr == null
-              ? "—"
-              : formatChf(bilanz.zwanzig20JahreSpaeter)
-          }
-          hint={
-            bilanz.zwanzigJahreReferenzjahr == null
-              ? "—"
-              : "Bei Pension + 20 × (Renten + Mieten − Verbrauch − Steuern)"
-          }
-          diff={diff85}
-        />
-      </div>
+      {/* Tab-Navigation (E2-1) */}
+      <DashboardTabs aktiverTab={aktiverTab} onChange={setAktiverTab} />
 
-      <PlausibilityPanel />
-
-      <VarianteDeltaPanel />
-
-      <DreiSaeulenKpi />
-
-      <HinterlassenenCard />
-
-      <div className="space-y-4">
-        {cashflowA.length > 0 ? (
-          <>
-            <EinnahmenAusgabenChart
-              daten={cashflowA}
-              datenB={cashflowB}
-              pensionsjahr={ordPensionsjahr}
-              wunschPensionsjahr={wunschPensionsjahr}
-              fallart={fallart}
+      {aktiverTab === "ueberblick" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <KpiCard
+              label="Nettovermögen heute"
+              jahr={heutigesJahr}
+              value={formatChf(bilanz.heute)}
+              hint="Summe aller eingegebenen Aktiva minus Schulden"
             />
-            {/* Detail-Liquidität Dropdown — default eingeklappt; bei Aktivierung
-                wird die Tabelle auch im PDF-Output gerendert. */}
-            <div className="rounded-xl border border-slate-200 bg-white">
-              <button
-                type="button"
-                onClick={toggleDetailLiq}
-                className="flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-slate-50"
-                aria-expanded={showDetailLiq}
-              >
-                <div>
-                  <div className="text-sm font-semibold text-slate-700">
-                    📋 Detail-Liquidität pro Jahr
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    Vollständige Jahres-Tabelle mit Einnahmen, Ausgaben, Saldo
-                    und Vermögens-Komponenten · {showDetailLiq ? "im PDF aktiv" : "nicht im PDF"}
-                  </div>
-                </div>
-                <span
-                  className="ml-3 inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-sm text-slate-500"
-                  aria-hidden
+            <KpiCard
+              label="Nettovermögen bei Pension"
+              jahr={bilanz.pensionierungsjahr}
+              value={
+                bilanz.pensionierungsjahr == null
+                  ? "—"
+                  : formatChf(bilanz.beiPensionierung)
+              }
+              hint={
+                bilanz.pensionierungsjahr == null
+                  ? "Geburtsdatum + Pensionsalter eingeben"
+                  : "PK-Kapitalanteil + 3a/FZ-Auszahlungen + Rest-Vermögen"
+              }
+              diff={diffPension}
+            />
+            <KpiCard
+              label="Nettovermögen mit 85"
+              jahr={bilanz.zwanzigJahreReferenzjahr}
+              value={
+                bilanz.zwanzigJahreReferenzjahr == null
+                  ? "—"
+                  : formatChf(bilanz.zwanzig20JahreSpaeter)
+              }
+              hint={
+                bilanz.zwanzigJahreReferenzjahr == null
+                  ? "—"
+                  : "Bei Pension + 20 × (Renten + Mieten − Verbrauch − Steuern)"
+              }
+              diff={diff85}
+            />
+          </div>
+
+          <PlausibilityPanel />
+          <VarianteDeltaPanel />
+          <DreiSaeulenKpi />
+          <HinterlassenenCard />
+        </div>
+      )}
+
+      {aktiverTab === "charts" && (
+        <div className="space-y-4">
+          {cashflowA.length > 0 ? (
+            <>
+              <EinnahmenAusgabenChart
+                daten={cashflowA}
+                datenB={cashflowB}
+                pensionsjahr={ordPensionsjahr}
+                wunschPensionsjahr={wunschPensionsjahr}
+                fallart={fallart}
+              />
+              {/* Detail-Liquidität Dropdown */}
+              <div className="rounded-xl border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={toggleDetailLiq}
+                  className="flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-slate-50"
+                  aria-expanded={showDetailLiq}
                 >
-                  {showDetailLiq ? "▲" : "▼"}
-                </span>
-              </button>
-              {showDetailLiq && (
-                <div className="border-t border-slate-100 p-3">
-                  <DetailLiquiditaetTable daten={cashflowA} />
-                </div>
-              )}
-            </div>
-            <VermoegensChart
-              daten={cashflowA}
-              datenB={cashflowB}
-              pensionsjahr={ordPensionsjahr}
-              wunschPensionsjahr={wunschPensionsjahr}
-              fallart={fallart}
-            />
-            <SteuerChart
-              daten={cashflowA}
-              pensionsjahr={ordPensionsjahr}
-              wunschPensionsjahr={wunschPensionsjahr}
-              fallart={fallart}
-            />
-            <SteuerDetailCard cashflow={cashflowA} />
-            <SankeyChart cashflow={cashflowA} />
-          </>
-        ) : (
-          <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
-        )}
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      📋 Detail-Liquidität pro Jahr
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Vollständige Jahres-Tabelle mit Einnahmen, Ausgaben, Saldo
+                      und Vermögens-Komponenten · {showDetailLiq ? "im PDF aktiv" : "nicht im PDF"}
+                    </div>
+                  </div>
+                  <span
+                    className="ml-3 inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-sm text-slate-500"
+                    aria-hidden
+                  >
+                    {showDetailLiq ? "▲" : "▼"}
+                  </span>
+                </button>
+                {showDetailLiq && (
+                  <div className="border-t border-slate-100 p-3">
+                    <DetailLiquiditaetTable daten={cashflowA} />
+                  </div>
+                )}
+              </div>
+              <VermoegensChart
+                daten={cashflowA}
+                datenB={cashflowB}
+                pensionsjahr={ordPensionsjahr}
+                wunschPensionsjahr={wunschPensionsjahr}
+                fallart={fallart}
+              />
+              <SteuerChart
+                daten={cashflowA}
+                pensionsjahr={ordPensionsjahr}
+                wunschPensionsjahr={wunschPensionsjahr}
+                fallart={fallart}
+              />
+              <SteuerDetailCard cashflow={cashflowA} />
+              <SankeyChart cashflow={cashflowA} />
+            </>
+          ) : (
+            <ChartPlaceholder title="Charts brauchen Geburtsdatum + Einkommen" />
+          )}
+        </div>
+      )}
 
-        <StressTests />
+      {aktiverTab === "stress-ki" && (
+        <div className="space-y-4">
+          <StressTests />
+          <KiMassnahmen />
+        </div>
+      )}
 
-        <KiMassnahmen />
-
+      {aktiverTab === "massnahmen" && (
         <MassnahmenListe
           massnahmen={massnahmen}
           vornameP1={person1.vorname}
           vornameP2={fallart === "paar" ? person2.vorname : undefined}
           fallart={fallart}
         />
-      </div>
+      )}
+    </div>
+  );
+}
+
+type DashboardTab = "ueberblick" | "charts" | "stress-ki" | "massnahmen";
+
+function DashboardTabs({
+  aktiverTab,
+  onChange,
+}: {
+  aktiverTab: DashboardTab;
+  onChange: (t: DashboardTab) => void;
+}) {
+  const tabs: { id: DashboardTab; label: string }[] = [
+    { id: "ueberblick", label: "Überblick" },
+    { id: "charts", label: "Charts" },
+    { id: "stress-ki", label: "Stress & KI" },
+    { id: "massnahmen", label: "Massnahmen" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Dashboard-Bereiche"
+      className="sticky top-0 z-10 -mx-4 flex gap-1 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur"
+    >
+      {tabs.map((t) => {
+        const active = t.id === aktiverTab;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={active}
+            type="button"
+            onClick={() => onChange(t.id)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+              active
+                ? "bg-[var(--color-cuira-deep)] text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
