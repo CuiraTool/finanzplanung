@@ -270,13 +270,11 @@ describe("Live-Fall M — AHV-Aufschub 70 (Thomas Roth SZ)", () => {
     expect(z2040.einnahmenErwerb).toBe(0);
   });
 
-  it("PK-Saldo bei 70: nur 'beiBezug'-Wert (700k × 5.8%) — keine Verlängerung bis 70 (ENGINE-LIMITATION)", () => {
-    // Erwartet: PK-Rente ≈ 700'000 × 0.058 = 40'600/J, NICHT höher
-    // (real wäre Saldo bei 70 nach 5 weiteren Sparjahren deutlich höher).
-    // Ab 2033 (erstes volles PK-Rentenjahr nach Bezug April 2032)
-    expect(z2033.einnahmenBvgRente).toBeGreaterThanOrEqual(39_000);
-    expect(z2033.einnahmenBvgRente).toBeLessThanOrEqual(42_000);
-    // Verifiziert: 700k × 5.8% = 40'600 (beiBezug-Wert, kein Hochlauf bis 70)
+  it("PK-Saldo bei 70: Aufschub-Hochlauf mit Mindestzins 1.25% × 5 J. ≈ 745k × 5.8%", () => {
+    // Engine-Fix: bei Aufschub > 65 wächst altersguthabenBeiBezug mit
+    // BVG-Mindestzins. 700'000 × 1.0125^5 ≈ 744'884. × 5.8% ≈ 43'200.
+    expect(z2033.einnahmenBvgRente).toBeGreaterThanOrEqual(42_000);
+    expect(z2033.einnahmenBvgRente).toBeLessThanOrEqual(44_500);
   });
 
   it("Steuern höher in Erwerbsphase (2026-2031) als nach Pensionierung (ab 2033)", () => {

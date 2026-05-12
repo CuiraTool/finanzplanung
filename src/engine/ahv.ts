@@ -342,7 +342,13 @@ export function ahvJahresrenteEinzel(
           massgebendesEinkommen: input.massgebendesEinkommen,
         }
       : undefined;
-  const bf = bezugsfaktor(bezugsalter, ORDENTLICHES_AHV_ALTER, ahv21Context);
+  // AHV21-Übergangs-Frauen Jg 1961-63: Referenz-Alter ist 64.25/64.5/64.75
+  // statt fix 65. Nutze ordentlichesAhvAlter() helper.
+  const ordAlter =
+    input.geburtsjahr != null && input.geschlecht !== undefined
+      ? ordentlichesAhvAlter(input.geburtsjahr, input.geschlecht ?? null)
+      : ORDENTLICHES_AHV_ALTER;
+  const bf = bezugsfaktor(bezugsalter, ordAlter, ahv21Context);
   const df = dreizehnteAhvFaktor(bezugsjahr);
   const hat13te = df > 1;
 

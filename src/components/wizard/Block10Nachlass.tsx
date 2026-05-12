@@ -5,7 +5,7 @@ import {
   type NachlassThemaKey,
 } from "@/lib/store";
 import { Field } from "@/components/ui/Field";
-import { inputClass } from "@/components/ui/styles";
+import { inputClass, selectClass } from "@/components/ui/styles";
 
 const THEMEN: { key: NachlassThemaKey; titel: string; erklaerung: string }[] = [
   {
@@ -155,6 +155,33 @@ export function Block10Nachlass() {
                 />
               </Field>
             </div>
+            <Field
+              label="Verwandtschaft zum Erblasser"
+              hint="bestimmt Erbschaftssteuer-Tarif (Konkubinat/Nicht-verwandt = hoher Spitzentarif)"
+            >
+              <select
+                value={erbschaft.erwartetVerwandtschaft ?? "nachkomme"}
+                onChange={(e) =>
+                  setErbschaft({
+                    erwartetVerwandtschaft: e.target.value as
+                      | "ehegatte"
+                      | "nachkomme"
+                      | "eltern"
+                      | "geschwister"
+                      | "konkubinat"
+                      | "nicht_verwandt",
+                  })
+                }
+                className={selectClass}
+              >
+                <option value="nachkomme">Nachkomme (Eltern → Kind)</option>
+                <option value="ehegatte">Ehegatte / eingetr. Partner</option>
+                <option value="eltern">Eltern / Grosseltern</option>
+                <option value="geschwister">Geschwister</option>
+                <option value="konkubinat">Konkubinatspartner</option>
+                <option value="nicht_verwandt">Nicht-verwandt / Patenkind</option>
+              </select>
+            </Field>
             <ToggleRow
               label="Im Vermögensverlauf berücksichtigen"
               hint="Wenn aktiv: Erbschaft fliesst im Erwartungs-Jahr als Einmaleingang ins Hauptkonto"

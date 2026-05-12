@@ -400,6 +400,12 @@ export interface SzenarioBOverrides {
   ausgabenTotal?: number | null;
   /** Pro Immobilie: Plan-Override (Behalten ↔ Verkaufen) + Verkaufsjahr. */
   immobilienOverrides?: Record<string, ImmobilieOverride>;
+  /**
+   * Umzug-Override: ab umzugJahr wechselt der Wohnsitz-Kanton auf umzugZielKanton.
+   * Liegenschafts-Kantone bleiben unverändert (für EMW + GGSt).
+   */
+  umzugJahr?: number;
+  umzugZielKanton?: string;
 }
 
 export interface SzenarioB {
@@ -510,6 +516,18 @@ export type Gueterstand =
 /** Status für Schenkungen / Erbvorbezüge an Kinder. */
 export type SchenkungenStatus = "getaetigt" | "geplant" | "nein";
 
+/**
+ * Verwandtschaftsgrad zum Erblasser (für Erbschaftssteuer-Berechnung).
+ * Spiegelt VerwandtschaftsGrad aus engine/erbschaftssteuer.ts.
+ */
+export type VerwandtschaftsGradInput =
+  | "ehegatte"
+  | "nachkomme"
+  | "eltern"
+  | "geschwister"
+  | "konkubinat"
+  | "nicht_verwandt";
+
 /** Block N — Erbschaft, Schenkung, Güterrecht. */
 export interface ErbschaftInput {
   erwartet: ErbschaftStatus | null;
@@ -525,6 +543,13 @@ export interface ErbschaftInput {
    * explizit will).
    */
   erwartetBeruecksichtigen: boolean;
+  /**
+   * Verwandtschaftsgrad zum Erblasser — bestimmt Erbschaftssteuer-Tarif
+   * (Konkubinat/Geschwister/Nicht-verwandt = hoher Spitzentarif).
+   * Default "nachkomme" (häufigster Fall, in meisten Kantonen befreit).
+   * Optional für Backward-Compat; Engine fällt auf "nachkomme" zurück.
+   */
+  erwartetVerwandtschaft?: VerwandtschaftsGradInput;
   /** Schenkungen / Erbvorbezüge: bereits getätigt, geplant oder nein. */
   schenkungenStatus: SchenkungenStatus | null;
   /** Schenkungs-Betrag (CHF) — wenn getätigt oder geplant. */
@@ -1047,6 +1072,7 @@ export const usePlanStore = create<PlanState>()(
         erwartetBetrag: null,
         erwartetJahr: null,
         erwartetBeruecksichtigen: false,
+        erwartetVerwandtschaft: "nachkomme" as VerwandtschaftsGradInput,
         schenkungenStatus: null,
         schenkungenBetrag: null,
         schenkungenJahr: null,
@@ -1144,6 +1170,7 @@ export const usePlanStore = create<PlanState>()(
             erwartetBetrag: null,
             erwartetJahr: null,
             erwartetBeruecksichtigen: false,
+        erwartetVerwandtschaft: "nachkomme" as VerwandtschaftsGradInput,
             schenkungenStatus: null,
             schenkungenDetails: "",
             schenkungenBetrag: null,
@@ -1849,6 +1876,7 @@ export const usePlanStore = create<PlanState>()(
             erwartetBetrag: null,
             erwartetJahr: null,
             erwartetBeruecksichtigen: false,
+        erwartetVerwandtschaft: "nachkomme" as VerwandtschaftsGradInput,
             schenkungenStatus: null,
             schenkungenBetrag: null,
             schenkungenJahr: null,
@@ -1934,6 +1962,7 @@ export const usePlanStore = create<PlanState>()(
                 erwartetBetrag: null,
                 erwartetJahr: null,
                 erwartetBeruecksichtigen: false,
+        erwartetVerwandtschaft: "nachkomme" as VerwandtschaftsGradInput,
                 schenkungenStatus: null,
                 schenkungenDetails: "",
                 schenkungenBetrag: null,

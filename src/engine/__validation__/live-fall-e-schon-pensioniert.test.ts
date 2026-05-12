@@ -190,14 +190,11 @@ describe("Live-Fall E — Ehepaar beide pensioniert (Witt BE)", () => {
     expect(z2045.einnahmenErwerb).toBe(0);
   });
 
-  it("AHV läuft ab Jahr 1: Plafond beißt (Override 47.5k > Plafond 45'360)", () => {
-    // Override-Summe 47'500 > Plafond 45'360 → wird auf 45'360 gekappt.
-    // ⚠️ ENGINE-SIMPLIFIKATION: 13. AHV wird hier NICHT angewendet, weil
-    // bezugsjahr (2020/2022) < 2026 ist. Reale BSV-Praxis: 13. AHV gilt
-    // ab Dez 2026 für ALLE Rentner, auch Pre-2026-Pensionierte. Engine
-    // modelliert das aktuell nicht (bekannte Lücke, siehe spawn-task).
-    expect(z2026.einnahmenAhv).toBeGreaterThanOrEqual(45_000);
-    expect(z2026.einnahmenAhv).toBeLessThanOrEqual(45_500);
+  it("AHV läuft ab Jahr 1: Plafond beißt mit 13. AHV ab 2026 (49'140)", () => {
+    // Override-Summe 47'500 × 13/12 ≈ 51'458 > Plafond 49'140 (45'360 × 13/12)
+    // → wird auf 49'140 gekappt. 13. AHV nun auch für Pre-2026-Rentner.
+    expect(z2026.einnahmenAhv).toBeGreaterThanOrEqual(48_500);
+    expect(z2026.einnahmenAhv).toBeLessThanOrEqual(49_500);
   });
 
   it("PK-Rente läuft ab Jahr 1: P1 36k + P2 28.8k = 64.8k", () => {
@@ -236,10 +233,10 @@ describe("Live-Fall E — Ehepaar beide pensioniert (Witt BE)", () => {
     expect(z2026.vermoegenSchulden).toBe(0);
   });
 
-  it("Cashflow-Saldo plausibel: AHV+PK ≈ 110k vs Ausgaben 78k + Steuern", () => {
-    // 45.4k AHV + 64.8k PK ≈ 110k Einkommen, 78k Lebensausgaben + Steuern
-    expect(z2026.einnahmenTotal).toBeGreaterThanOrEqual(108_000);
-    expect(z2026.einnahmenTotal).toBeLessThanOrEqual(115_000);
+  it("Cashflow-Saldo plausibel: AHV+PK ≈ 114k vs Ausgaben 78k + Steuern", () => {
+    // 49.1k AHV + 64.8k PK ≈ 114k Einkommen, 78k Lebensausgaben + Steuern
+    expect(z2026.einnahmenTotal).toBeGreaterThanOrEqual(112_000);
+    expect(z2026.einnahmenTotal).toBeLessThanOrEqual(118_000);
   });
 
   it("Vermögen 2045 (nach 20 J.) bleibt positiv", () => {

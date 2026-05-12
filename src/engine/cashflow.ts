@@ -37,9 +37,11 @@ import {
   ahvKinderrente,
   dreizehnteAhvFaktor,
   bezugsfaktor,
+  ordentlichesAhvAlter,
   ORDENTLICHES_AHV_ALTER,
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
+  ERSTES_JAHR_13TE_AHV,
   type AhvBezugsStart,
 } from "./ahv";
 import { bvgBezug, bvgGesamtkapitalBeiBezug, freizuegigkeitAuszahlung } from "./bvg";
@@ -79,7 +81,24 @@ export type CashflowInput = Pick<
   erbschaft?: PlanState["erbschaft"];
   /** Temporäre laufende Ausgaben mit Von/Bis (Studium, Schulden, etc.). */
   laufendeAusgaben?: PlanState["laufendeAusgaben"];
+  /**
+   * Umzug-Override (von Variante): ab umzugJahr Wohnsitzkanton-Wechsel auf
+   * umzugZielKanton. Liegenschafts-Kantone (für EMW + GGSt) bleiben fix.
+   */
+  umzugJahr?: number;
+  umzugZielKanton?: string;
 };
+
+/**
+ * Wohnsitz-Kanton im gegebenen Jahr — berücksichtigt Umzug-Override.
+ * Vor umzugJahr: adresse.kanton. Ab umzugJahr: umzugZielKanton.
+ */
+function wohnsitzKantonImJahr(state: CashflowInput, jahr: number): string {
+  if (state.umzugJahr != null && state.umzugZielKanton && jahr >= state.umzugJahr) {
+    return state.umzugZielKanton;
+  }
+  return state.adresse.kanton;
+}
 
 /**
  * Konkubinat-Detektion: fallart="paar" + zivilstand="konkubinat".
@@ -167,6 +186,8 @@ export function applyOverrides(
           : base.budget.ausgabenTotal,
     },
     immobilien,
+    umzugJahr: overrides.umzugJahr,
+    umzugZielKanton: overrides.umzugZielKanton,
   };
 }
 
@@ -365,6 +386,29 @@ export function cashflowReihe(
       einnahmenAhv = Math.round(ahvRenteHaushalt.haushalt * ahvFaktorP1);
     }
 
+    // 13. AHV-Korrektur für Pre-2026-Pensionierte: 13. AHV gilt ab Dez 2026
+    // für ALLE Rentner, auch für Personen, die vor 2026 in Bezug gingen.
+    // ahvRenteHaushalt enthält df(bezugsstart) — bei Pre-2026-Bezug fehlt das
+    // 13/12 ab 2026. Hier nachträglich anwenden: ratio = df(jahr) / df(bezugsstart).
+    if (jahr >= ERSTES_JAHR_13TE_AHV && einnahmenAhv > 0) {
+      // Referenz-Bezugsjahr: bei Ehepaar im Plafond max, sonst bezugsjahr der
+      // beziehenden Person.
+      let refBezugsjahr: number;
+      if (state.fallart === "paar" && p1AhvBezieht && p2AhvBezieht) {
+        refBezugsjahr = Math.max(
+          ahvBezugsjahrP1 ?? jahr,
+          ahvBezugsjahrP2 ?? jahr
+        );
+      } else if (p1AhvBezieht) {
+        refBezugsjahr = ahvBezugsjahrP1 ?? jahr;
+      } else {
+        refBezugsjahr = ahvBezugsjahrP2 ?? jahr;
+      }
+      if (refBezugsjahr < ERSTES_JAHR_13TE_AHV) {
+        einnahmenAhv = Math.round(einnahmenAhv * (13 / 12));
+      }
+    }
+
     // V2: AHV-Kinderrente — pensionierter Elternteil + Kind < 18 (oder < 25 in Ausbildung).
     // Plafondierung gegen Haushalts-Altersrente (max ~49'140 inkl. 13. AHV).
     // Bei Paar mit beiden Max-Renten: Plafond schon erreicht → 0 Kinderrente.
@@ -408,8 +452,8 @@ export function cashflowReihe(
       einnahmenErbschaft > 0
         ? berechneErbschaftssteuer({
             betrag: einnahmenErbschaft,
-            verwandtschaft: "nachkomme",
-            kanton: state.adresse.kanton,
+            verwandtschaft: state.erbschaft?.erwartetVerwandtschaft ?? "nachkomme",
+            kanton: wohnsitzKantonImJahr(state, jahr),
           }).steuerBetrag
         : 0;
 
@@ -448,8 +492,16 @@ export function cashflowReihe(
     // Steuerpflichtige Kapital-Auszahlungen: total minus steuerfreie 3b
     // + WEF-Vorbezug (Sondertarif). 3b-Auszahlung fliesst ins Hauptkonto
     // aber wird NICHT besteuert (PreVorsorge ohne Steuerprivileg).
+    // Art. 37b DBG: Liquidationsgewinn aus Aufgabe selbständiger Erwerb ab
+    // Alter 55 wird mit 1/5-Sondertarif besteuert (Bund). Kantone meist
+    // analog. Wir wenden Bemessung 1/5 auf den Firma-Erlös an, wenn die
+    // Selbständig-Person bei Verkauf ≥ 55 ist. Pragmatic; echter Tarif
+    // hat eigene Kurve (kommt in Etappe 2).
+    const firmaErloesJahr = firmaVerkaufErloesJahr(state, jahr);
+    const firma37bAktiv = firmaArt37bAktiv(state, jahr);
+    const firma37bReduktion = firma37bAktiv ? firmaErloesJahr * (4 / 5) : 0;
     const kapAuszahlungenFuerSteuer =
-      kapAuszahlungen - auszahlungen3b + wefBetragJahr;
+      kapAuszahlungen - auszahlungen3b + wefBetragJahr - firma37bReduktion;
 
     // ─── Ausgaben ────────────────────────────────────────────────
     const istPensioniert =
@@ -511,7 +563,7 @@ export function cashflowReihe(
     // einen FremdKantonAnteil bauen. Wenn keine fremde Liegenschaft → Array
     // bleibt leer, steuerProJahrIK fällt auf steuerProJahr zurück.
     const fremdAnteile: FremdKantonAnteil[] = [];
-    const wohnsitzKt = state.adresse.kanton;
+    const wohnsitzKt = wohnsitzKantonImJahr(state, jahr);
     for (const im of state.immobilien.items) {
       if (!im.adresse?.kanton) continue;
       if (im.adresse.kanton === wohnsitzKt) continue;
@@ -546,8 +598,12 @@ export function cashflowReihe(
     const passivShared = einnahmenMieten + einnahmenAlimente;
 
     const baseSteuerInput = {
-      kanton: state.adresse.kanton,
-      bfsId: state.adresse.gemeindeBfsId ?? undefined,
+      kanton: wohnsitzKt,
+      // Gemeinde-BFS nur valid wenn Wohnsitz unverändert; sonst Default (null)
+      bfsId:
+        wohnsitzKt === state.adresse.kanton
+          ? state.adresse.gemeindeBfsId ?? undefined
+          : undefined,
       religion: state.budget.religion,
       jahr,
       einkommenIstNetto: true,
@@ -687,38 +743,38 @@ export function cashflowReihe(
 
     // AHV-NE-Beiträge bei Frühpension: pro Person separat, ab Erwerbsende
     // bis ordentliches AHV-Bezugsalter. Bemessung = Vermögen × 20 + Renten × 20.
-    // Vermögen wird bei Ehepaar hälftig zugerechnet.
+    // Vermögen wird bei Ehepaar hälftig zugerechnet. Pro-Rata bei Erwerbs-
+    // Wechseljahr: NE-Anteil = (12 - Erwerbsmonate) / 12.
     const ahvNeBeitragsbasisVermoegen =
       state.fallart === "paar"
         ? vermoegenJahresanfang / 2
         : vermoegenJahresanfang;
+    const erwerbsMonateP1 = erwerbsMonateJahrPerson(state.budget.einkommen, jahr, 1);
+    const neAnteilP1 = Math.max(0, (12 - erwerbsMonateP1) / 12);
     let ausgabenAhvNe = 0;
     if (
       alterP1 != null &&
-      istNichterwerbstaetig({
-        alter: alterP1,
-        ahvBezugsalter: state.ahv.ahvBezugsalterP1,
-        erwerbsEinkommenJahr: erwerbP1Roh,
-      })
+      alterP1 < state.ahv.ahvBezugsalterP1 &&
+      neAnteilP1 > 0
     ) {
-      ausgabenAhvNe += ahvNeBeitragJahr({
-        vermoegen: ahvNeBeitragsbasisVermoegen,
-        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-      });
+      ausgabenAhvNe += Math.round(
+        ahvNeBeitragJahr({
+          vermoegen: ahvNeBeitragsbasisVermoegen,
+          rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+        }) * neAnteilP1
+      );
     }
-    if (
-      state.fallart === "paar" &&
-      alterP2 != null &&
-      istNichterwerbstaetig({
-        alter: alterP2,
-        ahvBezugsalter: state.ahv.ahvBezugsalterP2,
-        erwerbsEinkommenJahr: erwerbP2Roh,
-      })
-    ) {
-      ausgabenAhvNe += ahvNeBeitragJahr({
-        vermoegen: ahvNeBeitragsbasisVermoegen,
-        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-      });
+    if (state.fallart === "paar" && alterP2 != null) {
+      const erwerbsMonateP2 = erwerbsMonateJahrPerson(state.budget.einkommen, jahr, 2);
+      const neAnteilP2 = Math.max(0, (12 - erwerbsMonateP2) / 12);
+      if (alterP2 < state.ahv.ahvBezugsalterP2 && neAnteilP2 > 0) {
+        ausgabenAhvNe += Math.round(
+          ahvNeBeitragJahr({
+            vermoegen: ahvNeBeitragsbasisVermoegen,
+            rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+          }) * neAnteilP2
+        );
+      }
     }
 
     const ausgabenTotal =
@@ -748,6 +804,22 @@ export function cashflowReihe(
     if (hauptkontoIdx >= 0) {
       const hk = block7[hauptkontoIdx]!;
       hk.saldo += saldo + kapAuszahlungen;
+      // Liquidations-Wasserfall: wenn Hauptkonto < 0 → erst andere Konten,
+      // dann Depots anzapfen. Vorsorge bleibt geschützt (gesperrt bis Bezug),
+      // Immobilien werden NICHT zwangsverkauft (Berater sieht negatives Netto
+      // als Signal). Reihenfolge stabil über Block-Reihenfolge.
+      if (hk.saldo < 0) {
+        for (let i = 0; i < block7.length && hk.saldo < 0; i++) {
+          if (i === hauptkontoIdx) continue;
+          const other = block7[i]!;
+          if (other.item.typ === "darlehen") continue;
+          if (other.saldo <= 0) continue;
+          const needed = -hk.saldo;
+          const take = Math.min(needed, other.saldo);
+          other.saldo -= take;
+          hk.saldo += take;
+        }
+      }
     }
 
     // 3. Snapshot: Liquidität / Wertschriften / Schulden aus Block 7
@@ -895,6 +967,24 @@ function erwerbseinkommenJahrPerson(
     total += p.betragMonatlich * aktivMonate;
   }
   return total;
+}
+
+/** Erwerbs-Monate im Jahr für Person (max 12). Für NE-Pro-Rata-Berechnung. */
+function erwerbsMonateJahrPerson(
+  perioden: Einkommensperiode[],
+  jahr: number,
+  personIdx: 1 | 2
+): number {
+  let maxMonate = 0;
+  for (const p of perioden) {
+    if (p.personIdx !== personIdx) continue;
+    if (p.betragMonatlich == null || p.betragMonatlich <= 0) continue;
+    const von = parseYearMonth(p.von);
+    const bis = parseYearMonth(p.bis);
+    const aktivMonate = aktiveMonateImJahr(jahr, von, bis);
+    if (aktivMonate > maxMonate) maxMonate = aktivMonate;
+  }
+  return Math.min(12, maxMonate);
 }
 
 /**
@@ -1108,7 +1198,11 @@ function computeAhvRente(
     gjP1 != null && e1 != null
       ? { geburtsjahr: gjP1, geschlecht: state.person1.geschlecht, massgebendesEinkommen: e1 }
       : undefined;
-  const bfP1Override = bezugsfaktor(bezugsalterP1, ORDENTLICHES_AHV_ALTER, ahv21CtxP1);
+  const ordAlterP1 =
+    gjP1 != null
+      ? ordentlichesAhvAlter(gjP1, state.person1.geschlecht ?? null)
+      : ORDENTLICHES_AHV_ALTER;
+  const bfP1Override = bezugsfaktor(bezugsalterP1, ordAlterP1, ahv21CtxP1);
   const dfP1Override = dreizehnteAhvFaktor(bezugsjahrP1 ?? new Date().getFullYear());
   const p1Einzel =
     override1 != null && override1 > 0
@@ -1139,7 +1233,11 @@ function computeAhvRente(
     gjP2 != null && e2 != null
       ? { geburtsjahr: gjP2, geschlecht: state.person2.geschlecht, massgebendesEinkommen: e2 }
       : undefined;
-  const bfP2Override = bezugsfaktor(bezugsalterP2, ORDENTLICHES_AHV_ALTER, ahv21CtxP2);
+  const ordAlterP2 =
+    gjP2 != null
+      ? ordentlichesAhvAlter(gjP2, state.person2.geschlecht ?? null)
+      : ORDENTLICHES_AHV_ALTER;
+  const bfP2Override = bezugsfaktor(bezugsalterP2, ordAlterP2, ahv21CtxP2);
   const dfP2Override = dreizehnteAhvFaktor(bezugsjahrP2 ?? new Date().getFullYear());
   const p2Einzel =
     override2 != null && override2 > 0
@@ -1216,6 +1314,8 @@ function computeBvgRenteHaushalt(state: CashflowInput): { p1: number; p2: number
  * Annahme: altersguthabenBeiBezug ist die PK-Ausweis-Projektion auf das
  * ordentliche AHV-Alter (65). Bei Frühpension (bezugsalter < 65) reduzieren
  * wir den Wert linear zwischen altersguthabenHeute und altersguthabenBeiBezug.
+ * Bei Aufschub (bezugsalter > 65) wachsen wir den Saldo mit BVG-Mindestzins
+ * weiter (annahme: keine zusätzlichen Sparbeiträge nach 65; konservativ).
  * Vereinfachung: ±2-3% Fehler vs. exakter Sparphasen-Mathematik (siehe CLAUDE.md).
  */
 function pkAltersguthabenBeiAlter(
@@ -1230,6 +1330,13 @@ function pkAltersguthabenBeiAlter(
   const alterHeute = new Date().getFullYear() - gj;
   const ordAlter = ORDENTLICHES_AHV_ALTER;
   if (alterHeute >= ordAlter) return p.altersguthabenBeiBezug;
+  // Aufschub > 65: Saldo wächst mit BVG-Mindestzins ohne neue Sparbeiträge
+  if (bezugsalter > ordAlter) {
+    const aufschubJahre = bezugsalter - ordAlter;
+    return Math.round(
+      p.altersguthabenBeiBezug * Math.pow(1 + BVG_MINDESTZINS, aufschubJahre)
+    );
+  }
   if (bezugsalter >= ordAlter) return p.altersguthabenBeiBezug;
   if (bezugsalter <= alterHeute) return p.altersguthabenHeute;
   const fraction =
@@ -1857,6 +1964,35 @@ function firmaWertAmJahresende(
   if (firma.moeglicherVerkaufserloes == null) return 0;
   if (firma.plan === "verkaufen" && jahr >= firma.verkaufsjahr) return 0;
   return firma.moeglicherVerkaufserloes;
+}
+
+/** Firma-Verkauf-Erlös im konkreten Jahr (oder 0). */
+function firmaVerkaufErloesJahr(state: CashflowInput, jahr: number): number {
+  const f = state.firma;
+  if (!f.vorhanden || f.plan !== "verkaufen") return 0;
+  if (f.verkaufsjahr !== jahr) return 0;
+  return f.moeglicherVerkaufserloes ?? 0;
+}
+
+/**
+ * Art. 37b DBG (Liquidationsgewinn): Selbständig-Person muss bei Aufgabe
+ * mind. 55 J. alt sein. Wir prüfen über Alter der Selbständig-Person im
+ * Verkaufsjahr. Selbständig-Erkennung via Einkommensperiode typ "selbstaendigkeit".
+ */
+function firmaArt37bAktiv(state: CashflowInput, jahr: number): boolean {
+  const f = state.firma;
+  if (!f.vorhanden || f.plan !== "verkaufen") return false;
+  if (f.verkaufsjahr !== jahr) return false;
+  // Person 1 oder 2 selbständig? alter ≥ 55 bei Verkauf?
+  const selbst = state.budget.einkommen.some(
+    (e) => e.typ === "selbstaendigkeit"
+  );
+  if (!selbst) return false;
+  const gj1 = Number.parseInt((state.person1.geburtsdatum ?? "").slice(0, 4), 10);
+  const gj2 = Number.parseInt((state.person2.geburtsdatum ?? "").slice(0, 4), 10);
+  const alterP1 = Number.isFinite(gj1) ? jahr - gj1 : 0;
+  const alterP2 = Number.isFinite(gj2) ? jahr - gj2 : 0;
+  return alterP1 >= 55 || alterP2 >= 55;
 }
 
 /**

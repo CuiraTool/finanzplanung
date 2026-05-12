@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   usePlanStore,
   type Immobilie,
@@ -99,11 +100,33 @@ export function Block8Immobilien() {
 
       <TragbarkeitPanel />
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        <div className="mb-1 font-medium">
-          ⚖️ Eigenmietwert &amp; Schuldzinsabzug — nur bis Steuerjahr 2029
-        </div>
-        <p className="leading-relaxed">
+      {items.some((im) => im.typ === "selbstbewohnt") && (
+        <EmwDisclaimer />
+      )}
+    </div>
+  );
+}
+
+/**
+ * EMW + Schuldzinsabzug Disclaimer — nur sichtbar wenn mindestens eine
+ * selbstbewohnte Immobilie erfasst ist (EMW wirkt nur dort). Collapsed
+ * by default, click zum Aufklappen.
+ */
+function EmwDisclaimer() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 text-xs text-amber-900">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left font-medium hover:bg-amber-100"
+        aria-expanded={open}
+      >
+        <span>⚖️ Eigenmietwert &amp; Schuldzinsabzug — nur bis Steuerjahr 2029</span>
+        <span className="ml-2 text-amber-700">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <p className="px-3 pb-3 leading-relaxed">
           Die Schweiz schafft die Eigenmietwertbesteuerung per <strong>2030</strong>{" "}
           ab (Volksabstimmung Sept 2025 angenommen). Mit dem Wegfall des Eigen-
           mietwerts entfällt auch der Schuldzinsabzug bei selbstbewohnten Liegen-
@@ -114,7 +137,7 @@ export function Block8Immobilien() {
           Eigenmietwert-Default: 1.13 % vom Verkehrswert (ZH-Median, pro
           Liegenschaft anpassbar).
         </p>
-      </div>
+      )}
     </div>
   );
 }

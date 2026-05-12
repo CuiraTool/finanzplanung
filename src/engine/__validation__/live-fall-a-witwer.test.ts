@@ -224,9 +224,9 @@ describe("Live Fall A — Witwer Hans Müller SG", () => {
     expect(z2026.vermoegenNetto).toBeGreaterThan(850_000);
     expect(z2026.vermoegenNetto).toBeLessThan(1_000_000);
 
-    // AHV-Override greift: 28'500
+    // AHV-Override greift: 28'500 × 13/12 ≈ 30'875 (13. AHV ab 2026 für alle Rentner)
     console.log(`\nAHV 2026: ${Math.round(z2026.einnahmenAhv)} (Override 28'500 erwartet)`);
-    expect(Math.round(z2026.einnahmenAhv)).toBe(28_500);
+    expect(Math.round(z2026.einnahmenAhv)).toBe(30_875);
 
     // PK-Rente
     console.log(`PK-Rente 2026: ${Math.round(z2026.einnahmenBvgRente)} (~32'000 erwartet)`);

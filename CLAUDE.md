@@ -87,6 +87,14 @@ src/engine/
   Steuerjahr 2030 entfällt beides automatisch.
 - ✅ Grundstückgewinnsteuer beim Verkauf (engine/grundstueckgewinn.ts) — 9 Kantone ZH/ZG/SZ/BE/LU/AG/SG/TI/VD + Median-Fallback, Besitzdauer-Faktor (Spekulationszuschlag bis +50%, Langhalter-Rabatt bis −60%), optional Kaufjahr+Anlagekosten pro Immobilie
 - ✅ BVG-Sparphase Saldo-Hochlauf — linearer Hochlauf vom altersguthabenHeute zum altersguthabenBeiBezug (vereinfacht, ±2-3% Fehler vs. exakter Sparphasen-Mathematik)
+- ✅ 13. AHV für Pre-2026-Pensionierte — Faktor 13/12 ab Dez 2026 für alle Rentner (auch Bezug vor 2026)
+- ✅ AHV21 ordentliches Ref-Alter im bezugsfaktor (Frauen Jg 1961-63 = 64.25/64.5/64.75)
+- ✅ Erbschaft-Verwandtschaft konfigurierbar (Block 10): nachkomme/ehegatte/eltern/geschwister/konkubinat/nicht_verwandt
+- ✅ Multi-Kanton Umzug via Variante (SzenarioBOverrides: umzugJahr + umzugZielKanton) — Wohnsitzkanton-Wechsel wirkt auf Einkommens-/Vermögens-/Erbschaftssteuer
+- ✅ Liquidations-Wasserfall bei negativem Hauptkonto: Depot wird angezapft (kein Auto-Immo-Verkauf)
+- ✅ BVG-Aufschub > 65: Saldo wächst mit Mindestzins 1.25% p.a. ohne neue Sparbeiträge
+- ✅ Art. 37b DBG Liquidationsgewinn-Approximation: Firma-Erlös zu 1/5 in Kapital-Sondertarif bei Selbständig + Alter ≥ 55
+- ✅ AHV-NE Pro-Rata bei Halbjahres-Erwerbsende — Anteil = (12 − Erwerbsmonate) / 12
 
 ## Etappenplan
 

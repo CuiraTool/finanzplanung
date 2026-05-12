@@ -237,17 +237,14 @@ describe("Live-Fall Q — Liquiditäts-Notfall Lukas Egger", () => {
     expect(z2029.saldo).toBeLessThan(0);
   });
 
-  it("Hauptkonto (Liquidität) sinkt jahresweise ab Defizit-Phase", () => {
-    // Block-7-Hauptkonto bekommt Saldo + kapAuszahlungen.
-    // 3a-Auszahlung bei 62 (2027) fliesst rein → kurzer Anstieg möglich.
-    // Danach Defizit → Liquidität sinkt monoton.
-    console.log(
-      `\n  Liquidität 2028: ${z2028.vermoegenLiquiditaet}`
-    );
-    console.log(`  Liquidität 2029: ${z2029.vermoegenLiquiditaet}`);
-    console.log(`  Liquidität 2035: ${z2035.vermoegenLiquiditaet}`);
-    expect(z2029.vermoegenLiquiditaet).toBeLessThan(z2028.vermoegenLiquiditaet);
-    expect(z2035.vermoegenLiquiditaet).toBeLessThan(z2029.vermoegenLiquiditaet);
+  it("Vermögen (Liquid + Depot) sinkt jahresweise ab Defizit-Phase", () => {
+    // Engine-Fix: Liquidations-Wasserfall — bei Defizit wird Depot angezapft,
+    // bevor Hauptkonto negativ wird. Liquid + Depot zusammen aber sinkt monoton.
+    const ges2028 = z2028.vermoegenLiquiditaet + z2028.vermoegenWertschriften;
+    const ges2029 = z2029.vermoegenLiquiditaet + z2029.vermoegenWertschriften;
+    const ges2035 = z2035.vermoegenLiquiditaet + z2035.vermoegenWertschriften;
+    expect(ges2029).toBeLessThan(ges2028);
+    expect(ges2035).toBeLessThan(ges2029);
   });
 
   it("Liquidität wird im Verlauf negativ — Engine modelliert kein Crash, kein Floor", () => {
@@ -297,20 +294,14 @@ describe("Live-Fall Q — Liquiditäts-Notfall Lukas Egger", () => {
     expect(z2029.einnahmenAhv).toBeGreaterThan(z2028.einnahmenAhv);
   });
 
-  it("AHV-NE-Beiträge: Engine-Vereinfachung dokumentiert (all-or-nothing)", () => {
-    // ⚠️ ENGINE-SIMPLIFIKATION (engine/ahv-ne.ts):
-    //   istNichterwerbstaetig() → false, sobald erwerbsEinkommenJahr > 0.
-    //   2027 hat Lukas Lohn Jan-Jun (37.5k) → Engine sieht 2027 als
-    //   erwerbstätig → KEINE NE-Beiträge, obwohl Halbjahr-Frühpension.
-    //   Real BSV-Praxis: Halbjahres-Pro-Rata oder anteilige Beiträge.
-    //   Bekannte Drift, hier dokumentiert — nicht in Etappe 1 modelliert.
-    console.log(`\n  AHV-NE 2026: ${z2026.ausgabenAhvNe} (Erwerb voll → 0)`);
-    console.log(
-      `  AHV-NE 2027: ${z2027.ausgabenAhvNe} (Halbjahr-Erwerb → 0, Engine-Lücke)`
-    );
-    console.log(`  AHV-NE 2028: ${z2028.ausgabenAhvNe} (AHV-Bezug startet)`);
+  it("AHV-NE-Beiträge: Pro-Rata bei Halbjahres-Erwerbsende (Engine-Fix)", () => {
+    // Engine-Fix: NE-Anteil = (12 - Erwerbsmonate) / 12.
+    // 2026 voller Erwerb → NE-Anteil 0 → 0 Beitrag.
+    // 2027 Halbjahr-Erwerb (6 Monate Lohn) → NE-Anteil 0.5 → ~halber Beitrag.
+    // 2028 AHV-Bezug ab Juli → kein NE-Beitrag mehr.
     expect(z2026.ausgabenAhvNe).toBe(0);
-    expect(z2027.ausgabenAhvNe).toBe(0);
+    expect(z2027.ausgabenAhvNe).toBeGreaterThan(0);
+    expect(z2027.ausgabenAhvNe).toBeLessThan(20_000);
   });
 
   it("Tragbarkeit Hypothek bei Renten-Einkommen: NICHT tragbar", () => {
