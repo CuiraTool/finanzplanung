@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   usePlanStore,
   type BezugsPraeferenz,
@@ -18,6 +19,40 @@ import { Field } from "@/components/ui/Field";
 import { KiHinweis } from "@/components/ui/KiHinweis";
 import { YesNoButtons } from "@/components/ui/YesNoButtons";
 import { inputClass } from "@/components/ui/styles";
+
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      type="button"
+      onClick={onClick}
+      className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-700"
+          : "text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Badge({ n }: { n: number }) {
+  return (
+    <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-100 px-1 text-[10px] font-semibold text-blue-800">
+      {n}
+    </span>
+  );
+}
 
 const PRAEFERENZEN: { value: BezugsPraeferenz; label: string; sub: string }[] = [
   { value: "rente", label: "Rente", sub: "100% verrentet" },
@@ -58,6 +93,7 @@ export function Block5Bvg() {
     <div className="space-y-6">
       <PersonBvgForm
         title={personLabel(1, person1.vorname, fallart)}
+        personIdx={1}
         person={bvg.p1}
         geburtsdatum={person1.geburtsdatum}
         bezugsalter={bezugsalterP1}
@@ -78,6 +114,7 @@ export function Block5Bvg() {
       {fallart === "paar" && (
         <PersonBvgForm
           title={personLabel(2, person2.vorname, fallart)}
+          personIdx={2}
           person={bvg.p2}
           geburtsdatum={person2.geburtsdatum}
           bezugsalter={bezugsalterP2}
@@ -99,8 +136,11 @@ export function Block5Bvg() {
   );
 }
 
+type Block5Tab = "ag" | "einkaeufe" | "wef" | "fz";
+
 function PersonBvgForm({
   title,
+  personIdx,
   person,
   geburtsdatum,
   bezugsalter,
@@ -118,6 +158,7 @@ function PersonBvgForm({
   onRemoveWef,
 }: {
   title: string;
+  personIdx: 1 | 2;
   person: BvgPersonInput;
   geburtsdatum: string;
   bezugsalter: number;
@@ -134,6 +175,19 @@ function PersonBvgForm({
   onUpdateWef: (id: string, p: Partial<WefVorbezugEntry>) => void;
   onRemoveWef: (id: string) => void;
 }) {
+  const tabKey = `cuira-block5-tab-p${personIdx}`;
+  const [tab, setTabState] = useState<Block5Tab>("ag");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(tabKey) as Block5Tab | null;
+    if (stored === "ag" || stored === "einkaeufe" || stored === "wef" || stored === "fz") {
+      setTabState(stored);
+    }
+  }, [tabKey]);
+  const setTab = (t: Block5Tab) => {
+    setTabState(t);
+    if (typeof window !== "undefined") window.localStorage.setItem(tabKey, t);
+  };
   const geburtsjahr = geburtsdatum ? Number(geburtsdatum.slice(0, 4)) : 0;
   const wefWarnungen = wefValidiere({
     vorbezuege: person.wefVorbezuege ?? [],
@@ -147,6 +201,10 @@ function PersonBvgForm({
     arr.push(w);
     warnungenById.set(w.entryId, arr);
   }
+  const einkaeufeCount = person.einkaeufe.length;
+  const wefCount = (person.wefVorbezuege ?? []).length;
+  const fzCount = person.freizuegigkeit.length;
+
   return (
     <fieldset className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
       <legend className="px-1 text-sm font-semibold text-slate-700">{title}</legend>
@@ -161,7 +219,25 @@ function PersonBvgForm({
         />
       </div>
 
-      {person.aktiverAnschluss && (
+      {/* Interne Tab-Navigation pro Person (E2-3) */}
+      <div role="tablist" aria-label="BVG-Bereiche" className="flex gap-1 border-b border-slate-200 pb-1">
+        <TabBtn active={tab === "ag"} onClick={() => setTab("ag")}>
+          Altersguthaben
+        </TabBtn>
+        <TabBtn active={tab === "einkaeufe"} onClick={() => setTab("einkaeufe")}>
+          Einkäufe {einkaeufeCount > 0 && <Badge n={einkaeufeCount} />}
+        </TabBtn>
+        {person.aktiverAnschluss && (
+          <TabBtn active={tab === "wef"} onClick={() => setTab("wef")}>
+            WEF-Vorbezüge {wefCount > 0 && <Badge n={wefCount} />}
+          </TabBtn>
+        )}
+        <TabBtn active={tab === "fz"} onClick={() => setTab("fz")}>
+          Freizügigkeit {fzCount > 0 && <Badge n={fzCount} />}
+        </TabBtn>
+      </div>
+
+      {tab === "ag" && person.aktiverAnschluss && (
         <>
           <Field
             label="Aktuelles Altersguthaben heute (CHF)"
@@ -275,37 +351,55 @@ function PersonBvgForm({
             </Field>
           )}
 
-          <Einkaeufe
-            items={person.einkaeufe}
-            bezugsjahr={bezugsjahr}
-            kapitalIstAnteil={
-              person.bezugspraeferenz === "kapital" ||
-              (person.bezugspraeferenz === "mischung" && person.kapitalanteil > 0)
-            }
-            onAdd={onAddEk}
-            onUpdate={onUpdateEk}
-            onRemove={onRemoveEk}
-          />
-
-          <WefListe
-            items={person.wefVorbezuege ?? []}
-            warnungenById={warnungenById}
-            immobilienOptionen={immobilienOptionen}
-            onAdd={onAddWef}
-            onUpdate={onUpdateWef}
-            onRemove={onRemoveWef}
-          />
         </>
       )}
 
-      {/* Freizügigkeit ist unabhängig vom aktiven Anschluss — auch ohne PK
-          kann Freizügigkeit aus früheren Anstellungen vorhanden sein. */}
-      <Freizuegigkeit
-        items={person.freizuegigkeit}
-        onAdd={onAddFz}
-        onUpdate={onUpdateFz}
-        onRemove={onRemoveFz}
-      />
+      {tab === "ag" && !person.aktiverAnschluss && (
+        <p className="text-xs text-slate-500">
+          Kein aktiver PK-Anschluss — keine Altersguthaben-Erfassung nötig.
+          Freizügigkeit kann unter dem Tab "Freizügigkeit" erfasst werden.
+        </p>
+      )}
+
+      {tab === "einkaeufe" && person.aktiverAnschluss && (
+        <Einkaeufe
+          items={person.einkaeufe}
+          bezugsjahr={bezugsjahr}
+          kapitalIstAnteil={
+            person.bezugspraeferenz === "kapital" ||
+            (person.bezugspraeferenz === "mischung" && person.kapitalanteil > 0)
+          }
+          onAdd={onAddEk}
+          onUpdate={onUpdateEk}
+          onRemove={onRemoveEk}
+        />
+      )}
+
+      {tab === "einkaeufe" && !person.aktiverAnschluss && (
+        <p className="text-xs text-slate-500">
+          Einkäufe nur mit aktivem PK-Anschluss möglich.
+        </p>
+      )}
+
+      {tab === "wef" && person.aktiverAnschluss && (
+        <WefListe
+          items={person.wefVorbezuege ?? []}
+          warnungenById={warnungenById}
+          immobilienOptionen={immobilienOptionen}
+          onAdd={onAddWef}
+          onUpdate={onUpdateWef}
+          onRemove={onRemoveWef}
+        />
+      )}
+
+      {tab === "fz" && (
+        <Freizuegigkeit
+          items={person.freizuegigkeit}
+          onAdd={onAddFz}
+          onUpdate={onUpdateFz}
+          onRemove={onRemoveFz}
+        />
+      )}
     </fieldset>
   );
 }

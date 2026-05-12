@@ -43,6 +43,11 @@ interface Props {
 export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   const [versionenOpen, setVersionenOpen] = useState(false);
   const [beraterOpen, setBeraterOpen] = useState(false);
+  const [planCDialogOpen, setPlanCDialogOpen] = useState(false);
+  const [planSwitchToast, setPlanSwitchToast] = useState<string | null>(null);
+  const [undoDeletePlan, setUndoDeletePlan] = useState<
+    null | { slot: "b" | "c"; data: import("@/lib/store").PlanVariantData; until: number }
+  >(null);
   const versionenCount = usePlanVersionenStore((s) => s.versionen.length);
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
@@ -51,8 +56,36 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   const aktiverPlan = usePlanStore((s) => s.aktiverPlan);
   const plaene = usePlanStore((s) => s.plaene);
   const erstellePlan = usePlanStore((s) => s.erstellePlan);
-  const wechsleZuPlan = usePlanStore((s) => s.wechsleZuPlan);
-  const loeschePlan = usePlanStore((s) => s.loeschePlan);
+  const wechsleZuPlanRaw = usePlanStore((s) => s.wechsleZuPlan);
+  const loeschePlanRaw = usePlanStore((s) => s.loeschePlan);
+  const setPlanVariant = usePlanStore((s) => s.setPlanVariant);
+
+  const wechsleZuPlan = (slot: "a" | "b" | "c") => {
+    const von = aktiverPlan;
+    wechsleZuPlanRaw(slot);
+    if (slot !== von) {
+      setPlanSwitchToast(`Plan ${von.toUpperCase()} gespeichert. Jetzt in Plan ${slot.toUpperCase()}.`);
+      setTimeout(() => setPlanSwitchToast(null), 2500);
+    }
+  };
+
+  const loeschePlanMitUndo = (slot: "b" | "c") => {
+    const data = plaene[slot];
+    if (!data) return;
+    loeschePlanRaw(slot);
+    setUndoDeletePlan({ slot, data, until: Date.now() + 8000 });
+    setTimeout(() => {
+      setUndoDeletePlan((prev) =>
+        prev && prev.until <= Date.now() ? null : prev
+      );
+    }, 8200);
+  };
+
+  const undoDelete = () => {
+    if (!undoDeletePlan) return;
+    setPlanVariant(undoDeletePlan.slot, undoDeletePlan.data);
+    setUndoDeletePlan(null);
+  };
   const setAktiverBlock = usePlanStore((s) => s.setAktiverBlock);
   const reset = usePlanStore((s) => s.reset);
 
@@ -176,7 +209,7 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
               className="cui-scenario-x"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm("Plan B wirklich löschen?")) loeschePlan("b");
+                loeschePlanMitUndo("b");
               }}
               title="Plan B löschen"
             >
@@ -208,7 +241,7 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
               className="cui-scenario-x"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm("Plan C wirklich löschen?")) loeschePlan("c");
+                loeschePlanMitUndo("c");
               }}
               title="Plan C löschen"
             >
@@ -219,14 +252,7 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
           <button
             type="button"
             className="cui-scenario-tab"
-            onClick={() => {
-              const basis = confirm(
-                "Plan C basiert auf:\n\nOK = Plan A\nAbbrechen = Plan B"
-              )
-                ? "a"
-                : "b";
-              erstellePlan("c", basis);
-            }}
+            onClick={() => setPlanCDialogOpen(true)}
             title="Plan C erstellen — Basis A oder B wählbar"
           >
             <span className="cui-scenario-dot c"></span>
@@ -319,6 +345,99 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
         open={beraterOpen}
         onClose={() => setBeraterOpen(false)}
       />
+
+      {/* Plan-C-Basis-Modal (E2-9 PL3): ersetzt window.confirm */}
+      {planCDialogOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={() => setPlanCDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="planc-modal-title"
+            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="planc-modal-title" className="mb-3 text-base font-semibold text-slate-800">
+              Plan C erstellen — Basis wählen
+            </h2>
+            <p className="mb-4 text-xs text-slate-600">
+              Plan C wird als Klon des gewählten Basis-Plans erstellt. Sie
+              können danach Werte einzeln anpassen.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  erstellePlan("c", "a");
+                  setPlanCDialogOpen(false);
+                }}
+                className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100"
+              >
+                Basis: Plan A
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  erstellePlan("c", "b");
+                  setPlanCDialogOpen(false);
+                }}
+                className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100"
+              >
+                Basis: Plan B
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPlanCDialogOpen(false)}
+              className="mt-3 w-full rounded-md px-3 py-1.5 text-xs text-slate-500 hover:underline"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Plan-Switch-Toast */}
+      {planSwitchToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-1/2 z-[120] -translate-x-1/2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
+        >
+          ✓ {planSwitchToast}
+        </div>
+      )}
+
+      {/* Plan-Löschen-Undo-Snackbar (E2-9 PL4): 8s rückgängig-Option */}
+      {undoDeletePlan && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 right-4 z-[120] flex items-center gap-3 rounded-md bg-slate-800 px-4 py-2 text-sm text-white shadow-lg"
+        >
+          <span>
+            Plan {undoDeletePlan.slot.toUpperCase()} gelöscht
+          </span>
+          <button
+            type="button"
+            onClick={undoDelete}
+            className="rounded-md bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-white/20"
+          >
+            Rückgängig
+          </button>
+          <button
+            type="button"
+            onClick={() => setUndoDeletePlan(null)}
+            className="text-white/60 hover:text-white"
+            aria-label="Schliessen"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </header>
   );
 }

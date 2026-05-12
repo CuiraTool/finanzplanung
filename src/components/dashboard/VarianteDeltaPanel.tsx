@@ -127,9 +127,10 @@ function DeltaKarte({
         <button
           type="button"
           onClick={onDiffOpen}
-          className="text-xs text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 transition hover:bg-blue-100"
         >
-          Detail-Diff anzeigen →
+          <span aria-hidden>🔍</span>
+          Alle Unterschiede zeigen
         </button>
       </header>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">

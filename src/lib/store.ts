@@ -799,6 +799,8 @@ export interface PlanState {
   loeschePlan: (slot: "b" | "c") => void;
   /** Plan b oder c neu von a klonen (Reset). */
   resetPlanZuA: (slot: "b" | "c") => void;
+  /** Plan-Variante direkt setzen (für Undo nach Lösch-Operation). */
+  setPlanVariant: (slot: "b" | "c", data: PlanVariantData) => void;
   reset: () => void;
   /** Vollen State aus einem Import-Object (V2-Submission) übernehmen. */
   importState: (snapshot: Partial<PlanState>) => void;
@@ -1679,6 +1681,11 @@ export const usePlanStore = create<PlanState>()(
           if (s.aktiverPlan === slot) {
             return { plaene: next, ...klon };
           }
+          return { plaene: next };
+        }),
+      setPlanVariant: (slot, data) =>
+        set((s) => {
+          const next: PlaeneRegister = { ...s.plaene, [slot]: data };
           return { plaene: next };
         }),
 
