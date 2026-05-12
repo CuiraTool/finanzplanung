@@ -31,6 +31,7 @@ import { pensionseinkommenJahr } from "@/engine/pensionseinkommen";
 import { runAllStressTests, STRESS_TESTS } from "@/engine/stress-tests";
 import { generiereNarrativ } from "@/engine/narrativ";
 import { useBeraterProfil } from "@/lib/berater-profil";
+import { usePdfMassnahmen } from "@/lib/pdf-massnahmen-selection";
 
 interface KiMassnahmePrint {
   titel: string;
@@ -107,7 +108,13 @@ export default function PrintPage() {
     [fullState.person1.geburtsdatum]
   );
 
-  const massnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
+  const allMassnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
+  const { selectedIds: pdfMassnSelIds, maxTop: pdfMaxTop } = usePdfMassnahmen();
+  // Tiago-Fix: PDF zeigt nur User-Selektion (leer = alle). maxTop für Exec-Summary.
+  const massnahmen = useMemo(() => {
+    if (pdfMassnSelIds.length === 0) return allMassnahmen;
+    return allMassnahmen.filter((m) => pdfMassnSelIds.includes(m.id));
+  }, [allMassnahmen, pdfMassnSelIds]);
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
 
@@ -279,7 +286,7 @@ export default function PrintPage() {
       {/* Toolbar nur am Bildschirm sichtbar */}
       <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3 text-sm shadow-sm print:hidden">
         <div className="text-slate-600">
-          📄 Druckversion — Cmd/Ctrl+P oder Knopf rechts
+          📄 Druckversion — Cmd/Ctrl+P · Im Druck-Dialog "Kopf- und Fusszeilen" deaktivieren für sauberes PDF
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
@@ -327,13 +334,17 @@ export default function PrintPage() {
         {/* ── Cover-Seite (eigene Seite) ──────────────────────── */}
         <div className="cover-page flex h-[260mm] flex-col justify-between print:h-[260mm]">
           <header className="border-b-2 pb-6" style={{ borderColor: "#0a2540" }}>
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/cuira-logo.png"
               alt="Cuira Partners"
-              width={180}
-              height={72}
-              className="mb-2 h-14 w-auto"
-              style={{ filter: "invert(1) brightness(0.2)" }}
+              className="mb-2"
+              style={{
+                height: "56px",
+                width: "auto",
+                printColorAdjust: "exact",
+                WebkitPrintColorAdjust: "exact",
+              } as React.CSSProperties}
             />
             <div className="text-sm" style={{ color: "#4b566b" }}>
               Cuira Partners GmbH — Pensionsplanung
@@ -373,46 +384,7 @@ export default function PrintPage() {
               Stand {heuteFormatiert}
             </div>
 
-            {/* Verdict-Box */}
-            {verdict.type !== "unbekannt" && (
-              <div
-                className="mt-8 max-w-md rounded-md border-l-4 p-4 text-left"
-                style={{
-                  borderColor:
-                    verdict.type === "good"
-                      ? "#16a34a"
-                      : verdict.type === "warn"
-                        ? "#ca8a04"
-                        : "#dc2626",
-                  background:
-                    verdict.type === "good"
-                      ? "#f0fdf4"
-                      : verdict.type === "warn"
-                        ? "#fefce8"
-                        : "#fef2f2",
-                }}
-              >
-                <div
-                  className="text-base font-semibold"
-                  style={{
-                    color:
-                      verdict.type === "good"
-                        ? "#15803d"
-                        : verdict.type === "warn"
-                          ? "#854d0e"
-                          : "#991b1b",
-                  }}
-                >
-                  {verdict.titel}
-                </div>
-                <p
-                  className="mt-1 text-sm leading-relaxed"
-                  style={{ color: "#4b566b" }}
-                >
-                  {verdict.text}
-                </p>
-              </div>
-            )}
+            {/* Verdict-Box (Tiago-Fix: ausgeblendet — Mandant entscheidet selbst über "gut/knapp/kritisch"). */}
           </div>
 
           <footer className="border-t pt-4 text-xs" style={{ borderColor: "#e7eaee", color: "#8390a3" }}>
@@ -430,7 +402,7 @@ export default function PrintPage() {
               <ExecutiveSummary
                 verdict={verdict}
                 cashflow={cashflow}
-                massnahmen={optimierungen.slice(0, 3)}
+                massnahmen={optimierungen.slice(0, pdfMaxTop)}
                 fullState={fullState}
                 ordPensionsjahr={ordPensionsjahr}
               />
@@ -438,9 +410,9 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Narrativ "Was passiert in Ihrer Planung?" (E2-5) ── */}
+        {/* ── Narrativ "Was passiert in Ihrer Planung?" (soft break) ── */}
         {showInProfile("narrativ") && cashflow.length > 0 && (
-          <div className="page-break-before pt-4">
+          <div className="page-break-soft pt-4">
             <Section titel="Was passiert in Ihrer Planung?">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
                 Klartext-Beschreibung der finanziellen Entwicklung — Schritt
@@ -461,13 +433,16 @@ export default function PrintPage() {
               style={{ borderColor: "#e7eaee" }}
             >
               <div>
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src="/cuira-logo.png"
                   alt="Cuira Partners"
-                  width={100}
-                  height={40}
-                  className="h-7 w-auto"
-                  style={{ filter: "invert(1) brightness(0.2)" }}
+                  style={{
+                    height: "28px",
+                    width: "auto",
+                    printColorAdjust: "exact",
+                    WebkitPrintColorAdjust: "exact",
+                  } as React.CSSProperties}
                 />
               </div>
               <div
@@ -520,13 +495,16 @@ export default function PrintPage() {
             style={{ borderColor: "#e7eaee" }}
           >
             <div>
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src="/cuira-logo.png"
                 alt="Cuira Partners"
-                width={100}
-                height={40}
-                className="h-7 w-auto"
-                style={{ filter: "invert(1) brightness(0.2)" }}
+                style={{
+                  height: "28px",
+                  width: "auto",
+                  printColorAdjust: "exact",
+                  WebkitPrintColorAdjust: "exact",
+                } as React.CSSProperties}
               />
             </div>
             <div
@@ -611,9 +589,9 @@ export default function PrintPage() {
         </Section>
         </div>
 
-        {/* ── Aktiva/Passiva-Bilanz (eigene Seite) ─────────────── */}
+        {/* ── Aktiva/Passiva-Bilanz (Tiago-Fix: kompakter — soft break) ──── */}
         {showInProfile("bilanz") && cashflow.length > 0 && (
-          <div className="page-break-before pt-4 print-bilanz">
+          <div className="page-break-soft pt-4 print-bilanz">
             <Section titel="Vermögensbilanz heute">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
                 Aufschlüsselung der Aktiva nach Vermögensklasse und Schulden —
@@ -625,18 +603,18 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── 3-Säulen-Übersicht (eigene Seite) ────────────────── */}
+        {/* ── 3-Säulen-Übersicht (soft break) ─────────── */}
         {showInProfile("drei-saeulen") && (
-          <div className="page-break-before pt-4 print-drei-saeulen">
+          <div className="page-break-soft pt-4 print-drei-saeulen">
             <Section titel="3-Säulen-Übersicht bei Pensionierung">
               <DreiSaeulenKpi />
             </Section>
           </div>
         )}
 
-        {/* ── Hinterlassenen-Leistungen (eigene Seite, nur bei Paar) ── */}
+        {/* ── Hinterlassenen-Leistungen (soft break, nur bei Paar) ── */}
         {showInProfile("hinterlassen") && fullState.fallart === "paar" && (
-          <div className="page-break-before pt-4 print-hinterlassenen">
+          <div className="page-break-soft pt-4 print-hinterlassenen">
             <Section titel="Hinterlassenen-Leistungen">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
                 Was bekommt der überlebende Partner bei Tod der anderen Person —
@@ -794,9 +772,9 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Tragbarkeit ────────────────────────────────────── */}
+        {/* ── Tragbarkeit (soft break) ────────────── */}
         {showInProfile("tragbarkeit") && (tragbarkeitHeute || tragbarkeitPension) && (
-          <div className="page-break-before pt-4">
+          <div className="page-break-soft pt-4">
             <Section titel="Tragbarkeit Eigenheim">
               <div className="grid grid-cols-2 gap-3">
                 {tragbarkeitHeute && (
@@ -1013,9 +991,9 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Optimierungs-Massnahmen ────────────────────────── */}
+        {/* ── Optimierungs-Massnahmen (soft break) ─────────── */}
         {showInProfile("optimierungen") && optimierungen.length > 0 && (
-          <div className="page-break-before pt-4">
+          <div className="page-break-soft pt-4">
             <Section titel="Optimierungs-Empfehlungen">
               <ul className="space-y-2">
                 {optimierungen.map((m) => (
@@ -1326,6 +1304,10 @@ export default function PrintPage() {
           @page {
             size: A4;
             margin: 15mm 15mm 18mm 15mm;
+            /* Tiago-Fix: Browser-Headers (Datum/Zeit/URL) leeren */
+            @top-left { content: ""; }
+            @top-center { content: ""; }
+            @top-right { content: ""; }
             /* Page-Numbers im Footer rechts */
             @bottom-right {
               content: counter(page) " / " counter(pages);
@@ -1338,16 +1320,17 @@ export default function PrintPage() {
               font-size: 8.5pt;
               color: #8390a3;
             }
+            @bottom-center { content: ""; }
           }
           /* Cover-Page ohne Footer-Page-Number */
           @page :first {
             margin: 15mm;
-            @bottom-right {
-              content: "";
-            }
-            @bottom-left {
-              content: "";
-            }
+            @top-left { content: ""; }
+            @top-center { content: ""; }
+            @top-right { content: ""; }
+            @bottom-right { content: ""; }
+            @bottom-left { content: ""; }
+            @bottom-center { content: ""; }
           }
           body {
             background: white !important;
@@ -1357,6 +1340,17 @@ export default function PrintPage() {
           .page-break-before {
             page-break-before: always;
             break-before: page;
+          }
+          /* Tiago-Fix: "soft" break — Sections kombinieren bis Seite voll.
+             Browser entscheidet automatisch wann Umbruch. */
+          .page-break-soft {
+            page-break-before: auto;
+            break-before: auto;
+            break-inside: avoid;
+            margin-top: 18mm;
+          }
+          .page-break-soft:first-of-type {
+            margin-top: 0;
           }
           .cover-page {
             page-break-after: always;
@@ -1590,38 +1584,7 @@ function ExecutiveSummary({
 
   return (
     <div className="space-y-5">
-      {/* Verdict-Block */}
-      <div
-        className="rounded-lg border-l-4 px-5 py-4"
-        style={{
-          borderColor:
-            verdict.type === "ok"
-              ? "#10b981"
-              : verdict.type === "knapp"
-                ? "#f59e0b"
-                : verdict.type === "kritisch"
-                  ? "#e11d48"
-                  : "#94a3b8",
-          background:
-            verdict.type === "ok"
-              ? "#ecfdf5"
-              : verdict.type === "knapp"
-                ? "#fefce8"
-                : verdict.type === "kritisch"
-                  ? "#fef2f2"
-                  : "#f8fafc",
-        }}
-      >
-        <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "#4b566b" }}>
-          Verdict
-        </div>
-        <div className="mt-1 text-lg font-semibold" style={{ color: "#0a2540" }}>
-          {verdict.titel}
-        </div>
-        <p className="mt-1 text-sm" style={{ color: "#4b566b" }}>
-          {verdict.text}
-        </p>
-      </div>
+      {/* Verdict-Block ausgeblendet (Tiago-Fix) */}
 
       {/* 3 KPIs */}
       <div className="grid grid-cols-3 gap-3">
@@ -1638,7 +1601,7 @@ function ExecutiveSummary({
       {massnahmen.length > 0 && (
         <div>
           <div className="mb-2 text-sm font-semibold" style={{ color: "#0a2540" }}>
-            Top-{Math.min(3, massnahmen.length)} Massnahmen für die nächsten 12 Monate
+            Top-{massnahmen.length} Massnahmen für die nächsten 12 Monate
           </div>
           <ol className="space-y-2 text-sm" style={{ color: "#0a2540" }}>
             {massnahmen.map((m, i) => (

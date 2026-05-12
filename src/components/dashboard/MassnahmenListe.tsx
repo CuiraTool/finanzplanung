@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Massnahme, MassnahmenKategorie } from "@/engine/massnahmen";
+import { usePdfMassnahmen } from "@/lib/pdf-massnahmen-selection";
 
 const KATEGORIE_BADGE: Record<MassnahmenKategorie, { label: string; color: string }> = {
   vorsorge: { label: "Vorsorge", color: "bg-blue-50 text-blue-700" },
@@ -113,6 +114,9 @@ export function MassnahmenListe({
           </div>
         </div>
       </header>
+
+      {/* Tiago-Fix: PDF-Massnahmen-Selektor */}
+      {massnahmen.length > 0 && <PdfMassnahmenSelektor massnahmen={massnahmen} />}
 
       {massnahmen.length === 0 ? (
         <div className="grid h-48 place-items-center text-sm text-slate-400">
@@ -397,6 +401,85 @@ export function MassnahmenTabelle({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+/**
+ * Tiago-Fix: PDF-Massnahmen-Selektor.
+ * Berater wählt: Top-N für Executive Summary + welche IDs ins PDF.
+ */
+function PdfMassnahmenSelektor({ massnahmen }: { massnahmen: Massnahme[] }) {
+  const { selectedIds, maxTop, toggleId, setMaxTop, reset } = usePdfMassnahmen();
+  const [expanded, setExpanded] = useState(false);
+
+  const aktiv = selectedIds.length > 0;
+  const aktivIm = (id: string) =>
+    selectedIds.length === 0 ? true : selectedIds.includes(id);
+
+  return (
+    <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between text-left"
+        aria-expanded={expanded}
+      >
+        <div>
+          <span className="font-semibold text-slate-700">PDF-Auswahl</span>
+          <span className="ml-2 text-slate-500">
+            Top-{maxTop} im Exec-Summary ·{" "}
+            {aktiv
+              ? `${selectedIds.length} / ${massnahmen.length} ausgewählt`
+              : `alle ${massnahmen.length} im PDF`}
+          </span>
+        </div>
+        <span className="text-slate-500">{expanded ? "▲" : "▼"}</span>
+      </button>
+      {expanded && (
+        <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+          <div className="flex items-center gap-2">
+            <label className="text-slate-600">Anzahl Top-Massnahmen im Exec-Summary:</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={maxTop}
+              onChange={(e) => setMaxTop(Number(e.target.value))}
+              className="w-16 rounded-md border border-slate-300 px-2 py-0.5 text-center tabular-nums"
+            />
+            <button
+              type="button"
+              onClick={reset}
+              className="ml-auto text-slate-500 hover:underline"
+            >
+              Zurücksetzen (alle)
+            </button>
+          </div>
+          <div>
+            <div className="mb-1 text-slate-600">Massnahmen im PDF (leer = alle):</div>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {massnahmen.map((m) => (
+                <label
+                  key={m.id}
+                  className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-white"
+                >
+                  <input
+                    type="checkbox"
+                    checked={aktivIm(m.id)}
+                    onChange={() => toggleId(m.id)}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1 text-slate-700">
+                    <span className="text-slate-500">{m.jahr}</span> · {m.titel}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
