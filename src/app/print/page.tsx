@@ -1115,7 +1115,7 @@ export default function PrintPage() {
             Geschäftsbücher).
           </p>
           <p>
-            Cuira Partners GmbH · Bahnhofstrasse 1, 6340 Baar · CH-Schweiz · Stand: {heuteFormatiert}
+            Cuira Partners GmbH · Splügenstrasse 11, 8002 Zürich · CH-Schweiz · Stand: {heuteFormatiert}
           </p>
         </footer>
       </article>

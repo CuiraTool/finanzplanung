@@ -620,13 +620,21 @@ export type Religion =
   | "keine";
 
 /**
- * Alimente/Unterhalt: laufende Unterhaltsbeiträge an Ex-Partner oder Kinder
- * sind nach Art. 33 Abs. 1 lit. c DBG vollumfänglich vom steuerbaren
- * Einkommen abzugsfähig. Sie sind ausserdem eine echte Cashflow-Ausgabe.
+ * Alimente/Unterhalt: laufende Unterhaltsbeiträge.
+ *
+ * Zahlt-Variante (Art. 33 Abs. 1 lit. c DBG): vom Zahler abzugsfähig +
+ *   Cashflow-Ausgabe.
+ * Erhält-Variante (Art. 23 lit. f DBG): beim Empfänger steuerbares
+ *   Einkommen + Cashflow-Einnahme.
+ *
+ * Default `richtung="zahlt"` für Backward-Compat mit v39-LocalStorage.
  */
+export type AlimenteRichtung = "zahlt" | "erhaelt";
+
 export interface AlimenteInput {
   aktiv: boolean;
   betragJahr: number | null;
+  richtung: AlimenteRichtung;
 }
 
 export interface Budget {
@@ -861,7 +869,7 @@ const initialBudget: Budget = {
   steuernHeute: null,
   einkommenHeute: null,
   religion: "keine",
-  alimente: { aktiv: false, betragJahr: null },
+  alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" },
 };
 
 function currentYearMonth(): string {
@@ -1831,8 +1839,8 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v39",
-      version: 39,
+      name: "cuira-plan-v40",
+      version: 40,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
@@ -1900,7 +1908,7 @@ export const usePlanStore = create<PlanState>()(
             if (!b) return b;
             const bm = b as Budget & { alimente?: AlimenteInput };
             if (bm.alimente && typeof bm.alimente.aktiv === "boolean") return b;
-            return { ...b, alimente: { aktiv: false, betragJahr: null } };
+            return { ...b, alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" } };
           };
           const ensureSerieEntries = (entries: EinkaufEntry[]): EinkaufEntry[] =>
             entries.map((e) => {
@@ -1957,6 +1965,29 @@ export const usePlanStore = create<PlanState>()(
               a: fix2(state.plaene.a) as PlanVariantData,
               b: fix2(state.plaene.b),
               c: fix2(state.plaene.c),
+            };
+          }
+        }
+
+        // v39 → v40: AlimenteInput.richtung ("zahlt" | "erhaelt"). Bestehende
+        // Einträge bekommen "zahlt" (Backward-Compat mit Single-Direction-UI).
+        if (fromVersion < 40) {
+          const ensureAlimenteRichtung = (b: Budget | undefined): Budget | undefined => {
+            if (!b) return b;
+            const al = b.alimente as { aktiv: boolean; betragJahr: number | null; richtung?: AlimenteRichtung };
+            if (al && al.richtung) return b;
+            return { ...b, alimente: { ...al, richtung: "zahlt" } };
+          };
+          if (state.budget) state.budget = ensureAlimenteRichtung(state.budget);
+          if (state.plaene) {
+            const fix4 = (v: PlanVariantData | null): PlanVariantData | null =>
+              v
+                ? { ...v, budget: ensureAlimenteRichtung(v.budget) as Budget }
+                : null;
+            state.plaene = {
+              a: fix4(state.plaene.a) as PlanVariantData,
+              b: fix4(state.plaene.b),
+              c: fix4(state.plaene.c),
             };
           }
         }

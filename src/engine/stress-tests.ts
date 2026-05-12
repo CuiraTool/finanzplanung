@@ -24,6 +24,7 @@
 import type { PlanState } from "@/lib/store";
 import { cashflowReihe, type CashflowInput } from "./cashflow";
 import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
+import { STRESS_INFLATION_PROZENT } from "./economy-defaults";
 
 export type StressTestId =
   | "aktien-crash"
@@ -175,14 +176,24 @@ function applyStressTest(state: PlanState, id: StressTestId): PlanState {
     }
 
     case "inflation-schock": {
-      // Inflation compound 2 % p.a. — Mittelwert über typische 15-J.-
-      // Horizont = ca. 35 % Aufschlag. Wir wenden den Mittelwert konservativ
-      // auf Ausgaben + Wunschverbrauch + Hauskosten an. Eckwert:
-      //   (1.02)^15 ≈ 1.346 → +34.6 %
-      // Das matches eine 15-J.-Projektion. Für längere Horizonte
-      // unterschätzt, für kürzere überschätzt — vertretbarer Mittelwert
-      // ohne in die Cashflow-Engine pro-Jahr-Inflation zu injecten.
-      const compoundFaktor = Math.pow(1.02, 15);
+      // Inflation 2 % p.a. compound — Horizont profil-abhängig statt fix 15J.
+      // (Y-1a H-2): vorher fix (1.02)^15 = +34.6%, ignorierte
+      // Zeit-Heterogenität. Jetzt: ø über (95 − heutigesAlter) Jahre, also
+      // ein Mittelwert über erwartete Restlebenszeit der älteren Person.
+      // - 65-Jähriger: (1.02)^30 ≈ +81 % (worst case Inflation über ganze Pension)
+      // - 45-Jähriger: (1.02)^50 ≈ +169 % (lange Restzeit, hohe Wirkung)
+      // - Hochrechnung trifft Mid-Range, da Ausgaben nicht alle bis 95 laufen
+      //   → konservativer Mittelwert: (1.02)^((95 − age) × 0.5)
+      const heuteJahr = new Date().getFullYear();
+      const gj1 = parseInt((clone.person1.geburtsdatum || "").slice(0, 4), 10);
+      const gj2 = parseInt((clone.person2.geburtsdatum || "").slice(0, 4), 10);
+      const alterMax = Math.max(
+        Number.isFinite(gj1) ? heuteJahr - gj1 : 40,
+        Number.isFinite(gj2) && clone.fallart === "paar" ? heuteJahr - gj2 : 0
+      );
+      const restjahre = Math.max(5, 95 - alterMax);
+      const horizont = Math.round(restjahre * 0.5); // konservativer Mittelpunkt
+      const compoundFaktor = Math.pow(1 + STRESS_INFLATION_PROZENT / 100, horizont);
       if (clone.budget.ausgabenTotal != null) {
         clone.budget.ausgabenTotal = Math.round(
           clone.budget.ausgabenTotal * compoundFaktor

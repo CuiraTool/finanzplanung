@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CashflowZeile } from "@/engine/cashflow";
+import { INFLATION_DEFAULT_PROZENT } from "@/engine/economy-defaults";
 
 /**
  * Inflations-Toggle für die Dashboard-Anzeige.
@@ -34,7 +35,7 @@ const useStore = create<InflationStore>()(
   persist(
     (set) => ({
       enabled: false,
-      rateProzent: 1.5,
+      rateProzent: INFLATION_DEFAULT_PROZENT,
       setEnabled: (enabled) => set({ enabled }),
       setRate: (rateProzent) => set({ rateProzent }),
       toggle: () => set((s) => ({ enabled: !s.enabled })),

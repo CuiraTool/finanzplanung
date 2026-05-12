@@ -238,34 +238,64 @@ export function Block3Budget() {
             className="mt-0.5 h-4 w-4 rounded border-slate-300"
           />
           <span>
-            Ich zahle Alimente / Unterhaltsbeiträge
+            Alimente / Unterhaltsbeiträge sind Teil meiner Situation
             <span className="block text-xs font-normal text-slate-500">
-              Wird vom steuerbaren Einkommen abgezogen (Art. 33 Abs. 1 lit. c
-              DBG) und als laufende Ausgabe im Cashflow geführt.
+              Zahlende Person: Abzug vom steuerbaren Einkommen (Art. 33 Abs. 1
+              lit. c DBG). Empfangende Person: voll steuerbar als Einkommen
+              (Art. 23 lit. f DBG).
             </span>
           </span>
         </label>
 
         {budget.alimente.aktiv && (
-          <Field
-            label="Betrag (CHF/Jahr)"
-            hint="Vollständige jährliche Unterhaltszahlung — wird laufend wirksam"
-          >
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={budget.alimente.betragJahr ?? ""}
-              onChange={(e) =>
-                setAlimente({
-                  betragJahr:
-                    e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
-              placeholder="z.B. 24'000"
-              className={`${inputClass} tabular-nums`}
-            />
-          </Field>
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1 text-xs font-medium text-slate-600">Richtung</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAlimente({ richtung: "zahlt" })}
+                  className={`rounded-md border px-3 py-2 text-xs ${
+                    budget.alimente.richtung === "zahlt"
+                      ? "border-blue-400 bg-blue-50 text-blue-800"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Ich zahle Alimente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlimente({ richtung: "erhaelt" })}
+                  className={`rounded-md border px-3 py-2 text-xs ${
+                    budget.alimente.richtung === "erhaelt"
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-800"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Ich erhalte Alimente
+                </button>
+              </div>
+            </div>
+            <Field
+              label="Betrag (CHF/Jahr)"
+              hint="Vollständige jährliche Unterhaltszahlung — wird laufend wirksam"
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={budget.alimente.betragJahr ?? ""}
+                onChange={(e) =>
+                  setAlimente({
+                    betragJahr:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                placeholder="z.B. 24'000"
+                className={`${inputClass} tabular-nums`}
+              />
+            </Field>
+          </div>
         )}
       </fieldset>
     </div>

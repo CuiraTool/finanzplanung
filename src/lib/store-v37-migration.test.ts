@@ -19,7 +19,7 @@ describe("V37 Store — Alimente, Einkauf-Serie, Eigenmietwert", () => {
   describe("Alimente (F2)", () => {
     it("Default: alimente.aktiv=false, betragJahr=null", () => {
       const s = usePlanStore.getState();
-      expect(s.budget.alimente).toEqual({ aktiv: false, betragJahr: null });
+      expect(s.budget.alimente).toEqual({ aktiv: false, betragJahr: null, richtung: "zahlt" });
     });
 
     it("setAlimente toggelt aktiv und setzt Betrag", () => {

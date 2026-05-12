@@ -409,7 +409,7 @@ const arbBudget = (paar: boolean): fc.Arbitrary<Budget> =>
       steuernHeute: null,
       einkommenHeute: null,
       religion: r.religion,
-      alimente: { aktiv: false, betragJahr: null },
+      alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" },
     }));
 
 // ─── Firma ─────────────────────────────────────────────────────────

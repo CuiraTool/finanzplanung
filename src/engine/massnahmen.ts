@@ -436,24 +436,9 @@ function optimierungenBerechnen(state: PlanState): Massnahme[] {
     }
   }
 
-  // ─── Optimierung 3: Kantonswechsel-Potenzial (vs. ZG) ────────────
-  if (state.adresse.kanton && state.adresse.kanton !== "ZG" && bruttoTotal > 80_000) {
-    const aktuelleSteuer = steuerProJahr(baseInput).einkommen;
-    const inZg = steuerProJahr({ ...baseInput, kanton: "ZG", bfsId: undefined }).einkommen;
-    const ersparnis = aktuelleSteuer - inZg;
-    if (ersparnis > 2_000) {
-      out.push({
-        id: "opt-kantonswechsel-zg",
-        jahr: heute,
-        wer: "beide",
-        kategorie: "optimierung",
-        prioritaet: 3,
-        titel: `Kantonswechsel ${state.adresse.kanton} → ZG: spart ~${formatChfKurz(ersparnis)} Steuern/Jahr`,
-        detail: `In Zug zahlen Sie bei gleichem Einkommen rund ${formatChfKurz(ersparnis)} CHF weniger Steuern. Realistisch nur bei echtem Umzug — nicht "auf dem Papier".`,
-        geschaetzteErsparnis: ersparnis,
-      });
-    }
-  }
+  // Optimierung "Kantonswechsel ZG" entfernt — wirkt aufdringlich + ist
+  // selten realistisch. Stattdessen kann der Berater via Block 2 "Umzug
+  // geplant?" einen konkreten Umzug modellieren (Plan A vs Plan B).
 
   // ─── Optimierung 4: Tragbarkeit bei Pension prüfen ──────────────
   const eigenheime = state.immobilien.items.filter(

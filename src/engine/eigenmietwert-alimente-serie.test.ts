@@ -134,6 +134,99 @@ describe("F2 — Alimente-Abzug (Art. 33 DBG)", () => {
     const b = steuerProJahr({ ...baseInput, jahr: 2026, alimenteJahr: 0 });
     expect(a.einkommen).toBe(b.einkommen);
   });
+
+  it("Alimente erhalten erhöht steuerbares Einkommen (Art. 23 lit. f DBG)", async () => {
+    const { cashflowReihe } = await import("./cashflow");
+    const base = {
+      fallart: "einzel" as const,
+      person1: {
+        vorname: "Erika",
+        nachname: "Empfänger",
+        geburtsdatum: "1980-01-01",
+        geschlecht: "w" as const,
+        telefon: "",
+        email: "",
+      },
+      person2: {
+        vorname: "",
+        nachname: "",
+        geburtsdatum: "",
+        geschlecht: null,
+        telefon: "",
+        email: "",
+      },
+      kinder: [],
+      ahv: {
+        einkommenP1: 60_000,
+        einkommenP2: null,
+        hatIkAuszugP1: false,
+        hatIkAuszugP2: false,
+        hatFehljahreP1: false,
+        hatFehljahreP2: false,
+        fehljahreAnzahlP1: 0,
+        fehljahreAnzahlP2: 0,
+        ahvBezugsalterP1: 65,
+        ahvBezugsalterP2: 65,
+        ahvRenteJahrEffektivP1: null,
+        ahvRenteJahrEffektivP2: null,
+      },
+      bvg: {
+        p1: {
+          aktiverAnschluss: false,
+          altersguthabenHeute: null,
+          altersguthabenBeiBezug: null,
+          umwandlungssatzProzent: 6,
+          bezugspraeferenz: "rente" as const,
+          kapitalanteil: 0,
+          freizuegigkeit: [],
+          einkaeufe: [],
+          wefVorbezuege: [],
+        },
+        p2: {
+          aktiverAnschluss: false,
+          altersguthabenHeute: null,
+          altersguthabenBeiBezug: null,
+          umwandlungssatzProzent: 6,
+          bezugspraeferenz: "rente" as const,
+          kapitalanteil: 0,
+          freizuegigkeit: [],
+          einkaeufe: [],
+          wefVorbezuege: [],
+        },
+      },
+      saeuleDrei: { p1: [], p2: [] },
+      vermoegen: {
+        items: [{ id: "v1", typ: "konto" as const, beschreibung: "Konto", saldoHeute: 10_000, renditeProzent: 0, istHauptkonto: true }],
+      },
+      immobilien: { items: [] },
+      firma: { vorhanden: false, firmenname: "", moeglicherVerkaufserloes: null, plan: "behalten" as const, verkaufsjahr: 2040 },
+      ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },
+      budget: {
+        einkommen: [{ id: "e1", beschreibung: "Lohn", personIdx: 1 as const, betragMonatlich: 5_000, von: "2026-01", bis: "2040-12" }],
+        ausgabenModus: "total" as const,
+        ausgabenTotal: 3_000,
+        ausgabenKategorien: { lebenshaltung: null, wohnen: null, mobilitaet: null, versicherungen: null, ferienHobby: null, sonstiges: null },
+        wunschverbrauchPension: 2_500,
+        steuernHeute: null,
+        einkommenHeute: null,
+        religion: "keine" as const,
+        alimente: { aktiv: true, betragJahr: 24_000, richtung: "erhaelt" as const },
+      },
+      adresse: { strasse: "", plz: "", ort: "", kanton: "ZH" as const, gemeindeBfsId: null, gemeindeName: "" },
+      einmaligeAusgaben: [],
+    };
+    const reihe = cashflowReihe(base, 2026, 2026);
+    const z = reihe[0]!;
+    // Einnahmen enthalten Alimente
+    expect(z.einnahmenTotal).toBeGreaterThanOrEqual(60_000 + 24_000 - 100);
+    // Saldo positiver als ohne Alimente (Empfänger profitiert)
+    const ohne = cashflowReihe(
+      { ...base, budget: { ...base.budget, alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" as const } } },
+      2026,
+      2026
+    )[0]!;
+    expect(z.saldo).toBeGreaterThan(ohne.saldo);
+  });
 });
 
 describe("F3 — PK-Einkauf-Serie (Cashflow-Engine)", () => {

@@ -48,6 +48,7 @@ import {
   type FremdKantonAnteil,
 } from "./steuer";
 import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
+import { IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT } from "./economy-defaults";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
 
@@ -358,12 +359,25 @@ export function cashflowReihe(
     // Erbschaft als einmaliger Eingang im erwartetJahr (nur wenn Toggle aktiv)
     const einnahmenErbschaft = erbschaftEinnahmeJahr(state, jahr);
 
+    // Alimente: zwei Richtungen.
+    //   - "zahlt": voll abzugsfähig (Art. 33 Abs. 1 lit. c DBG) + Cashflow-Ausgabe
+    //   - "erhaelt": voll steuerbar (Art. 23 lit. f DBG) + Cashflow-Einnahme
+    const alimenteAktiv =
+      state.budget.alimente?.aktiv && state.budget.alimente.betragJahr != null;
+    const alimenteBetrag = alimenteAktiv
+      ? Math.max(0, state.budget.alimente.betragJahr ?? 0)
+      : 0;
+    const alimenteRichtung = state.budget.alimente?.richtung ?? "zahlt";
+    const ausgabenAlimente = alimenteRichtung === "zahlt" ? alimenteBetrag : 0;
+    const einnahmenAlimente = alimenteRichtung === "erhaelt" ? alimenteBetrag : 0;
+
     const einnahmenTotal =
       einnahmenErwerb +
       einnahmenAhv +
       einnahmenBvgRente +
       einnahmenMieten +
-      einnahmenErbschaft;
+      einnahmenErbschaft +
+      einnahmenAlimente;
 
     // ─── Kapitalauszahlungen (einmalig im Jahr) ──────────────────
     const kapAuszahlungen = kapitalauszahlungenJahr(
@@ -390,12 +404,9 @@ export function cashflowReihe(
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
     const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
     const ausgabenSchenkung = schenkungAusgabeJahr(state, jahr);
-    // Alimente: voll abzugsfähig (Art. 33 DBG) + Cashflow-Ausgabe.
-    // Wirkt nur wenn der Toggle aktiv ist UND ein Betrag erfasst ist.
-    const ausgabenAlimente =
-      state.budget.alimente?.aktiv && state.budget.alimente.betragJahr != null
-        ? Math.max(0, state.budget.alimente.betragJahr)
-        : 0;
+    // Alimente-Variablen (ausgabenAlimente, einnahmenAlimente, alimenteBetrag,
+    // alimenteRichtung) wurden bereits oben definiert, weil einnahmenAlimente
+    // in einnahmenTotal einfliesst.
     // Eigenmietwert: bis 2029 wirksam auf Einkommen (Reform 2030)
     const eigenmietwertJahr = eigenmietwertJahrTotal(state, jahr);
     // Schuldzinsabzug: nur bis 2029 UND nur wenn mindestens eine selbst-
@@ -450,7 +461,14 @@ export function cashflowReihe(
     }
 
     const steuern = steuerProJahrIK({
-      einkommenJahr: einnahmenErwerb + einnahmenMieten + einnahmenAhv + einnahmenBvgRente,
+      // Erhaltene Alimente sind voll steuerbar (Art. 23 lit. f DBG) → in
+      // Einkommen aufnehmen. Bezahlte Alimente sind Abzug (siehe alimenteJahr).
+      einkommenJahr:
+        einnahmenErwerb +
+        einnahmenMieten +
+        einnahmenAhv +
+        einnahmenBvgRente +
+        einnahmenAlimente,
       vermoegenJahr: vermoegenJahresanfang,
       kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
       kanton: state.adresse.kanton,
@@ -1033,6 +1051,8 @@ function mieteinnahmenJahr(items: Immobilie[], jahr: number): number {
     if (im.typ !== "rendite") continue;
     if (im.jaehrlicheMieteinnahmen == null) continue;
     if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    // Vor Kaufjahr: keine Mieteinnahmen
+    if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     total += im.jaehrlicheMieteinnahmen;
   }
   return total;
@@ -1292,10 +1312,20 @@ function pkSaldoSparphase(
   const k = jahr - jetzt;
   const r = BVG_MINDESTZINS;
 
+  // Y-1a H-1 Guard: n=0 wäre Division-durch-0; n<=0 sollte oben gefangen sein,
+  // ist hier defensiv. Wenn jetzt == bezugsjahr → Saldo = beiBezug (kein Hochlauf).
+  if (n <= 0) return Math.max(0, beiBezug - wefSumme);
+
   // Sparbeitrag S rückwärts aus FV / PV / n / r ableiten
   const pvAufgezinst = heute * Math.pow(1 + r, n);
   const annuitaetsFaktor = (r as number) === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
-  const sparBeitrag = (beiBezug - pvAufgezinst) / annuitaetsFaktor;
+  const rohSparBeitrag = (beiBezug - pvAufgezinst) / annuitaetsFaktor;
+  // Y-1a H-1 Guard: bei sehr hohem PV (Vermögen schrumpft auf BeiBezug) wäre
+  // sparBeitrag negativ → PK-Kurve würde absinken statt wachsen, was real
+  // nicht stimmt (kein "Abzug" aus PK in Sparphase). Auf 0 clampen — Saldo
+  // hochlaufen lassen via PV-Compound, finale Ankunft = BeiBezug ist dann
+  // approximativ (User gab inkonsistente Werte ein, dokumentiert).
+  const sparBeitrag = Math.max(0, rohSparBeitrag);
 
   // Saldo nach k Jahren
   const compoundedPv = heute * Math.pow(1 + r, k);
@@ -1396,8 +1426,13 @@ function immobilieWert(
   heute: number
 ): number {
   if (im.verkehrswert == null) return 0;
-  const p = (im.wertsteigerungProzent ?? 1.5) / 100;
-  const dauer = Math.max(0, jahr - heute);
+  // Vor Kaufjahr ist Immobilie noch nicht im Eigentum → 0
+  // (Y-1c-Fix: Cuira buchte vorher Eigenheim ab heute auch bei Kauf in Zukunft)
+  if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) return 0;
+  const p = (im.wertsteigerungProzent ?? IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT) / 100;
+  // Wertsteigerung-Basis ist heute (oder Kaufjahr, falls in Zukunft)
+  const basisJahr = im.kaufjahr != null && im.kaufjahr > heute ? im.kaufjahr : heute;
+  const dauer = Math.max(0, jahr - basisJahr);
   return Math.round(im.verkehrswert * Math.pow(1 + p, dauer));
 }
 
@@ -1419,6 +1454,8 @@ function immobilienBilanzAmJahresende(
   for (const im of state.immobilien.items) {
     if (im.verkehrswert == null) continue;
     if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    // Vor Kaufjahr: keine Aktiva, keine Hypothek
+    if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
 
     const baseWert = immobilieWert(im, jahr, heute);
     const baseHypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
@@ -1458,6 +1495,8 @@ function hypothekenZinsenJahr(state: CashflowInput, jahr: number): number {
   let total = 0;
   for (const im of state.immobilien.items) {
     if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    // Vor Kaufjahr: keine Hypothek aktiv → keine Zinsen
+    if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     for (const h of im.hypotheken) {
       if (h.hoehe == null) continue;
       total += (h.hoehe * (h.zinssatzProzent ?? 0)) / 100;
