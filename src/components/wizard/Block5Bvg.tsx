@@ -493,9 +493,9 @@ function Einkaeufe({
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <div className="font-medium">Einzel-Einkauf</div>
-                  <div className="text-[10px] text-slate-400">
-                    nur im Startjahr
+                  <div className="font-medium">Einmalig</div>
+                  <div className="text-[11px] text-slate-500">
+                    z.B. Bonus, Erbschaft
                   </div>
                 </button>
                 <button
@@ -512,8 +512,8 @@ function Einkaeufe({
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <div className="font-medium">Serie</div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="font-medium">Mehrjährig</div>
+                  <div className="text-[11px] text-slate-500">
                     jährlich gleicher Betrag
                   </div>
                 </button>

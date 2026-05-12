@@ -46,14 +46,18 @@ export function VarianteDiffModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
       onClick={onClose}
+      role="presentation"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="diff-modal-title"
         className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="mb-4 flex items-baseline justify-between border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800">
+            <h2 id="diff-modal-title" className="text-lg font-semibold text-slate-800">
               Plan {aktivSlot.toUpperCase()} vs. Plan {vergleichSlot.toUpperCase()}
             </h2>
             <p className="text-xs text-slate-500">

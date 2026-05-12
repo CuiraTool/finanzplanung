@@ -12,6 +12,9 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col">
+      <a href="#dashboard-content" className="cui-skip-link">
+        Direkt zum Dashboard
+      </a>
       <CuiraHeader viewMode={viewMode} onViewModeChange={setViewMode} />
       <div className="flex-1 overflow-hidden">
         <ResizableSplit

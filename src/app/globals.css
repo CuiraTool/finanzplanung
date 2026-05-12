@@ -18,14 +18,16 @@
   --surface-hover: #f6f8fa;
 
   /* ─── Borders ───────────────────────────────────────────────── */
-  --border: #e7eaee;
-  --border-strong: #d4d9e0;
+  /* Y-2a A11y: --border angehoben von #e7eaee (1.4:1) auf #d1d5db (3:1 min). */
+  --border: #d1d5db;
+  --border-strong: #b6bec9;
 
   /* ─── Ink (Text-Hierarchie) ─────────────────────────────────── */
+  /* Y-2a A11y: --ink-3 angehoben von #8390a3 (3.4:1) auf #6b7689 (≈4.6:1). */
   --ink: #0a2540;
   --ink-2: #4b566b;
-  --ink-3: #8390a3;
-  --ink-4: #a9b3c1;
+  --ink-3: #6b7689;
+  --ink-4: #94a0b3;
 
   /* ─── Action Accent (Cuira-derivativ blau) ──────────────────── */
   --accent: oklch(0.55 0.16 252);
@@ -216,6 +218,41 @@ input[type="number"] {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
+}
+
+/* ─── A11y: globaler Focus-Visible-Ring (Y-2a) ──────────────── */
+/* Trifft alle interaktiven Elemente, die keinen eigenen Ring haben. */
+.cui-btn:focus-visible,
+.cui-seg-btn:focus-visible,
+.cui-yesno-btn:focus-visible,
+.cui-topbar-icon-btn:focus-visible,
+.cui-scenario-tab:focus-visible,
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── A11y: Skip-Link (Y-2a) ─────────────────────────────────── */
+.cui-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  background: var(--cuira-deep);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 0 0 6px 0;
+  font-size: 13px;
+  text-decoration: none;
+}
+.cui-skip-link:focus,
+.cui-skip-link:focus-visible {
+  left: 0;
 }
 
 /* ─── Input ─────────────────────────────────────────────────── */

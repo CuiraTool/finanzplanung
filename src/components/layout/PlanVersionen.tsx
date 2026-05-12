@@ -113,8 +113,12 @@ export function PlanVersionenModal({ open, onClose }: Props) {
         paddingBottom: "4vh",
       }}
       onClick={closeAll}
+      role="presentation"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="planversionen-modal-title"
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[84vh] w-[92%] max-w-[760px] flex-col overflow-hidden rounded-[14px] border shadow-[var(--shadow-pop)]"
         style={{
@@ -146,6 +150,7 @@ export function PlanVersionenModal({ open, onClose }: Props) {
               style={{ color: "var(--accent-ink)" }}
             />
             <h2
+              id="planversionen-modal-title"
               className="text-[15px] font-semibold"
               style={{ color: "var(--ink)" }}
             >

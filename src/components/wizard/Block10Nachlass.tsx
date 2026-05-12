@@ -59,12 +59,34 @@ export function Block10Nachlass() {
 
   return (
     <div className="space-y-6">
-      {/* Anwartschaften / erwartete Erbschaft */}
+      {/* Vorsorge-Dokumente — Hauptthema, zuerst */}
       <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
         <legend className="px-1 text-sm font-semibold text-slate-700">
-          Anwartschaften
+          Vorsorge- und Nachlassdokumente
           <span className="ml-2 text-xs font-normal text-slate-400">
-            erwartete Erbschaften / Schenkungen in den nächsten Jahren
+            {erledigt} von {THEMEN.length} erledigt
+          </span>
+        </legend>
+
+        <ul className="space-y-2">
+          {THEMEN.map((t) => (
+            <ThemaCard
+              key={t.key}
+              titel={t.titel}
+              erklaerung={t.erklaerung}
+              erledigt={nachlass[t.key]}
+              onToggle={(v) => setNachlass(t.key, v)}
+            />
+          ))}
+        </ul>
+      </fieldset>
+
+      {/* Erwartete Erbschaften & Schenkungen */}
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">
+          Erwartete Erbschaften & Schenkungen
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            Anwartschaften in den nächsten Jahren
           </span>
         </legend>
 
@@ -236,28 +258,6 @@ export function Block10Nachlass() {
             </Field>
           </>
         )}
-      </fieldset>
-
-      {/* Vorsorge-Dokumente */}
-      <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-        <legend className="px-1 text-sm font-semibold text-slate-700">
-          Vorsorge- und Nachlassdokumente
-          <span className="ml-2 text-xs font-normal text-slate-400">
-            {erledigt} von {THEMEN.length} erledigt
-          </span>
-        </legend>
-
-        <ul className="space-y-2">
-          {THEMEN.map((t) => (
-            <ThemaCard
-              key={t.key}
-              titel={t.titel}
-              erklaerung={t.erklaerung}
-              erledigt={nachlass[t.key]}
-              onToggle={(v) => setNachlass(t.key, v)}
-            />
-          ))}
-        </ul>
       </fieldset>
 
       <p className="text-xs text-slate-400">

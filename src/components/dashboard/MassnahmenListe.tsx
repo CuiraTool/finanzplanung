@@ -102,7 +102,7 @@ export function MassnahmenListe({
                     : "bg-white text-slate-600 hover:bg-slate-50"
                 }`}
                 aria-pressed={view === "tabelle"}
-                title="SSM-Style 3-Spalten Wann/Wer/Was"
+                title="Tabellen-Ansicht: Wann · Wer · Was — chronologisch sortiert"
               >
                 Tabelle
               </button>
@@ -166,7 +166,7 @@ export function MassnahmenListe({
                 📅 Termine & Reminder
               </div>
               {view === "liste" ? (
-                <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
+                <ul className="divide-y divide-slate-100">
                   {reminder.map((m) => (
                     <MassnahmeRow
                       key={m.id}

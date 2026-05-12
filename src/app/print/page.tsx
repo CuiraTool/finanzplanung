@@ -1095,24 +1095,28 @@ export default function PrintPage() {
             Cuira-Berater zwingend.
           </p>
           <p className="mb-2">
-            <strong>Haftungsausschluss (Art. 100 OR).</strong> Soweit
-            gesetzlich zulässig (Art. 100 Abs. 1 OR) wird jede Haftung der
-            Cuira Partners GmbH und ihrer Mitarbeitenden für Schäden aus
+            <strong>Haftungsausschluss (Art. 100 / 101 OR).</strong> Soweit
+            gesetzlich zulässig wird jede Haftung der Cuira Partners GmbH und
+            ihrer Mitarbeitenden, beauftragten Hilfspersonen (Art. 101 OR)
+            sowie allfälliger Lizenz- und Kooperationspartner für Schäden aus
             leichter Fahrlässigkeit ausgeschlossen. Für rechtswidrige Absicht
-            und grobe Fahrlässigkeit bleibt die Haftung gemäss Art. 100
-            Abs. 1 OR (zwingende Norm) unverändert bestehen. Die Cuira Partners
-            GmbH übernimmt insbesondere keine Gewähr für die Vollständigkeit
-            und Richtigkeit der vom Mandanten gelieferten Daten sowie für
-            Entscheide, die der Mandant gestützt auf diese Auslegeordnung ohne
-            individuelle Beratung trifft.
+            oder grobe Fahrlässigkeit bleibt die Haftung gemäss Art. 100
+            Abs. 1 OR (zwingende Norm) unverändert bestehen. Bei beruflicher
+            Tätigkeit kann die Haftung für leichte Fahrlässigkeit nach Art.
+            100 Abs. 2 OR durch das Gericht im Einzelfall beurteilt werden.
+            Die Cuira Partners GmbH übernimmt insbesondere keine Gewähr für
+            die Vollständigkeit und Richtigkeit der vom Mandanten gelieferten
+            Daten sowie für Entscheide, die der Mandant gestützt auf diese
+            Auslegeordnung ohne individuelle Beratung trifft.
           </p>
           <p className="mb-2">
             <strong>Datenschutz.</strong> Die im Tool erfassten Daten werden
             gemäss dem revidierten Bundesgesetz über den Datenschutz (DSG,
             Stand 1.9.2023) verarbeitet. Server-Standort: Schweiz oder
             EU (Frankfurt). Keine Weitergabe an Dritte ohne ausdrückliche
-            Einwilligung. Aufbewahrungsfrist: 10 Jahre (OR Art. 958f
-            Geschäftsbücher).
+            Einwilligung. Aufbewahrungsfrist: Personendaten nach Art. 6 Abs. 4
+            revDSG (Verhältnismässigkeit) i.V.m. Art. 127 OR (Allgemeine
+            Verjährungsfrist 10 Jahre) — danach Löschung oder Anonymisierung.
           </p>
           <p>
             Cuira Partners GmbH · Splügenstrasse 11, 8002 Zürich · CH-Schweiz · Stand: {heuteFormatiert}

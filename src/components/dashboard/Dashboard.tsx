@@ -191,7 +191,7 @@ export function Dashboard() {
   }, [cashflowA, cashflowB]);
 
   return (
-    <div className="space-y-6">
+    <div id="dashboard-content" className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -206,12 +206,16 @@ export function Dashboard() {
               ESTV-validiert
             </span>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             Aktualisiert sich auf jede Eingabe in Echtzeit
-            {inflationEnabled && (
+            {inflationEnabled ? (
               <span className="ml-2 text-[var(--color-cuira-deep)]">
                 · in heutiger Kaufkraft ({inflationRate.toFixed(1)} % Inflation
                 p.a.)
+              </span>
+            ) : (
+              <span className="ml-2 text-slate-500">
+                · in nominalen CHF (Inflation nicht abgezogen)
               </span>
             )}
           </p>

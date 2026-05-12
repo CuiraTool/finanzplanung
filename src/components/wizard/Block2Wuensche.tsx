@@ -214,17 +214,16 @@ function combinePkAlter(jahre: number, monate: number): number {
 }
 
 /**
- * Read-Only-Zelle mit identischem Layout wie ein Input — verhindert Baseline-
- * Verschiebung, wenn read-only und editable Felder in derselben Zeile stehen.
+ * Read-Only-Zelle als Div (statt readonly-Input) — vermeidet Klick-Frust
+ * beim Berater, der versucht reinzuklicken (Y-2b W7).
  */
 function ReadCell({ value }: { value: string | number }) {
   return (
-    <input
-      type="text"
-      value={String(value)}
-      readOnly
-      tabIndex={-1}
-      className={`${inputClass} cursor-default bg-slate-50 text-center tabular-nums text-slate-500`}
-    />
+    <div
+      className={`flex h-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm tabular-nums text-slate-500`}
+      aria-readonly="true"
+    >
+      {String(value)}
+    </div>
   );
 }

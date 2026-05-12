@@ -32,14 +32,23 @@ export function PlausibilityPanel() {
     info: hinweise.filter((h) => h.schwere === "info").length,
   };
 
+  // Y-2b D2: bei Fehlern roter Border statt amber für visuellen Lärm.
+  const hatFehler = counts.fehler > 0;
+  const panelClass = hatFehler
+    ? "rounded-xl border-2 border-rose-300 bg-rose-50/40 p-4"
+    : "rounded-xl border border-amber-200 bg-amber-50 p-4";
+  const titleClass = hatFehler ? "text-sm font-semibold text-rose-900" : "text-sm font-semibold text-amber-900";
+  const subClass = hatFehler ? "text-xs text-rose-700" : "text-xs text-amber-700";
+
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-4">
+    <div className={panelClass} role={hatFehler ? "alert" : "region"} aria-live="polite" aria-label="Plausibilitäts-Hinweise">
       <header className="mb-3 flex items-baseline justify-between">
         <div>
-          <div className="text-sm font-semibold text-amber-900">
+          <div className={titleClass}>
             Plausibilitäts-Check
+            {hatFehler && <span className="ml-2 text-rose-700">— {counts.fehler} Fehler vor PDF-Versand prüfen</span>}
           </div>
-          <div className="text-xs text-amber-700/80">
+          <div className={subClass}>
             {hinweise.length} Hinweise · vor PDF-Versand prüfen
           </div>
         </div>
