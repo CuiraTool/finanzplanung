@@ -11,9 +11,11 @@ import {
   Download,
   RotateCcw,
   GitBranch,
+  UserCog,
 } from "lucide-react";
 import { ViewModeToggle } from "./ViewModeToggle";
 import { PlanVersionenModal } from "./PlanVersionen";
+import { BeraterProfilEditor } from "./BeraterProfilEditor";
 import { usePlanStore } from "@/lib/store";
 import { usePlanVersionenStore } from "@/lib/plan-versionen";
 import type { ViewMode } from "@/lib/view-mode";
@@ -40,6 +42,7 @@ interface Props {
 
 export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
   const [versionenOpen, setVersionenOpen] = useState(false);
+  const [beraterOpen, setBeraterOpen] = useState(false);
   const versionenCount = usePlanVersionenStore((s) => s.versionen.length);
   const fallart = usePlanStore((s) => s.fallart);
   const person1 = usePlanStore((s) => s.person1);
@@ -261,12 +264,24 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
         )}
       </button>
 
+      {/* Berater-Profil bearbeiten */}
+      <button
+        type="button"
+        onClick={() => setBeraterOpen(true)}
+        className="cui-topbar-icon-btn"
+        title="Berater-Profil bearbeiten (Foto, Telefon, Office)"
+        aria-label="Berater-Profil bearbeiten"
+      >
+        <UserCog className="h-4 w-4" />
+      </button>
+
       {/* Reset-Plan */}
       <button
         type="button"
         onClick={handleReset}
         className="cui-topbar-icon-btn"
         title="Plan zurücksetzen — alle Eingaben löschen (für neuen Mandant)"
+        aria-label="Plan zurücksetzen"
       >
         <RotateCcw className="h-4 w-4" />
       </button>
@@ -299,6 +314,10 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
       <PlanVersionenModal
         open={versionenOpen}
         onClose={() => setVersionenOpen(false)}
+      />
+      <BeraterProfilEditor
+        open={beraterOpen}
+        onClose={() => setBeraterOpen(false)}
       />
     </header>
   );

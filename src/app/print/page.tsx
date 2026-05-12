@@ -29,6 +29,8 @@ import { massnahmenAusState } from "@/engine/massnahmen";
 import { tragbarkeitHaushalt } from "@/engine/tragbarkeit";
 import { pensionseinkommenJahr } from "@/engine/pensionseinkommen";
 import { runAllStressTests, STRESS_TESTS } from "@/engine/stress-tests";
+import { generiereNarrativ } from "@/engine/narrativ";
+import { useBeraterProfil } from "@/lib/berater-profil";
 
 interface KiMassnahmePrint {
   titel: string;
@@ -77,6 +79,7 @@ export default function PrintPage() {
     setAutoprint(u.get("autoprint") === "1");
   }, []);
   const fullState = usePlanStore();
+  const { profil: beraterProfil } = useBeraterProfil();
 
   const heutigesJahr = new Date().getFullYear();
   const heuteFormatiert = new Date().toLocaleDateString("de-CH", {
@@ -108,14 +111,13 @@ export default function PrintPage() {
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
 
-  // Detail-Liquidität: nur rendern wenn der User im Dashboard den Toggle
-  // gesetzt hat (localStorage "cuira-show-detail-liq" === "1").
-  const [showDetailLiq, setShowDetailLiq] = useState(false);
+  // Detail-Liquidität: Default-On (E2-5 / Y-3-Audit), kann via Dashboard
+  // ausgeschaltet werden. Bei explizitem "0" deaktivieren.
+  const [showDetailLiq, setShowDetailLiq] = useState(true);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setShowDetailLiq(
-      window.localStorage.getItem("cuira-show-detail-liq") === "1"
-    );
+    const v = window.localStorage.getItem("cuira-show-detail-liq");
+    setShowDetailLiq(v !== "0"); // default = on, nur explizit "0" off
   }, []);
 
   // PDF-Profile (E2-2): Kurz / Standard / Vollständig
@@ -436,6 +438,21 @@ export default function PrintPage() {
           </div>
         )}
 
+        {/* ── Narrativ "Was passiert in Ihrer Planung?" (E2-5) ── */}
+        {showInProfile("narrativ") && cashflow.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Was passiert in Ihrer Planung?">
+              <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
+                Klartext-Beschreibung der finanziellen Entwicklung — Schritt
+                für Schritt.
+              </p>
+              <NarrativListe
+                items={generiereNarrativ(fullState, cashflow, ordPensionsjahr)}
+              />
+            </Section>
+          </div>
+        )}
+
         {/* ── Plan-Varianten Δ-Vergleich (eigene Seite, nur wenn ≥1 Vergleich) ── */}
         {showInProfile("varianten-diff") && vergleichsSlots.length > 0 && (
           <div className="page-break-before pt-6">
@@ -712,6 +729,27 @@ export default function PrintPage() {
                   </div>
                 )}
             </Section>
+          </div>
+        )}
+
+        {/* ── Jahres-Tabellen (Vermögen + Steuern) (E2-5) ────── */}
+        {showInProfile("jahres-tabellen") && cashflow.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Vermögensentwicklung pro Jahr">
+              <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+                Aufschlüsselung nach Vermögensklasse — kompakte Übersicht der
+                gesamten Projektion.
+              </p>
+              <VermoegensJahresTabelle cashflow={cashflow} />
+            </Section>
+            <div className="mt-6">
+              <Section titel="Steuern pro Jahr">
+                <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+                  Einkommen + Vermögen + Kapital-Auszahlungs-Steuer pro Jahr.
+                </p>
+                <SteuerJahresTabelle cashflow={cashflow} />
+              </Section>
+            </div>
           </div>
         )}
 
@@ -1036,42 +1074,88 @@ export default function PrintPage() {
                 color: "white",
               }}
             >
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.12em]"
-                    style={{ color: "#a9b3c1" }}
-                  >
-                    Berater
-                  </div>
-                  <div className="mt-1 text-base font-semibold">
-                    Kathir Muthukumar
-                  </div>
-                  <div
-                    className="text-[11px]"
-                    style={{ color: "#a9b3c1" }}
-                  >
-                    Senior Pensionsplaner
-                  </div>
+              <div className="flex items-start gap-4">
+                {/* Foto oder Initialen-Avatar */}
+                <div
+                  className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2"
+                  style={{
+                    borderColor: "#14315a",
+                    background: "#14315a",
+                  }}
+                  aria-hidden
+                >
+                  {beraterProfil.fotoBase64 ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={beraterProfil.fotoBase64}
+                      alt={`Foto ${beraterProfil.name}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-semibold text-white">
+                      {beraterProfil.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.12em]"
-                    style={{ color: "#a9b3c1" }}
-                  >
-                    Kontakt
+
+                <div className="grid flex-1 grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div
+                      className="text-[10px] uppercase tracking-[0.12em]"
+                      style={{ color: "#a9b3c1" }}
+                    >
+                      Berater
+                    </div>
+                    <div className="mt-1 text-base font-semibold">
+                      {beraterProfil.name}
+                    </div>
+                    <div className="text-[11px]" style={{ color: "#a9b3c1" }}>
+                      {beraterProfil.rolle}
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm">
-                    kathir@cuirapartners.ch
-                  </div>
-                  <div
-                    className="text-[11px]"
-                    style={{ color: "#a9b3c1" }}
-                  >
-                    cuirapartners.ch
+                  <div>
+                    <div
+                      className="text-[10px] uppercase tracking-[0.12em]"
+                      style={{ color: "#a9b3c1" }}
+                    >
+                      Kontakt
+                    </div>
+                    <div className="mt-1 text-sm">{beraterProfil.email}</div>
+                    {beraterProfil.telefon && (
+                      <div className="text-[11px]" style={{ color: "#a9b3c1" }}>
+                        {beraterProfil.telefon}
+                      </div>
+                    )}
+                    {beraterProfil.office && (
+                      <div className="text-[11px]" style={{ color: "#a9b3c1" }}>
+                        {beraterProfil.office}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {beraterProfil.kalenderUrl && (
+                <div
+                  className="mt-3 border-t pt-3 text-[11px]"
+                  style={{ borderColor: "#14315a", color: "#a9b3c1" }}
+                >
+                  Termin buchen:{" "}
+                  <a
+                    href={beraterProfil.kalenderUrl}
+                    className="underline"
+                    style={{ color: "white" }}
+                  >
+                    {beraterProfil.kalenderUrl}
+                  </a>
+                </div>
+              )}
+
               <div
                 className="mt-3 border-t pt-3 text-[11px]"
                 style={{ borderColor: "#14315a", color: "#a9b3c1" }}
@@ -1588,6 +1672,153 @@ function ExecutiveSummary({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Klartext-Narrativ-Liste (E2-5).
+ */
+function NarrativListe({
+  items,
+}: {
+  items: import("@/engine/narrativ").NarrativItem[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="space-y-2">
+      {items.map((item, i) => (
+        <li
+          key={i}
+          className="flex items-start gap-3 rounded-md border px-3 py-2 text-sm"
+          style={{
+            borderColor:
+              item.typ === "ok"
+                ? "#bbf7d0"
+                : item.typ === "warn"
+                  ? "#fcd34d"
+                  : "#d1d5db",
+            background:
+              item.typ === "ok"
+                ? "#f0fdf4"
+                : item.typ === "warn"
+                  ? "#fefce8"
+                  : "#f8fafc",
+            color: "#1e293b",
+          }}
+        >
+          <span
+            className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+            style={{
+              background:
+                item.typ === "ok"
+                  ? "#10b981"
+                  : item.typ === "warn"
+                    ? "#f59e0b"
+                    : "#94a3b8",
+              color: "white",
+            }}
+          >
+            {item.typ === "ok" ? "✓" : item.typ === "warn" ? "!" : "i"}
+          </span>
+          <span className="leading-relaxed">{item.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Jahres-Tabelle: Vermögensentwicklung pro Jahr (E2-5 / Y-3).
+ * Spalten: Jahr · Liquid · Wertschriften · Vorsorge · Immo · Schulden · Netto
+ */
+function VermoegensJahresTabelle({
+  cashflow,
+}: {
+  cashflow: import("@/engine/cashflow").CashflowZeile[];
+}) {
+  return (
+    <table className="w-full text-[10px]">
+      <thead>
+        <tr className="border-b-2 border-slate-300 bg-slate-50">
+          <th className="px-2 py-1.5 text-left">Jahr</th>
+          <th className="px-2 py-1.5 text-right">Liquid</th>
+          <th className="px-2 py-1.5 text-right">Wertschr.</th>
+          <th className="px-2 py-1.5 text-right">Vorsorge</th>
+          <th className="px-2 py-1.5 text-right">Immo</th>
+          <th className="px-2 py-1.5 text-right">Schulden</th>
+          <th className="px-2 py-1.5 text-right font-semibold">Netto</th>
+        </tr>
+      </thead>
+      <tbody>
+        {cashflow.map((z) => (
+          <tr key={z.jahr} className="border-b border-slate-100">
+            <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.vermoegenLiquiditaet)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.vermoegenWertschriften)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.vermoegenVorsorge)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.vermoegenImmobilien)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums text-rose-700">
+              {z.vermoegenSchulden > 0 ? `−${formatChf(z.vermoegenSchulden)}` : "—"}
+            </td>
+            <td className="px-2 py-1 text-right font-semibold tabular-nums">
+              {formatChf(z.vermoegenNetto)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * Jahres-Tabelle: Steuern pro Jahr (E2-5 / Y-3).
+ */
+function SteuerJahresTabelle({
+  cashflow,
+}: {
+  cashflow: import("@/engine/cashflow").CashflowZeile[];
+}) {
+  return (
+    <table className="w-full text-[10px]">
+      <thead>
+        <tr className="border-b-2 border-slate-300 bg-slate-50">
+          <th className="px-2 py-1.5 text-left">Jahr</th>
+          <th className="px-2 py-1.5 text-right">Einkommen</th>
+          <th className="px-2 py-1.5 text-right">Vermögen</th>
+          <th className="px-2 py-1.5 text-right">Kapital</th>
+          <th className="px-2 py-1.5 text-right font-semibold">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {cashflow.map((z) => (
+          <tr key={z.jahr} className="border-b border-slate-100">
+            <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.ausgabenSteuernEinkommen)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatChf(z.ausgabenSteuernVermoegen)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {z.ausgabenSteuernKapital > 0
+                ? formatChf(z.ausgabenSteuernKapital)
+                : "—"}
+            </td>
+            <td className="px-2 py-1 text-right font-semibold tabular-nums">
+              {formatChf(z.ausgabenSteuern)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
