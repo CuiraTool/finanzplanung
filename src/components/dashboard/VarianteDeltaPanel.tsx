@@ -164,13 +164,6 @@ function DeltaKarte({
           vergleich={vergleichKpis.lebenszeitSteuern}
           richtung="tief-gut"
         />
-        <DeltaZeile
-          label="Effektivsteuersatz heute"
-          aktiv={aktivKpis.effektivSatzProzent}
-          vergleich={vergleichKpis.effektivSatzProzent}
-          richtung="tief-gut"
-          formatProzent
-        />
       </div>
     </div>
   );

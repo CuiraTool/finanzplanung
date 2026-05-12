@@ -81,11 +81,10 @@ src/engine/
 - 🟡 BVG: Pauschaler UWS pro Person, lineare Saldo-Wachstum bis Bezugsjahr nicht modelliert
 - ✅ Vermögensbilanz: Inflation-Toggle, Steuern aus ESTV-Engine
 - ✅ Hypothek-Tragbarkeit modelliert (heute + bei Pension)
-- ❌ **Eigenmietwert + Schuldzinsabzug bewusst nicht modelliert** — die
-  Reform 2028 (Volksabstimmung Sept 2025 angenommen) schafft beides ab.
-  Die Auslegeordnung ist damit für den Zustand nach 2028 realistisch.
-  Kurzfristig kann das die Steuerschätzung der nächsten 1-3 Jahre leicht
-  überzeichnen. Dokumentiert in `Block8Immobilien.tsx`.
+- ✅ **Eigenmietwert + Schuldzinsabzug bis Steuerjahr 2029** — die
+  Reform 2030 (Volksabstimmung Sept 2025 angenommen, Inkrafttreten 1.1.2030)
+  schafft beides ab. Engine: `EIGENMIETWERT_LETZTES_JAHR = 2029`. Ab
+  Steuerjahr 2030 entfällt beides automatisch.
 - ✅ Grundstückgewinnsteuer beim Verkauf (engine/grundstueckgewinn.ts) — 9 Kantone ZH/ZG/SZ/BE/LU/AG/SG/TI/VD + Median-Fallback, Besitzdauer-Faktor (Spekulationszuschlag bis +50%, Langhalter-Rabatt bis −60%), optional Kaufjahr+Anlagekosten pro Immobilie
 - ✅ BVG-Sparphase Saldo-Hochlauf — linearer Hochlauf vom altersguthabenHeute zum altersguthabenBeiBezug (vereinfacht, ±2-3% Fehler vs. exakter Sparphasen-Mathematik)
 

@@ -36,6 +36,7 @@ import {
   ahvJahresFaktor,
   ahvKinderrente,
   dreizehnteAhvFaktor,
+  bezugsfaktor,
   ORDENTLICHES_AHV_ALTER,
   MAX_VORBEZUG_JAHRE,
   MAX_AUFSCHUB_JAHRE,
@@ -54,6 +55,7 @@ import { IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT } from "./economy-defaults";
 import { effektiverSteuerwert } from "./repartition";
 import { immobilienVerkaufsAuszahlungNetto } from "./immobilien";
 import { pensionsjahr } from "@/lib/pension";
+import { berechneErbschaftssteuer } from "./erbschaftssteuer";
 
 export type CashflowInput = Pick<
   PlanState,
@@ -397,6 +399,20 @@ export function cashflowReihe(
     // Erbschaft als einmaliger Eingang im erwartetJahr (nur wenn Toggle aktiv)
     const einnahmenErbschaft = erbschaftEinnahmeJahr(state, jahr);
 
+    // Erbschaftssteuer (kantonal, separater Steuer-Strang — nicht in
+    // Einkommens-/Vermögenssteuer enthalten). Default-Verwandtschaft
+    // "nachkomme" (Eltern → Kind, häufigster Fall — Ehegatte ist überall
+    // befreit, Konkubinats-Erblasser selten als Erblasser für die zu
+    // planende Person). Wird unten zu ausgabenSteuern addiert.
+    const erbschaftssteuerJahr =
+      einnahmenErbschaft > 0
+        ? berechneErbschaftssteuer({
+            betrag: einnahmenErbschaft,
+            verwandtschaft: "nachkomme",
+            kanton: state.adresse.kanton,
+          }).steuerBetrag
+        : 0;
+
     // Alimente: zwei Richtungen.
     //   - "zahlt": voll abzugsfähig (Art. 33 Abs. 1 lit. c DBG) + Cashflow-Ausgabe
     //   - "erhaelt": voll steuerbar (Art. 23 lit. f DBG) + Cashflow-Einnahme
@@ -526,8 +542,8 @@ export function cashflowReihe(
       state.fallart === "paar" ? pkJahresFaktor(jahr, pkStartP2) : 0;
     const bvgP2Jahr =
       pkFaktorP2Lokal > 0 ? bvgRenteHaushalt.p2 * pkFaktorP2Lokal : 0;
-    const passivShared =
-      einnahmenMieten + einnahmenAlimente + einnahmenErbschaft;
+    // Erbschaft NICHT einkommens-steuerpflichtig (separat via Erbschaftssteuer).
+    const passivShared = einnahmenMieten + einnahmenAlimente;
 
     const baseSteuerInput = {
       kanton: state.adresse.kanton,
@@ -645,7 +661,9 @@ export function cashflowReihe(
         fremdAnteile
       );
     }
-    const ausgabenSteuern = steuern.total;
+    // ausgabenSteuern enthält: Einkommens-, Vermögens-, Kapital- + ggf.
+    // Erbschaftssteuer im Bezugsjahr (separater kantonaler Strang).
+    const ausgabenSteuern = steuern.total + erbschaftssteuerJahr;
 
     // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
     // (nur in Erwerbsphase relevant — bei Pensionierung sind die 0)
@@ -1083,9 +1101,18 @@ function computeAhvRente(
   const gjP1 = state.person1.geburtsdatum
     ? Number.parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
     : undefined;
+  // Override = Vollrente Skala 44 bei ordentlichem Bezugsalter (BSV-Prognose /
+  // IK-Auszug-Output). Vorbezugskürzung + 13. AHV werden hier draufgerechnet,
+  // analog zum Skala-44-Pfad in ahvJahresrenteEinzel.
+  const ahv21CtxP1 =
+    gjP1 != null && e1 != null
+      ? { geburtsjahr: gjP1, geschlecht: state.person1.geschlecht, massgebendesEinkommen: e1 }
+      : undefined;
+  const bfP1Override = bezugsfaktor(bezugsalterP1, ORDENTLICHES_AHV_ALTER, ahv21CtxP1);
+  const dfP1Override = dreizehnteAhvFaktor(bezugsjahrP1 ?? new Date().getFullYear());
   const p1Einzel =
     override1 != null && override1 > 0
-      ? override1
+      ? Math.round(override1 * bfP1Override * dfP1Override)
       : e1 != null
         ? ahvJahresrenteEinzel({
             massgebendesEinkommen: e1,
@@ -1108,9 +1135,15 @@ function computeAhvRente(
   const gjP2 = state.person2.geburtsdatum
     ? Number.parseInt(state.person2.geburtsdatum.slice(0, 4), 10)
     : undefined;
+  const ahv21CtxP2 =
+    gjP2 != null && e2 != null
+      ? { geburtsjahr: gjP2, geschlecht: state.person2.geschlecht, massgebendesEinkommen: e2 }
+      : undefined;
+  const bfP2Override = bezugsfaktor(bezugsalterP2, ORDENTLICHES_AHV_ALTER, ahv21CtxP2);
+  const dfP2Override = dreizehnteAhvFaktor(bezugsjahrP2 ?? new Date().getFullYear());
   const p2Einzel =
     override2 != null && override2 > 0
-      ? override2
+      ? Math.round(override2 * bfP2Override * dfP2Override)
       : e2 != null
         ? ahvJahresrenteEinzel({
             massgebendesEinkommen: e2,
@@ -1143,7 +1176,8 @@ function computeAhvRente(
     const plafond = istKonkubinat(state)
       ? Number.POSITIVE_INFINITY // bei Konkubinat kein Plafond (bereits oben behandelt)
       : 45_360 * dreizehnteAhvFaktor(refJahr);
-    haushalt = Math.min(plafond, override1 + override2);
+    // p1Einzel/p2Einzel sind bereits Vorbezug-/Aufschub-korrigiert + inkl. 13. AHV.
+    haushalt = Math.min(plafond, p1Einzel + p2Einzel);
   } else if (e1 != null && e2 != null) {
     const refJahr = Math.max(
       bezugsjahrP1 ?? new Date().getFullYear(),
@@ -1178,6 +1212,34 @@ function computeBvgRenteHaushalt(state: CashflowInput): { p1: number; p2: number
   };
 }
 
+/**
+ * Annahme: altersguthabenBeiBezug ist die PK-Ausweis-Projektion auf das
+ * ordentliche AHV-Alter (65). Bei Frühpension (bezugsalter < 65) reduzieren
+ * wir den Wert linear zwischen altersguthabenHeute und altersguthabenBeiBezug.
+ * Vereinfachung: ±2-3% Fehler vs. exakter Sparphasen-Mathematik (siehe CLAUDE.md).
+ */
+function pkAltersguthabenBeiAlter(
+  p: BvgPersonInput,
+  geburt: string,
+  bezugsalter: number
+): number {
+  if (p.altersguthabenBeiBezug == null) return 0;
+  if (p.altersguthabenHeute == null) return p.altersguthabenBeiBezug;
+  const gj = Number.parseInt(geburt.slice(0, 4), 10);
+  if (!Number.isFinite(gj)) return p.altersguthabenBeiBezug;
+  const alterHeute = new Date().getFullYear() - gj;
+  const ordAlter = ORDENTLICHES_AHV_ALTER;
+  if (alterHeute >= ordAlter) return p.altersguthabenBeiBezug;
+  if (bezugsalter >= ordAlter) return p.altersguthabenBeiBezug;
+  if (bezugsalter <= alterHeute) return p.altersguthabenHeute;
+  const fraction =
+    (bezugsalter - alterHeute) / (ordAlter - alterHeute);
+  return Math.round(
+    p.altersguthabenHeute +
+      (p.altersguthabenBeiBezug - p.altersguthabenHeute) * fraction
+  );
+}
+
 function bvgRentePerson(
   p: BvgPersonInput,
   geburt: string,
@@ -1192,7 +1254,10 @@ function bvgRentePerson(
   // weil das beim altersguthabenBeiBezug-Wert vom PK-Ausweis schon
   // implizit drin sein kann).
   const wefBisBezug = wefSummeBis(p, bj);
-  const ausgangssaldo = Math.max(0, p.altersguthabenBeiBezug - wefBisBezug);
+  // Frühpension-Korrektur: altersguthabenBeiBezug an tatsächliches bezugsalter
+  // anpassen (linearer Hochlauf zwischen heute und ord. AHV-Alter).
+  const guthabenBeiBezug = pkAltersguthabenBeiAlter(p, geburt, bezugsalter);
+  const ausgangssaldo = Math.max(0, guthabenBeiBezug - wefBisBezug);
   const saldo = bvgGesamtkapitalBeiBezug({
     altersguthabenBeiBezug: ausgangssaldo,
     bezugsjahr: bj,
@@ -1235,7 +1300,9 @@ function bvgKapitalPerson(
   const ekGueltig = expandEinkaeufe(p.einkaeufe);
   // WEF-Vorbezüge mindern Bezugskapital (siehe bvgRentePerson)
   const wefBisBezug = wefSummeBis(p, bj);
-  const ausgangssaldo = Math.max(0, p.altersguthabenBeiBezug - wefBisBezug);
+  // Frühpension-Korrektur (siehe bvgRentePerson)
+  const guthabenBeiBezug = pkAltersguthabenBeiAlter(p, geburt, bezugsalter);
+  const ausgangssaldo = Math.max(0, guthabenBeiBezug - wefBisBezug);
   const saldo = bvgGesamtkapitalBeiBezug({
     altersguthabenBeiBezug: ausgangssaldo,
     bezugsjahr: bj,

@@ -177,10 +177,10 @@ function VermoegenCard({
           <input
             type="number"
             inputMode="numeric"
-            value={item.saldoHeute || ""}
+            value={item.saldoHeute ?? ""}
             onChange={(e) =>
               onUpdate({
-                saldoHeute: e.target.value === "" ? 0 : Number(e.target.value),
+                saldoHeute: e.target.value === "" ? null : Number(e.target.value),
               })
             }
             placeholder={istDarlehen ? "z.B. 50'000" : "z.B. 100'000"}

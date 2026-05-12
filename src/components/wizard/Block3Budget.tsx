@@ -532,7 +532,7 @@ function TemporaereAusgaben() {
             key={a.id}
             className="grid grid-cols-[1fr_auto] gap-2 rounded-md border border-slate-200 bg-white p-3"
           >
-            <div className="grid grid-cols-[1fr_120px_100px_100px] gap-2 items-end">
+            <div className="grid grid-cols-1 gap-2 items-end sm:grid-cols-[1fr_120px_100px_100px]">
               <Field label="Beschreibung">
                 <input
                   type="text"
