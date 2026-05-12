@@ -56,6 +56,7 @@ import { pensionsjahr } from "@/lib/pension";
 export type CashflowInput = Pick<
   PlanState,
   | "fallart"
+  | "zivilstand"
   | "person1"
   | "person2"
   | "kinder"
@@ -73,6 +74,19 @@ export type CashflowInput = Pick<
   /** Optional — wird für Erbschaft/Schenkung-Engine verwendet wenn vorhanden. */
   erbschaft?: PlanState["erbschaft"];
 };
+
+/**
+ * Konkubinat-Detektion: fallart="paar" + zivilstand="konkubinat".
+ * Steuerlich + AHV-rechtlich werden beide Partner als Einzelpersonen behandelt:
+ *  - Bundessteuer: jeder LEDIG-Tarif (kein Splitting)
+ *  - Kantonssteuer: jeder LEDIG-Tarif (kein Verheirateten-Tarif)
+ *  - Vermsteuer: je 80k Freibetrag (kein 160k gemeinsam)
+ *  - AHV: jeder eigene Einzelrente (kein Plafond 45'360, kein Splitting)
+ *  - Kapital-Auszahlungs-Steuer: jeder LEDIG-Sondertarif
+ */
+function istKonkubinat(state: CashflowInput): boolean {
+  return state.fallart === "paar" && state.zivilstand === "konkubinat";
+}
 
 /**
  * Wendet Szenario-B-Overrides auf einen CashflowInput an. Felder im Overlay
@@ -324,10 +338,15 @@ export function cashflowReihe(
     const p2AhvBezieht = ahvFaktorP2 > 0;
     let einnahmenAhv = 0;
     if (state.fallart === "paar") {
-      if (p1AhvBezieht && p2AhvBezieht) {
-        // Beide im Bezug → Plafond aktiv. Bei unterschiedlichen Startmonaten
-        // pro-rate konservativ mit max-Faktor (entspricht "Plafond ab dem
-        // Monat, in dem beide beziehen"). Im stabilen Vollbezugs-Jahr = 1.
+      if (istKonkubinat(state)) {
+        // Konkubinat: jeder eigene Einzelrente, kein Plafond, individuelle
+        // Pro-Rata-Faktoren.
+        einnahmenAhv = Math.round(
+          ahvRenteHaushalt.p1Einzel * ahvFaktorP1 +
+            ahvRenteHaushalt.p2Einzel * ahvFaktorP2
+        );
+      } else if (p1AhvBezieht && p2AhvBezieht) {
+        // Verheiratet: beide im Bezug → Plafond aktiv.
         einnahmenAhv = Math.round(
           ahvRenteHaushalt.haushalt * Math.max(ahvFaktorP1, ahvFaktorP2)
         );
@@ -471,56 +490,137 @@ export function cashflowReihe(
       });
     }
 
-    const steuern = steuerProJahrIK({
-      // Erhaltene Alimente sind voll steuerbar (Art. 23 lit. f DBG) → in
-      // Einkommen aufnehmen. Bezahlte Alimente sind Abzug (siehe alimenteJahr).
-      einkommenJahr:
-        einnahmenErwerb +
-        einnahmenMieten +
-        einnahmenAhv +
-        einnahmenBvgRente +
-        einnahmenAlimente,
-      vermoegenJahr: vermoegenSteuerwertJahresanfang,
-      kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
+    // Konkubinat (V1): zwei separate Steuer-Berechnungen pro Person mit
+    // fallart="einzel", danach summiert. Kein Ehepaar-Splitting, kein
+    // Verheirateten-Tarif. Vermögen + shared income 50/50 zugeordnet.
+    const konkubinatAktiv = istKonkubinat(state);
+    const ahvP1Jahr = ahvRenteHaushalt.p1Einzel * ahvFaktorP1;
+    const ahvP2Jahr = ahvRenteHaushalt.p2Einzel * ahvFaktorP2;
+    const bvgP1Jahr =
+      pkFaktorP1 > 0 ? bvgRenteHaushalt.p1 * pkFaktorP1 : 0;
+    const pkFaktorP2Lokal =
+      state.fallart === "paar" ? pkJahresFaktor(jahr, pkStartP2) : 0;
+    const bvgP2Jahr =
+      pkFaktorP2Lokal > 0 ? bvgRenteHaushalt.p2 * pkFaktorP2Lokal : 0;
+    const passivShared =
+      einnahmenMieten + einnahmenAlimente + einnahmenErbschaft;
+
+    const baseSteuerInput = {
       kanton: state.adresse.kanton,
       bfsId: state.adresse.gemeindeBfsId ?? undefined,
       religion: state.budget.religion,
-      fallart: state.fallart,
       jahr,
-      // Detail-Felder für präzise Abzüge (Phase 5)
-      bruttoErwerbP1,
-      bruttoErwerbP2,
-      alterP1: alterP1 ?? 40,
-      alterP2: alterP2 ?? 40,
-      anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
-      saeule3aEinzahlungJahr,
-      pkEinkaufJahr,
-      hatPkAnschlussP1:
-        state.bvg.p1.aktiverAnschluss && istVorPensionP1,
-      hatPkAnschlussP2:
-        state.fallart === "paar" &&
-        state.bvg.p2.aktiverAnschluss &&
-        istVorPensionP2,
-      // Anker greift NUR im heutigen Jahr (User-Wunsch): das Feld
-      // "Aktuelle Jahressteuer" reflektiert die letzte Veranlagung — Folgejahre
-      // werden via ESTV-Engine berechnet (Steuerentwicklung). Sonst würde der
-      // Anker proportional skaliert und auch Pension-Jahre verzerren.
-      ankerSteuernHeute:
-        jahr === heuteJahr ? state.budget.steuernHeute : null,
-      ankerEinkommenHeute:
-        jahr === heuteJahr ? ankerEinkommenImplizit : null,
-      // User-Wunsch: Erwerbseinkommen wird als Netto interpretiert
-      // (Sozial+BVG bereits abgezogen). Engine zieht keine zusätzlichen
-      // Sozial-Abzüge mehr ab — nur Berufsauslagen + Versicherung +
-      // Kinder + 3a + DDV. Konsistent mit dem im Block 5 separat
-      // erfassten BVG-Beitrag.
       einkommenIstNetto: true,
-      // Reform 2030: Eigenmietwert + Schuldzinsabzug nur bis 2029 wirksam.
-      // Werte werden in der Steuer-Engine intern nach Kalenderjahr gefiltert.
       eigenmietwertJahr,
       schuldzinsenJahr: schuldzinsenAbzug,
       alimenteJahr: ausgabenAlimente,
-    }, fremdAnteile);
+    };
+
+    let steuern: ReturnType<typeof steuerProJahrIK>;
+    if (konkubinatAktiv) {
+      // Person 1
+      const s1 = steuerProJahrIK(
+        {
+          ...baseSteuerInput,
+          fallart: "einzel",
+          einkommenJahr: bruttoErwerbP1 + ahvP1Jahr + bvgP1Jahr + passivShared / 2,
+          vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
+          kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
+          bruttoErwerbP1,
+          bruttoErwerbP2: 0,
+          alterP1: alterP1 ?? 40,
+          alterP2: 40,
+          anzahlKinder: 0,
+          saeule3aEinzahlungJahr: saeule3aEinzahlungJahr / 2,
+          pkEinkaufJahr: pkEinkaufJahr / 2,
+          hatPkAnschlussP1: state.bvg.p1.aktiverAnschluss && istVorPensionP1,
+          hatPkAnschlussP2: false,
+          ankerSteuernHeute:
+            jahr === heuteJahr && state.budget.steuernHeute
+              ? state.budget.steuernHeute / 2
+              : null,
+          ankerEinkommenHeute:
+            jahr === heuteJahr && ankerEinkommenImplizit
+              ? ankerEinkommenImplizit / 2
+              : null,
+        },
+        fremdAnteile
+      );
+      // Person 2
+      const s2 = steuerProJahrIK(
+        {
+          ...baseSteuerInput,
+          fallart: "einzel",
+          einkommenJahr: bruttoErwerbP2 + ahvP2Jahr + bvgP2Jahr + passivShared / 2,
+          vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
+          kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
+          bruttoErwerbP1: bruttoErwerbP2, // P2 ist hier als P1 erfasst (Single-Pfad)
+          bruttoErwerbP2: 0,
+          alterP1: alterP2 ?? 40,
+          alterP2: 40,
+          anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
+          saeule3aEinzahlungJahr: saeule3aEinzahlungJahr / 2,
+          pkEinkaufJahr: pkEinkaufJahr / 2,
+          hatPkAnschlussP1: state.bvg.p2.aktiverAnschluss && istVorPensionP2,
+          hatPkAnschlussP2: false,
+          ankerSteuernHeute:
+            jahr === heuteJahr && state.budget.steuernHeute
+              ? state.budget.steuernHeute / 2
+              : null,
+          ankerEinkommenHeute:
+            jahr === heuteJahr && ankerEinkommenImplizit
+              ? ankerEinkommenImplizit / 2
+              : null,
+        },
+        fremdAnteile
+      );
+      steuern = {
+        einkommen: s1.einkommen + s2.einkommen,
+        einkommenBund: s1.einkommenBund + s2.einkommenBund,
+        einkommenKanton: s1.einkommenKanton + s2.einkommenKanton,
+        vermoegen: s1.vermoegen + s2.vermoegen,
+        kapital: s1.kapital + s2.kapital,
+        kapitalBund: (s1.kapitalBund ?? 0) + (s2.kapitalBund ?? 0),
+        kapitalKanton: (s1.kapitalKanton ?? 0) + (s2.kapitalKanton ?? 0),
+        total: s1.total + s2.total,
+        kalibriert: s1.kalibriert || s2.kalibriert,
+        abzuegeDbg: s1.abzuegeDbg,
+      };
+    } else {
+      steuern = steuerProJahrIK(
+        {
+          ...baseSteuerInput,
+          // Erhaltene Alimente voll steuerbar (Art. 23 lit. f DBG)
+          einkommenJahr:
+            einnahmenErwerb +
+            einnahmenMieten +
+            einnahmenAhv +
+            einnahmenBvgRente +
+            einnahmenAlimente,
+          vermoegenJahr: vermoegenSteuerwertJahresanfang,
+          kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
+          fallart: state.fallart,
+          bruttoErwerbP1,
+          bruttoErwerbP2,
+          alterP1: alterP1 ?? 40,
+          alterP2: alterP2 ?? 40,
+          anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
+          saeule3aEinzahlungJahr,
+          pkEinkaufJahr,
+          hatPkAnschlussP1:
+            state.bvg.p1.aktiverAnschluss && istVorPensionP1,
+          hatPkAnschlussP2:
+            state.fallart === "paar" &&
+            state.bvg.p2.aktiverAnschluss &&
+            istVorPensionP2,
+          ankerSteuernHeute:
+            jahr === heuteJahr ? state.budget.steuernHeute : null,
+          ankerEinkommenHeute:
+            jahr === heuteJahr ? ankerEinkommenImplizit : null,
+        },
+        fremdAnteile
+      );
+    }
     const ausgabenSteuern = steuern.total;
 
     // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
@@ -943,6 +1043,13 @@ function computeAhvRente(
             bezugsjahr: bezugsjahrP2 ?? new Date().getFullYear(),
           }).jahresrente
         : 0;
+
+  // Konkubinat: jeder bezieht seine eigene Einzelrente, KEIN Splitting,
+  // KEIN Plafond (gilt nur für Ehe + eingetragene Partnerschaft).
+  // p1Einzel/p2Einzel sind bereits ohne Splitting berechnet → summieren.
+  if (istKonkubinat(state)) {
+    return { haushalt: p1Einzel + p2Einzel, p1Einzel, p2Einzel };
+  }
 
   // Ehepaar-Rente: wenn beide Override haben, einfach summieren mit Plafond
   // CHF 45'360 (150% Max). Sonst Standard-Berechnung mit Splitting.

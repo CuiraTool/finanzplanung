@@ -30,6 +30,7 @@ const PROJEKTIONS_END_ALTER = 85;
 
 export function Dashboard() {
   const fallart = usePlanStore((s) => s.fallart);
+  const zivilstandTop = usePlanStore((s) => s.zivilstand);
   const person1 = usePlanStore((s) => s.person1);
   const person2 = usePlanStore((s) => s.person2);
   const kinder = usePlanStore((s) => s.kinder);
@@ -51,6 +52,7 @@ export function Dashboard() {
   const cashflowState = useMemo(
     () => ({
       fallart,
+      zivilstand: zivilstandTop,
       person1,
       person2,
       kinder,
@@ -68,6 +70,7 @@ export function Dashboard() {
     }),
     [
       fallart,
+      zivilstandTop,
       person1,
       person2,
       kinder,

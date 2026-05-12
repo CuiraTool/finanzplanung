@@ -22,6 +22,7 @@ import { cashflowReihe, type CashflowInput, type CashflowZeile } from "../cashfl
 function leererCashflowInput(): CashflowInput {
   return {
     fallart: "einzel",
+    zivilstand: "ledig" as const,
     person1: {
       vorname: "",
       nachname: "",

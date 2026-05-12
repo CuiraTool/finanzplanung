@@ -27,6 +27,7 @@ const baseInput = {
   kapAuszahlungenJahr: 0,
   kanton: "ZH",
   fallart: "einzel" as const,
+      zivilstand: "ledig" as const,
   bruttoErwerbP1: 150_000,
   bruttoErwerbP2: 0,
   alterP1: 50,
@@ -139,6 +140,7 @@ describe("F2 — Alimente-Abzug (Art. 33 DBG)", () => {
     const { cashflowReihe } = await import("./cashflow");
     const base = {
       fallart: "einzel" as const,
+      zivilstand: "ledig" as const,
       person1: {
         vorname: "Erika",
         nachname: "Empfänger",

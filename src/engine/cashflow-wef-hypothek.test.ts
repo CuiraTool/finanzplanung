@@ -16,6 +16,7 @@ import type { CashflowInput } from "./cashflow";
 function makeStateMitImmobilieUndPk(): CashflowInput {
   return {
     fallart: "einzel",
+    zivilstand: "ledig" as const,
     person1: {
       vorname: "Lisa",
       nachname: "Beispiel",

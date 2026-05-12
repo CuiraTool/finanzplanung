@@ -17,6 +17,7 @@ import type { CashflowInput } from "./cashflow";
 function makeBaseState(): CashflowInput {
   return {
     fallart: "einzel",
+    zivilstand: "ledig" as const,
     person1: {
       vorname: "Max",
       nachname: "Muster",

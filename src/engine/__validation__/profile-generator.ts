@@ -499,6 +499,7 @@ export const arbRandomProfile: fc.Arbitrary<RandomProfile> = fc
         };
         const profile: RandomProfile = {
           fallart: base.fallart,
+          zivilstand: base.fallart === "paar" ? "verheiratet" : "ledig",
           person1: {
             vorname: base.p1.vorname,
             nachname: base.p1.nachname,

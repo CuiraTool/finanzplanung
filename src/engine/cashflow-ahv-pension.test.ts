@@ -18,6 +18,7 @@ import type { CashflowInput } from "./cashflow";
 function makePaarState(): CashflowInput {
   return {
     fallart: "paar",
+    zivilstand: "verheiratet" as const,
     person1: {
       vorname: "Anna",
       nachname: "Muster",

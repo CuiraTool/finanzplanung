@@ -60,6 +60,18 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
         text: "Fallart Paar — Vorname Person 2 fehlt.",
       });
     }
+    // Konkubinat-Info: kein AHV-Splitting/Plafond, kein Verheirateten-Tarif.
+    if (state.zivilstand === "konkubinat") {
+      out.push({
+        id: "konkubinat-info",
+        block: "1 Personen",
+        schwere: "info",
+        text:
+          "Konkubinat erkannt — Steuer + AHV werden separat pro Person berechnet (LEDIG-Tarif). " +
+          "Keine Plafondierung der AHV-Ehepaarrente, kein Verheirateten-Splitting. " +
+          "Vermögens-Freibetrag je Person 80k (statt 160k Ehepaar).",
+      });
+    }
   }
   if (state.adresse.plz && state.adresse.plz.length !== 4) {
     out.push({
