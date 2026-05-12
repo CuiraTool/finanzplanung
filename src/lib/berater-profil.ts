@@ -7,9 +7,9 @@ import { persist } from "zustand/middleware";
  * Berater-Profil (E2-8 / Y-2b P3-Audit).
  *
  * Wird im PDF-Berater-Block angezeigt. Foto optional als Base64 oder URL.
- * Default-Profil = Kathir Muthukumar (Cuira-Gründer).
+ * Default-Profil = Kathirsan Kathirgamanathan (Cuira-Gründer).
  *
- * LocalStorage: "cuira-berater-profil-v1"
+ * LocalStorage: "cuira-berater-profil-v2"
  */
 export interface BeraterProfil {
   name: string;
@@ -22,7 +22,7 @@ export interface BeraterProfil {
 }
 
 const DEFAULT_PROFIL: BeraterProfil = {
-  name: "Kathir Muthukumar",
+  name: "Kathirsan Kathirgamanathan",
   rolle: "Senior Pensionsplaner",
   email: "kathir@cuirapartners.ch",
   telefon: "+41 44 000 00 00",
@@ -44,7 +44,7 @@ const useStore = create<BeraterProfilStore>()(
       setProfil: (p) => set((s) => ({ profil: { ...s.profil, ...p } })),
       reset: () => set({ profil: DEFAULT_PROFIL }),
     }),
-    { name: "cuira-berater-profil-v1" }
+    { name: "cuira-berater-profil-v2" }
   )
 );
 
@@ -55,7 +55,7 @@ export function useBeraterProfil(): BeraterProfilStore {
 export function getBeraterProfilStatic(): BeraterProfil {
   if (typeof window === "undefined") return DEFAULT_PROFIL;
   try {
-    const raw = window.localStorage.getItem("cuira-berater-profil-v1");
+    const raw = window.localStorage.getItem("cuira-berater-profil-v2");
     if (!raw) return DEFAULT_PROFIL;
     const p = JSON.parse(raw) as { state?: { profil?: BeraterProfil } };
     return p.state?.profil ?? DEFAULT_PROFIL;

@@ -16,6 +16,7 @@ import {
 import { ViewModeToggle } from "./ViewModeToggle";
 import { PlanVersionenModal } from "./PlanVersionen";
 import { BeraterProfilEditor } from "./BeraterProfilEditor";
+import { useBeraterProfil } from "@/lib/berater-profil";
 import { usePlanStore } from "@/lib/store";
 import { usePlanVersionenStore } from "@/lib/plan-versionen";
 import type { ViewMode } from "@/lib/view-mode";
@@ -41,6 +42,7 @@ interface Props {
 }
 
 export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
+  const { profil: beraterProfil } = useBeraterProfil();
   const [versionenOpen, setVersionenOpen] = useState(false);
   const [beraterOpen, setBeraterOpen] = useState(false);
   const [planCDialogOpen, setPlanCDialogOpen] = useState(false);
@@ -332,9 +334,14 @@ export function CuiraHeader({ viewMode, onViewModeChange }: Props) {
       {/* Berater-Avatar */}
       <div
         className="cui-topbar-avatar"
-        title="Berater · Kathir Muthukumar"
+        title={`Berater · ${beraterProfil.name}`}
       >
-        KM
+        {beraterProfil.name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]?.toUpperCase() ?? "")
+          .join("") || "?"}
       </div>
 
       <PlanVersionenModal
