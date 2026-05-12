@@ -3,7 +3,10 @@
 import { usePlanStore } from "@/lib/store";
 import { ORDENTLICHES_AHV_ALTER, pensionsjahr, personLabel } from "@/lib/pension";
 import { Field } from "@/components/ui/Field";
-import { inputClass } from "@/components/ui/styles";
+import { inputClass, selectClass } from "@/components/ui/styles";
+
+const PK_ALTER_MIN = 58;
+const PK_ALTER_MAX = 70;
 
 export function Block2Wuensche() {
   const fallart = usePlanStore((s) => s.fallart);
@@ -142,33 +145,72 @@ function PensionierungZeile({
   onChangeWunsch: (n: number) => void;
 }) {
   const ordentlichJahr = pensionsjahr(geburtsdatum, ORDENTLICHES_AHV_ALTER);
-  const wunschJahr = pensionsjahr(geburtsdatum, wunschalter);
+  const wunschJahr = pensionsjahr(geburtsdatum, Math.floor(wunschalter));
+  const jahre = Math.floor(wunschalter);
+  const monate = Math.round((wunschalter - jahre) * 12);
 
   return (
     <div className="space-y-2">
       <div className="text-xs font-medium text-slate-700">{label}</div>
-      <div className="grid grid-cols-[1fr_120px_120px] items-center gap-2 text-sm">
+      <div className="grid grid-cols-[1fr_220px_120px] items-center gap-2 text-sm">
         <div className="text-xs uppercase tracking-wide text-slate-500">Variante</div>
-        <div className="text-xs uppercase tracking-wide text-slate-500">Alter</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500">Alter (Jahre · Monate)</div>
         <div className="text-xs uppercase tracking-wide text-slate-500">Jahr</div>
 
         <div className="text-slate-700">Ordentlich</div>
-        <ReadCell value={ORDENTLICHES_AHV_ALTER} />
+        <ReadCell value={`${ORDENTLICHES_AHV_ALTER} J · 0 Mt`} />
         <ReadCell value={ordentlichJahr ?? "—"} />
 
         <div className="text-slate-700">Wunsch</div>
-        <input
-          type="number"
-          min={58}
-          max={70}
-          value={wunschalter}
-          onChange={(e) => onChangeWunsch(Number(e.target.value))}
-          className={`${inputClass} text-center tabular-nums`}
-        />
+        <div className="flex items-center gap-1">
+          <select
+            value={jahre}
+            onChange={(e) => {
+              const j = Number(e.target.value);
+              onChangeWunsch(combinePkAlter(j, monate));
+            }}
+            className={`${selectClass} w-16 text-center tabular-nums`}
+            aria-label="PK-Bezugsalter Jahre"
+          >
+            {pkJahreOptionen().map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <span className="text-xs text-slate-500">J</span>
+          <select
+            value={monate}
+            onChange={(e) => {
+              const m = Number(e.target.value);
+              onChangeWunsch(combinePkAlter(jahre, m));
+            }}
+            className={`${selectClass} w-16 text-center tabular-nums`}
+            aria-label="PK-Bezugsalter Monate"
+          >
+            {pkMonateOptionen().map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <span className="text-xs text-slate-500">Mt</span>
+        </div>
         <ReadCell value={wunschJahr ?? "—"} />
       </div>
     </div>
   );
+}
+
+function pkJahreOptionen(): number[] {
+  const out: number[] = [];
+  for (let a = PK_ALTER_MIN; a <= PK_ALTER_MAX; a++) out.push(a);
+  return out;
+}
+
+function pkMonateOptionen(): number[] {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+}
+
+function combinePkAlter(jahre: number, monate: number): number {
+  const raw = jahre + monate / 12;
+  return Math.max(PK_ALTER_MIN, Math.min(PK_ALTER_MAX, raw));
 }
 
 /**

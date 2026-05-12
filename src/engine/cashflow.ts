@@ -225,11 +225,16 @@ export function cashflowReihe(
       : null;
   const ahvBezugsjahrP1 = ahvStartP1?.jahr ?? null;
   const ahvBezugsjahrP2 = ahvStartP2?.jahr ?? null;
-  const pkBezugsjahrP1 = pensionsjahr(state.person1.geburtsdatum, state.ziele.bezugsalterP1);
-  const pkBezugsjahrP2 =
+  // PK-Rentenbezug ebenfalls monatsgenau (Folgemonat nach Erreichen des
+  // PK-Bezugsalters). Pro-Rata im Bezugsjahr nur bei Rente — Kapital ist
+  // bereits einmaliger Stichtags-Bezug.
+  const pkStartP1 = ahvBezugsstart(state.person1.geburtsdatum, state.ziele.bezugsalterP1);
+  const pkStartP2 =
     state.fallart === "paar"
-      ? pensionsjahr(state.person2.geburtsdatum, state.ziele.bezugsalterP2)
+      ? ahvBezugsstart(state.person2.geburtsdatum, state.ziele.bezugsalterP2)
       : null;
+  const pkBezugsjahrP1 = pkStartP1?.jahr ?? null;
+  const pkBezugsjahrP2 = pkStartP2?.jahr ?? null;
 
   const ahvRenteHaushalt = computeAhvRente(state, ahvBezugsjahrP1, ahvBezugsjahrP2);
   const bvgRenteHaushalt = computeBvgRenteHaushalt(state);
@@ -333,16 +338,19 @@ export function cashflowReihe(
       einnahmenAhv = Math.round(ahvRenteHaushalt.haushalt * ahvFaktorP1);
     }
 
+    // BVG-Rente mit Pro-Rata im Bezugsstart-Jahr (Folgemonat nach Erreichen
+    // des PK-Bezugsalters). PK kennt keine 13. Rente, daher Divisor 12.
+    // Kapital-Auszahlungen sind separat (einmaliger Stichtags-Bezug).
     let einnahmenBvgRente = 0;
-    if (pkBezugsjahrP1 != null && jahr >= pkBezugsjahrP1) {
-      einnahmenBvgRente += bvgRenteHaushalt.p1;
+    const pkFaktorP1 = pkJahresFaktor(jahr, pkStartP1);
+    if (pkFaktorP1 > 0) {
+      einnahmenBvgRente += Math.round(bvgRenteHaushalt.p1 * pkFaktorP1);
     }
-    if (
-      state.fallart === "paar" &&
-      pkBezugsjahrP2 != null &&
-      jahr >= pkBezugsjahrP2
-    ) {
-      einnahmenBvgRente += bvgRenteHaushalt.p2;
+    if (state.fallart === "paar") {
+      const pkFaktorP2 = pkJahresFaktor(jahr, pkStartP2);
+      if (pkFaktorP2 > 0) {
+        einnahmenBvgRente += Math.round(bvgRenteHaushalt.p2 * pkFaktorP2);
+      }
     }
 
     const einnahmenMieten = mieteinnahmenJahr(state.immobilien.items, jahr);
@@ -659,6 +667,23 @@ function clampAhvAlter(alter: number): number {
     ORDENTLICHES_AHV_ALTER - MAX_VORBEZUG_JAHRE,
     Math.min(ORDENTLICHES_AHV_ALTER + MAX_AUFSCHUB_JAHRE, alter)
   );
+}
+
+/**
+ * Jahres-Faktor für PK-Rentenauszahlung im Bezugsstart-Jahr.
+ *
+ * Analog zur AHV (Folgemonat nach Erreichen des Bezugsalters), aber ohne
+ * 13. Rente — Divisor 12.
+ *
+ * - Vor Bezugsstart: 0
+ * - Nach Bezugsstart (volles Jahr): 1
+ * - Bezugsstart-Jahr: (13 - startMonat) / 12 (Aug-Dez = 5/12)
+ */
+function pkJahresFaktor(jahr: number, start: AhvBezugsStart | null): number {
+  if (!start) return 0;
+  if (jahr < start.jahr) return 0;
+  if (jahr > start.jahr) return 1;
+  return (13 - start.monat) / 12;
 }
 
 function berechneAlter(geburtsdatum: string, jahr: number): number | null {
