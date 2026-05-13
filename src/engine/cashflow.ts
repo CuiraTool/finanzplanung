@@ -619,6 +619,24 @@ export function cashflowReihe(
 
     let steuern: ReturnType<typeof steuerProJahrIK>;
     if (konkubinatAktiv) {
+      // Konkubinat: pro Kind exklusiv ein Elternteil bekommt Abzug.
+      // - zuordnung "p1" / "p2": direkt zugeordnet
+      // - zuordnung "gemeinsam": Konvention → höheres Bruttoerwerbs-Einkommen
+      //   bekommt Abzug (steueroptimiert). Bei Gleichstand: P1.
+      const gemeinsamBei: "p1" | "p2" =
+        bruttoErwerbP1 >= bruttoErwerbP2 ? "p1" : "p2";
+      const kinderP1 = anzahlKinderAbzugsfaehig(
+        state.kinder,
+        jahr,
+        "p1",
+        gemeinsamBei
+      );
+      const kinderP2 = anzahlKinderAbzugsfaehig(
+        state.kinder,
+        jahr,
+        "p2",
+        gemeinsamBei
+      );
       // Person 1
       const s1 = steuerProJahrIK(
         {
@@ -631,7 +649,7 @@ export function cashflowReihe(
           bruttoErwerbP2: 0,
           alterP1: alterP1 ?? 40,
           alterP2: 40,
-          anzahlKinder: 0,
+          anzahlKinder: kinderP1,
           saeule3aEinzahlungJahr: saeule3aEinzahlungJahr / 2,
           pkEinkaufJahr: pkEinkaufJahr / 2,
           hatPkAnschlussP1: state.bvg.p1.aktiverAnschluss && istVorPensionP1,
@@ -659,7 +677,7 @@ export function cashflowReihe(
           bruttoErwerbP2: 0,
           alterP1: alterP2 ?? 40,
           alterP2: 40,
-          anzahlKinder: anzahlKinderAbzugsfaehig(state.kinder, jahr),
+          anzahlKinder: kinderP2,
           saeule3aEinzahlungJahr: saeule3aEinzahlungJahr / 2,
           pkEinkaufJahr: pkEinkaufJahr / 2,
           hatPkAnschlussP1: state.bvg.p2.aktiverAnschluss && istVorPensionP2,
@@ -2011,12 +2029,28 @@ function firmaArt37bAktiv(state: CashflowInput, jahr: number): boolean {
  */
 function anzahlKinderAbzugsfaehig(
   kinder: CashflowInput["kinder"],
-  jahr: number
+  jahr: number,
+  /**
+   * Filter für Konkubinat-Konstellation:
+   *  - undefined: alle Kinder zählen (Default; Single + Ehepaar)
+   *  - "p1" / "p2": nur Kinder mit `zuordnung === person` + (wenn
+   *    `gemeinsamBeiPerson` matched) gemeinsame Kinder zählen
+   * Real BSV-Praxis Konkubinat: pro Kind exklusiv ein Elternteil.
+   */
+  fuerPerson?: "p1" | "p2",
+  gemeinsamBeiPerson?: "p1" | "p2"
 ): number {
   let count = 0;
   for (const k of kinder) {
     const geburtsjahr = parseInt((k.geburtsdatum || "").slice(0, 4), 10);
     if (!Number.isFinite(geburtsjahr)) continue;
+    if (fuerPerson) {
+      if (k.zuordnung === "gemeinsam") {
+        if (gemeinsamBeiPerson !== fuerPerson) continue;
+      } else if (k.zuordnung !== fuerPerson) {
+        continue;
+      }
+    }
     const alter = jahr - geburtsjahr;
     if (alter < 18) {
       count++;
