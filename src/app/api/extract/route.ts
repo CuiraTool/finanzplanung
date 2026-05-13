@@ -13,6 +13,43 @@ const ALLOWED_MIME = new Set([
   "image/webp",
 ]);
 
+/**
+ * Verifiziert Magic-Bytes (Dateisignatur) gegen client-übergebenes MIME.
+ * Defense gegen MIME-Spoofing — Attacker setzt `Content-Type: image/png`
+ * auf eine .exe. Standard-Signaturen pro Format.
+ */
+function magicBytesPassen(buf: Buffer, mime: string): boolean {
+  if (buf.length < 4) return false;
+  const b0 = buf[0]!;
+  const b1 = buf[1]!;
+  const b2 = buf[2]!;
+  const b3 = buf[3]!;
+  switch (mime) {
+    case "application/pdf":
+      // %PDF
+      return b0 === 0x25 && b1 === 0x50 && b2 === 0x44 && b3 === 0x46;
+    case "image/jpeg":
+      // FF D8 FF
+      return b0 === 0xff && b1 === 0xd8 && b2 === 0xff;
+    case "image/png":
+      // 89 50 4E 47
+      return b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47;
+    case "image/webp": {
+      // "RIFF" .... "WEBP"
+      if (buf.length < 12) return false;
+      const riff = b0 === 0x52 && b1 === 0x49 && b2 === 0x46 && b3 === 0x46;
+      const webp =
+        buf[8] === 0x57 &&
+        buf[9] === 0x45 &&
+        buf[10] === 0x42 &&
+        buf[11] === 0x50;
+      return riff && webp;
+    }
+    default:
+      return false;
+  }
+}
+
 const SYSTEM_PROMPT = `Du bist ein Schweizer Finanzplanungs-Assistent für die Cuira-Pensionsplanungs-App.
 
 Der User lädt ein Schweizer Finanzdokument hoch (z.B. PK-Ausweis, Steuerveranlagung,
@@ -112,7 +149,19 @@ export async function POST(req: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Magic-Byte-Check gegen MIME-Spoofing (client-controlled file.type)
+    if (!magicBytesPassen(buffer, mime)) {
+      return NextResponse.json(
+        {
+          error: `Dateisignatur passt nicht zum gemeldeten Format (${mime}). Datei evtl. korrupt oder MIME-Typ falsch.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const base64 = buffer.toString("base64");
 
     const client = new Anthropic({ apiKey });
 

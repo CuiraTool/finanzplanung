@@ -209,11 +209,12 @@ describe("Live-Fall G — Ehepaar Plafond-Edge (Hofmann ZG)", () => {
     expect(summeOhnePlafond).toBe(60_480);
   });
 
-  it("Plafond beißt ab 2026: einnahmenAhv ≤ 49'140 (45'360 × 13/12)", () => {
-    // refJahr = max(2025, 2026) = 2026 → Plafond mit 13. AHV = 49'140.
-    // Override-Summe 60'480 wird auf 49'140 gekappt.
+  it("Plafond-Cap aktiv 2026: gewichtete Pro-Rata oder Plafond (Min-Cap)", () => {
+    // Engine-Fix (Ehepaar Pro-Rata): einnahmenAhv = min(plafond, p1×f1 + p2×f2).
+    // Robert (Jg 1960, AHV ab 2025) hat 2026 f1=1. Elena (Jg 1961, AHV ab Sept
+    // 2026) hat f2=4/12. Gewichtete Summe ~40'700 ≤ Plafond 49'140.
     expect(z2026.einnahmenAhv).toBeLessThanOrEqual(49_200);
-    expect(z2026.einnahmenAhv).toBeGreaterThanOrEqual(48_000);
+    expect(z2026.einnahmenAhv).toBeGreaterThanOrEqual(38_000);
   });
 
   it("Plafond auch in späteren Jahren (2030, 2045) ≤ 49'140", () => {
@@ -224,13 +225,11 @@ describe("Live-Fall G — Ehepaar Plafond-Edge (Hofmann ZG)", () => {
     expect(z2045.einnahmenAhv).toBeGreaterThan(40_000);
   });
 
-  it("Engine-Eigenart bezugsjahr-Bug: refJahr-Logik dokumentiert", () => {
-    // Plafond-refJahr = max(bezugsjahrP1=2025, bezugsjahrP2=2026) = 2026.
-    // → 45'360 × 13/12 ≈ 49'140 (Plafond MIT 13. AHV).
-    // Ohne Elena (Solo-Robert) wäre refJahr=2025 → Plafond 45'360.
-    // Test: hier greift der 49'140-Plafond.
-    expect(z2026.einnahmenAhv).toBeGreaterThan(45_360);
-    expect(z2026.einnahmenAhv).toBeLessThan(49_200);
+  it("Übergangsjahr-Pro-Rata 2026 < Vollbezug 2027 (Elena f<1)", () => {
+    // 2026: Elena Pro-Rata 4/12 → Summe weighted ~40k.
+    // 2027: Elena full year, beide voll → Plafond beißt → 49'140.
+    const z2027 = reihe.find((r) => r.jahr === 2027)!;
+    expect(z2026.einnahmenAhv).toBeLessThan(z2027.einnahmenAhv);
   });
 
   it("PK-Rente ab 2027 voll: Robert 48'450 + Elena 41'040 ≈ 89'490", () => {

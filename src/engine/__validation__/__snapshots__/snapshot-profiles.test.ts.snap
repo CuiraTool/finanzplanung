@@ -134,13 +134,13 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "steuern": 26900,
   },
   {
-    "ahv": 22700,
-    "ausgaben": 63400,
+    "ahv": 29400,
+    "ausgaben": 64900,
     "bvg": 22500,
-    "einkommen": 135200,
+    "einkommen": 141900,
     "jahr": 2030,
-    "netto": 645100,
-    "steuern": 15400,
+    "netto": 650200,
+    "steuern": 16900,
   },
   {
     "ahv": 49100,
@@ -148,7 +148,7 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "bvg": 54000,
     "einkommen": 103100,
     "jahr": 2031,
-    "netto": 686800,
+    "netto": 691900,
     "steuern": 13400,
   },
   {
@@ -157,7 +157,7 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "bvg": 54000,
     "einkommen": 103100,
     "jahr": 2032,
-    "netto": 728400,
+    "netto": 733500,
     "steuern": 13500,
   },
   {
@@ -166,7 +166,7 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "bvg": 54000,
     "einkommen": 103100,
     "jahr": 2033,
-    "netto": 769900,
+    "netto": 775100,
     "steuern": 13600,
   },
   {
@@ -175,7 +175,7 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "bvg": 54000,
     "einkommen": 103100,
     "jahr": 2034,
-    "netto": 811400,
+    "netto": 816500,
     "steuern": 13700,
   },
   {
@@ -184,7 +184,7 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 2: Paar ve
     "bvg": 54000,
     "einkommen": 103100,
     "jahr": 2035,
-    "netto": 852700,
+    "netto": 857800,
     "steuern": 13800,
   },
 ]

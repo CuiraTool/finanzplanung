@@ -373,10 +373,15 @@ export function cashflowReihe(
             ahvRenteHaushalt.p2Einzel * ahvFaktorP2
         );
       } else if (p1AhvBezieht && p2AhvBezieht) {
-        // Verheiratet: beide im Bezug → Plafond aktiv.
-        einnahmenAhv = Math.round(
-          ahvRenteHaushalt.haushalt * Math.max(ahvFaktorP1, ahvFaktorP2)
-        );
+        // Verheiratet: beide im Bezug → gewichtete Einzelrenten, gecappt
+        // auf Ehepaar-Plafond. Bei Übergangsjahr (P1 startet z.B. Aug,
+        // P2 schon Vollbezug) reflektiert das die echte Pro-Rata pro
+        // Person statt fix max(faktor) × Plafond zu nehmen.
+        const summeGewichtet =
+          ahvRenteHaushalt.p1Einzel * ahvFaktorP1 +
+          ahvRenteHaushalt.p2Einzel * ahvFaktorP2;
+        const plafondAktiv = ahvRenteHaushalt.haushalt;
+        einnahmenAhv = Math.round(Math.min(summeGewichtet, plafondAktiv));
       } else if (p1AhvBezieht) {
         einnahmenAhv = Math.round(ahvRenteHaushalt.p1Einzel * ahvFaktorP1);
       } else if (p2AhvBezieht) {

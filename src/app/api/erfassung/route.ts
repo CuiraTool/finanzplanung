@@ -29,6 +29,32 @@ function istValideEmail(input: string): boolean {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(input);
 }
 
+/**
+ * Simpler In-Memory-Rate-Limiter: pro IP max N Requests pro Zeitfenster.
+ * Defense gegen Resend-Quota-DoS. Reset bei jedem Server-Start (OK für
+ * Netlify-Functions, die pro Cold-Start neu sind). Für production-grade
+ * besser: Upstash Ratelimit oder Cloudflare Turnstile vorschalten.
+ */
+const RATE_WINDOW_MS = 60_000; // 1 Minute
+const RATE_LIMIT = 5; // max 5 Submissions / Minute / IP
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimitOk(req: Request): boolean {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    "anon";
+  const now = Date.now();
+  const entry = requestCounts.get(ip);
+  if (!entry || entry.resetAt < now) {
+    requestCounts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
 interface BeraterMeta {
   datum: string;
   partnerfirma: string;
@@ -46,6 +72,12 @@ interface SubmissionPayload {
 }
 
 export async function POST(req: Request) {
+  if (!rateLimitOk(req)) {
+    return NextResponse.json(
+      { ok: false, error: "Rate limit exceeded — bitte später erneut versuchen." },
+      { status: 429 }
+    );
+  }
   let body: SubmissionPayload;
   try {
     body = (await req.json()) as SubmissionPayload;

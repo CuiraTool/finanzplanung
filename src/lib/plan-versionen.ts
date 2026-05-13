@@ -95,6 +95,20 @@ export type SerialPlan = Omit<
   | "setAktiverBlock"
   | "reset"
   | "importState"
+  // Plan-Varianten-Aktionen (v35+)
+  | "erstellePlan"
+  | "wechsleZuPlan"
+  | "loeschePlan"
+  | "resetPlanZuA"
+  | "setPlanVariant"
+  // Laufende-Ausgaben-Aktionen (v42)
+  | "addLaufendeAusgabe"
+  | "updateLaufendeAusgabe"
+  | "removeLaufendeAusgabe"
+  // WEF-Vorbezug-Aktionen (v42)
+  | "addWefVorbezug"
+  | "updateWefVorbezug"
+  | "removeWefVorbezug"
 >;
 
 interface VersionsState {
