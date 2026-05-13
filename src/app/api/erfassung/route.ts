@@ -17,6 +17,18 @@ import { NextResponse } from "next/server";
 const RECIPIENT_EMAIL = "kathir@cuirapartners.ch";
 const SENDER_DEFAULT = "Cuira Erfassung <onboarding@resend.dev>";
 
+/**
+ * Strikte Email-Format-Validierung (RFC-5322-Subset). Defense-in-depth gegen
+ * Header-Injection (\r\n, Bcc-Header). Resend nutzt JSON-API, validiert
+ * serverseitig — Check hier doppelt absichert.
+ */
+function istValideEmail(input: string): boolean {
+  if (input.length === 0 || input.length > 254) return false;
+  if (/[\r\n\t]/.test(input)) return false;
+  // einfacher RFC-5322-Subset
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(input);
+}
+
 interface BeraterMeta {
   datum: string;
   partnerfirma: string;
@@ -79,7 +91,8 @@ export async function POST(req: Request) {
             content: Buffer.from(jsonAttachment).toString("base64"),
           },
         ],
-        ...(body.beraterMeta?.beraterEmail
+        ...(body.beraterMeta?.beraterEmail &&
+        istValideEmail(body.beraterMeta.beraterEmail)
           ? { reply_to: body.beraterMeta.beraterEmail }
           : {}),
       }),

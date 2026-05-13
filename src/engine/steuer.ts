@@ -268,8 +268,11 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     });
     vermoegensteuer = r.total;
   } else if (vermoegen > 0) {
+    // Fallback nur wenn kantonCode null/leer — alle 26 CH-Kantone haben
+    // ESTV-Daten, dieser Pfad triggert nur bei corrupt State. Default-Satz
+    // 0.6 % p.a. liegt im Schweizer Median (Range 0.5-0.8 %).
     const freibetrag = fallart === "paar" ? 160_000 : 80_000;
-    vermoegensteuer = Math.max(0, vermoegen - freibetrag) * 0.003;
+    vermoegensteuer = Math.max(0, vermoegen - freibetrag) * 0.006;
   }
 
   // ─── Kapitalauszahlungssteuer ────────────────────────────────────────

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   usePlanStore,
   type PlanSlot,
@@ -23,9 +24,33 @@ const PROJEKTIONS_END_ALTER = 90;
  *  - Klick auf Detail-Diff öffnet Modal mit Block-Level-Auflistung
  */
 export function VarianteDeltaPanel() {
-  const fullState = usePlanStore();
-  const aktiverPlan = fullState.aktiverPlan;
-  const plaene = fullState.plaene;
+  // Selektive Subscription via useShallow: nur Re-Render wenn eines der
+  // gepickten Felder identitätsmässig ändert (statt jedem set()).
+  const { aktiverPlan, plaene, fallart, person1, person2, kinder, adresse } =
+    usePlanStore(
+      useShallow((s) => ({
+        aktiverPlan: s.aktiverPlan,
+        plaene: s.plaene,
+        fallart: s.fallart,
+        person1: s.person1,
+        person2: s.person2,
+        kinder: s.kinder,
+        adresse: s.adresse,
+      }))
+    );
+  const fullState = useMemo<PlanState>(
+    () =>
+      ({
+        aktiverPlan,
+        plaene,
+        fallart,
+        person1,
+        person2,
+        kinder,
+        adresse,
+      }) as PlanState,
+    [aktiverPlan, plaene, fallart, person1, person2, kinder, adresse]
+  );
   const [diffModalSlot, setDiffModalSlot] = useState<PlanSlot | null>(null);
 
   // Andere Slots: alle aktiven Pläne ausser aktuell aktivem
