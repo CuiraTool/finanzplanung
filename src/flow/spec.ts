@@ -26,18 +26,6 @@ import { KANTONE } from "@/lib/store";
 import type { Kind, SaeuleDreiEntry, Immobilie } from "@/lib/store";
 import type { QuestionSpec } from "./types";
 
-const PRIORITAET_OPTIONEN = [
-  { value: "sicheres_einkommen", label: "Sicheres Einkommen" },
-  { value: "steuern_optimieren", label: "Steuern optimieren" },
-  { value: "vermoegen_erhalten", label: "Vermögen erhalten" },
-  { value: "vererben", label: "Vererben" },
-  { value: "frueher_pension", label: "Früher in Pension" },
-  { value: "lebenstraum", label: "Lebenstraum finanzieren" },
-  { value: "liegenschaft_regeln", label: "Liegenschaft regeln" },
-  { value: "firma_regeln", label: "Firma regeln" },
-  { value: "andere", label: "Andere" },
-];
-
 const ANLAGEFORM_OPTIONEN = [
   { value: "etf", label: "ETFs" },
   { value: "fonds", label: "Fonds" },
@@ -49,15 +37,24 @@ const ANLAGEFORM_OPTIONEN = [
   { value: "keine", label: "Keine" },
 ];
 
-/** Helper: Lohnsumme aktualisieren — beide Personen → budget.einkommenHeute. */
+/**
+ * Helper: Netto-Lohnsumme aktualisieren — beide Personen.
+ * Im Erfassungs-Flow trägt Berater Netto-Jahreslohn pro Person ein:
+ *  - budget.einkommenHeute = Netto-Summe Haushalt (für Cashflow)
+ *  - ahv.einkommenP1/P2 = Netto × 1.15 (Brutto-Approximation für Skala 44)
+ *
+ * Im Pro-Tool kann der Berater nachher beide Werte unabhängig verfeinern.
+ */
 function updateHaushaltseinkommen(s: {
   ahv: { einkommenP1: number | null; einkommenP2: number | null };
   budget: { einkommenHeute: number | null };
 }): void {
-  const p1 = s.ahv.einkommenP1 ?? 0;
-  const p2 = s.ahv.einkommenP2 ?? 0;
-  const sum = p1 + p2;
-  s.budget.einkommenHeute = sum > 0 ? sum : null;
+  const p1Brutto = s.ahv.einkommenP1 ?? 0;
+  const p2Brutto = s.ahv.einkommenP2 ?? 0;
+  // ahv-Werte sind hier bereits brutto (s.u. H1_p1/p2-Setter rechnen
+  // Netto-Eingabe × 1.15). budget.einkommenHeute soll Netto-Summe sein.
+  const nettoSumme = Math.round((p1Brutto + p2Brutto) / 1.15);
+  s.budget.einkommenHeute = nettoSumme > 0 ? nettoSumme : null;
 }
 
 // ─── Marker-IDs für Flow-erstellte Einträge ─────────────────────────
@@ -192,7 +189,6 @@ export const QUESTIONS: QuestionSpec[] = [
     frage: "Geht es um eine Einzelperson oder ein Paar?",
     hilfe: "Diese Frage steuert alle weiteren Fragen für eine zweite Person.",
     type: "single",
-    pflicht: true,
     optionen: [
       { value: "einzel", label: "Einzelperson" },
       { value: "paar", label: "Ehepaar / eingetragene Partnerschaft / Konkubinat" },
@@ -211,7 +207,6 @@ export const QUESTIONS: QuestionSpec[] = [
     frage: "Vor- und Nachname Person 1",
     frageEinzel: "Ihr Vor- und Nachname",
     type: "text",
-    pflicht: true,
     placeholder: "Max Muster",
     get: (s) => `${s.person1.vorname} ${s.person1.nachname}`.trim(),
     set: (s, v) => {
@@ -227,7 +222,6 @@ export const QUESTIONS: QuestionSpec[] = [
     frage: "Geburtsdatum Person 1",
     frageEinzel: "Ihr Geburtsdatum",
     type: "date",
-    pflicht: true,
     get: (s) => s.person1.geburtsdatum,
     set: (s, v) => {
       s.person1.geburtsdatum = (v as string) ?? "";
@@ -239,7 +233,6 @@ export const QUESTIONS: QuestionSpec[] = [
     blockTitle: "Familie",
     frage: "Vor- und Nachname Person 2",
     type: "text",
-    pflicht: true,
     bedingung: (s) => s.fallart === "paar",
     placeholder: "Erika Muster",
     get: (s) => `${s.person2.vorname} ${s.person2.nachname}`.trim(),
@@ -255,7 +248,6 @@ export const QUESTIONS: QuestionSpec[] = [
     blockTitle: "Familie",
     frage: "Geburtsdatum Person 2",
     type: "date",
-    pflicht: true,
     bedingung: (s) => s.fallart === "paar",
     get: (s) => s.person2.geburtsdatum,
     set: (s, v) => {
@@ -268,7 +260,6 @@ export const QUESTIONS: QuestionSpec[] = [
     blockTitle: "Familie",
     frage: "Aktueller Zivilstand",
     type: "single",
-    pflicht: true,
     optionen: [
       { value: "ledig", label: "Ledig" },
       { value: "verheiratet", label: "Verheiratet" },
@@ -834,15 +825,18 @@ export const QUESTIONS: QuestionSpec[] = [
     id: "H1_p1",
     block: "H",
     blockTitle: "Einkommen & Vermögen",
-    frage: "Brutto-Jahreslohn Person 1",
-    frageEinzel: "Ihr Brutto-Jahreslohn",
-    hilfe: "Aktueller Lohn vor Sozialabzügen, ohne Bonus/Variable",
+    frage: "Netto-Jahreslohn Person 1",
+    frageEinzel: "Ihr Netto-Jahreslohn",
+    hilfe:
+      "Jahres-Nettolohn nach Sozialabzügen (AHV/IV/EO/ALV/BVG) — Brutto-Wert für AHV-Berechnung wird automatisch hochgerechnet (×1.15).",
     type: "number",
-    pflicht: true,
     suffix: "CHF / Jahr",
-    get: (s) => s.ahv.einkommenP1,
+    // Anzeige: Netto. Speicher in ahv.einkommenP1 als Brutto (Netto × 1.15)
+    // für korrekte Skala-44-Berechnung. budget.einkommenHeute = Netto-Summe.
+    get: (s) => (s.ahv.einkommenP1 != null ? Math.round(s.ahv.einkommenP1 / 1.15) : null),
     set: (s, v) => {
-      s.ahv.einkommenP1 = v as number | null;
+      const netto = v as number | null;
+      s.ahv.einkommenP1 = netto != null ? Math.round(netto * 1.15) : null;
       updateHaushaltseinkommen(s);
     },
   },
@@ -850,15 +844,16 @@ export const QUESTIONS: QuestionSpec[] = [
     id: "H1_p2",
     block: "H",
     blockTitle: "Einkommen & Vermögen",
-    frage: "Brutto-Jahreslohn Person 2",
-    hilfe: "Aktueller Lohn vor Sozialabzügen, ohne Bonus/Variable",
+    frage: "Netto-Jahreslohn Person 2",
+    hilfe:
+      "Jahres-Nettolohn nach Sozialabzügen — Brutto-Wert für AHV wird automatisch hochgerechnet.",
     type: "number",
-    pflicht: true,
     bedingung: (s) => s.fallart === "paar",
     suffix: "CHF / Jahr",
-    get: (s) => s.ahv.einkommenP2,
+    get: (s) => (s.ahv.einkommenP2 != null ? Math.round(s.ahv.einkommenP2 / 1.15) : null),
     set: (s, v) => {
-      s.ahv.einkommenP2 = v as number | null;
+      const netto = v as number | null;
+      s.ahv.einkommenP2 = netto != null ? Math.round(netto * 1.15) : null;
       updateHaushaltseinkommen(s);
     },
   },
@@ -1476,45 +1471,7 @@ export const QUESTIONS: QuestionSpec[] = [
     },
   },
 
-  // ═══ Block R — Prioritäten & offene Anliegen ═══
-  {
-    id: "R1",
-    block: "R",
-    blockTitle: "Prioritäten",
-    frage: "Was ist Ihnen bei der Pensionsplanung am wichtigsten?",
-    hilfe: "Maximal 3 Auswahlen",
-    type: "multi",
-    pflicht: true,
-    maxAuswahl: 3,
-    optionen: PRIORITAET_OPTIONEN,
-    get: (s) => s.prioritaeten.ausgewaehlt,
-    set: (s, v) => {
-      s.prioritaeten.ausgewaehlt =
-        (v as typeof s.prioritaeten.ausgewaehlt) ?? [];
-    },
-  },
-  {
-    id: "R2",
-    block: "R",
-    blockTitle: "Prioritäten",
-    frage: "Andere Priorität",
-    type: "text",
-    bedingung: (s) => s.prioritaeten.ausgewaehlt.includes("andere"),
-    get: (s) => s.prioritaeten.andereBeschreibung,
-    set: (s, v) => {
-      s.prioritaeten.andereBeschreibung = (v as string) ?? "";
-    },
-  },
-  {
-    id: "R3",
-    block: "R",
-    blockTitle: "Prioritäten",
-    frage: "Zusätzliche Anliegen oder Besonderheiten?",
-    hilfe: "Optional — was ist sonst noch wichtig?",
-    type: "longtext",
-    get: (s) => s.prioritaeten.zusaetzlicheAnliegen,
-    set: (s, v) => {
-      s.prioritaeten.zusaetzlicheAnliegen = (v as string) ?? "";
-    },
-  },
+  // Block R "Prioritäten" entfernt — User-Wunsch. Pro-Tool hat eigenen
+  // Block 10 Nachlass + Massnahmen-Logik, Prioritäten-Vorab-Erfassung
+  // bringt für Berater-Workflow keinen Mehrwert.
 ];

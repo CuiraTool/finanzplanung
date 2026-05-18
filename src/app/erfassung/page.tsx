@@ -22,8 +22,14 @@
  *   pro vollständige Sektion
  * - Form-Center: 12 sektionierte Karten mit dichter Row-Layout, Repeater-
  *   Tables für Vermögen + Immobilien, Segmented Controls
- * - Rechte Aside 320px: Progress-Ring + Section-Checklist + Priority-Picker
- *   + Berater-Notiz + Provision-Anzeige + Submit-CTA
+ * - Rechte Aside 320px: Progress-Ring + Section-Checklist + Berater-Notiz
+ *   + Submit-CTA. (Provisions-Block + Prioritäten-Picker entfernt — User-
+ *   Wunsch: Berater-Erfassung soll mit Pro-Tool matchen, ohne Affiliate-
+ *   Mehrwertaussichten und ohne Prioritäten-Vorab-Erfassung.)
+ *
+ * Income-Mapping: Netto-Jahreslohn pro Person → wird intern × 1.15 als
+ * AHV-Brutto gespeichert (Skala 44) UND als Netto-Summe in
+ * budget.einkommenHeute. Berater verfeinert beides bei Bedarf im Pro-Tool.
  */
 
 import {
@@ -1859,34 +1865,6 @@ function Handoff({
           </div>
         </div>
 
-        <div className="erf-panel-section">
-          <span className="erf-panel-h">Provision (voraussichtlich)</span>
-          <div className="erf-panel-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 12,
-              }}
-            >
-              <span style={{ color: "var(--ink-2)" }}>
-                Bei Mandatsabschluss
-              </span>
-              <strong
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  color: "var(--cuira-deep)",
-                  fontSize: 14,
-                }}
-              >
-                CHF 1&apos;200
-              </strong>
-            </div>
-            <div style={{ fontSize: 10.5, color: "var(--ink-3)" }}>
-              Standard-Affiliate-Tarif · auszahlbar nach Erstgespräch.
-            </div>
-          </div>
-        </div>
       </div>
       <div className="erf-handoff-foot">
         <button
