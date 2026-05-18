@@ -165,6 +165,13 @@ export function TragbarkeitPanel() {
           Brutto hoch (Netto × 1.15).
         </div>
       )}
+
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+        <span className="font-medium">Engine-Vereinfachung:</span> ordentliche
+        Tilgung in Prozent pro Jahr ist nicht modelliert. Tilgungen jahrgenau
+        pro Hypothek-Tranche unter „Tilgungsplan" eintragen — Engine reduziert
+        den Stand entsprechend.
+      </div>
     </fieldset>
   );
 }

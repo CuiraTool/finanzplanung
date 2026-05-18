@@ -463,7 +463,7 @@ function BlockNavigation({
         <div className="flex justify-between">
           <span>Schema</span>
           <strong style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>
-            v42
+            v43
           </strong>
         </div>
         <div className="flex justify-between">

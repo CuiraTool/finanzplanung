@@ -287,6 +287,26 @@ export interface Hypothek {
   hoehe: number | null;
   zinssatzProzent: number;
   ablaufjahr: number;
+  /**
+   * Optional: Folge-Zinssatz nach Ablauf der Festhypothek (Refinanzierung).
+   * Wenn null/undefined: Zinssatz bleibt nach `ablaufjahr` unverändert
+   * (= aktuelle Engine-Vereinfachung). Wenn gesetzt: ab `ablaufjahr` wird
+   * dieser Satz für die Zinsberechnung verwendet.
+   */
+  refinanzierungZinssatzProzent?: number | null;
+  /**
+   * Optional: Tilgungsplan — feste CHF-Beträge in spezifischen Jahren, die
+   * den Hypothek-Stand reduzieren. Reihenfolge irrelevant. Beträge müssen
+   * positiv sein. Nicht modelliert wird laufende Amortisation in % — falls
+   * gewünscht, mehrere Einträge anlegen.
+   */
+  tilgungsplan?: HypothekTilgung[];
+}
+
+export interface HypothekTilgung {
+  id: string;
+  jahr: number;
+  betrag: number;
 }
 
 export interface Immobilie {
@@ -2001,7 +2021,7 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v42",
+      name: "cuira-plan-v43",
       version: 42,
       migrate: (persistedState: unknown, fromVersion: number): unknown => {
         let state = persistedState as Record<string, unknown> & {

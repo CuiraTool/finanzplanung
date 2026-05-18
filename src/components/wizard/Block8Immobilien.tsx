@@ -654,6 +654,31 @@ function HypothekenListe({
                 />
               </Field>
             </div>
+            <Field
+              label="Folge-Zinssatz nach Ablauf (%)"
+              hint="optional — ab Ablaufjahr neue Konditionen. Leer = Zinssatz bleibt."
+            >
+              <input
+                type="number"
+                inputMode="decimal"
+                step={0.05}
+                min={0}
+                max={10}
+                value={h.refinanzierungZinssatzProzent ?? ""}
+                onChange={(e) =>
+                  onUpdate(h.id, {
+                    refinanzierungZinssatzProzent:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                placeholder="z.B. 2.5"
+                className={`${inputClass} tabular-nums`}
+              />
+            </Field>
+            <HypothekTilgungsplan
+              tranche={h}
+              onUpdate={(p) => onUpdate(h.id, p)}
+            />
           </li>
         ))}
       </ul>
@@ -665,6 +690,96 @@ function HypothekenListe({
       >
         + Hypothek-Tranche hinzufügen
       </button>
+    </div>
+  );
+}
+
+/**
+ * Tilgungsplan-Editor pro Hypothek-Tranche.
+ * Berater plant ausserordentliche Tilgungen jahresgenau (Cashflow-Ausgabe).
+ * Engine reduziert Hypothek-Stand ab dem Tilgungs-Jahr.
+ */
+function HypothekTilgungsplan({
+  tranche,
+  onUpdate,
+}: {
+  tranche: Hypothek;
+  onUpdate: (p: Partial<Hypothek>) => void;
+}) {
+  const plan = tranche.tilgungsplan ?? [];
+  const addTilgung = () => {
+    const neu = {
+      id: `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      jahr: new Date().getFullYear() + 1,
+      betrag: 50_000,
+    };
+    onUpdate({ tilgungsplan: [...plan, neu] });
+  };
+  const removeTilgung = (id: string) => {
+    onUpdate({ tilgungsplan: plan.filter((t) => t.id !== id) });
+  };
+  const updateTilgung = (id: string, patch: { jahr?: number; betrag?: number }) => {
+    onUpdate({
+      tilgungsplan: plan.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    });
+  };
+  return (
+    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <div className="text-xs font-medium text-slate-600">
+          Tilgungsplan (optional)
+        </div>
+        <button
+          type="button"
+          onClick={addTilgung}
+          className="text-xs text-slate-500 hover:underline"
+        >
+          + Tilgung
+        </button>
+      </div>
+      {plan.length === 0 ? (
+        <p className="text-[11px] text-slate-400">Keine Tilgung geplant.</p>
+      ) : (
+        <ul className="space-y-1">
+          {plan.map((t) => (
+            <li
+              key={t.id}
+              className="grid grid-cols-[80px_1fr_24px] items-center gap-2"
+            >
+              <input
+                type="number"
+                min={2024}
+                max={2080}
+                value={t.jahr}
+                onChange={(e) =>
+                  updateTilgung(t.id, { jahr: Number(e.target.value) })
+                }
+                className={`${inputClass} tabular-nums`}
+                title="Jahr der Tilgung"
+              />
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={t.betrag}
+                onChange={(e) =>
+                  updateTilgung(t.id, { betrag: Number(e.target.value) })
+                }
+                placeholder="Betrag CHF"
+                className={`${inputClass} tabular-nums`}
+              />
+              <button
+                type="button"
+                onClick={() => removeTilgung(t.id)}
+                className="text-xs text-red-500 hover:text-red-700"
+                title="Entfernen"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

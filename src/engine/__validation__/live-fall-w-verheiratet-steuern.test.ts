@@ -773,8 +773,8 @@ describe("Live-Fall W — Verheiratete Steuer-Schwerpunkt (3 Sub-Profile)", () =
           ablaufswert: null,
           ablaufjahr: 2027,
           jaehrlicheEinzahlung: null,
-          einzahlungAb: null,
-          einzahlungBis: null,
+          einzahlungAb: 2026,
+          einzahlungBis: 2026,
         },
       ],
       p2: [
@@ -790,8 +790,8 @@ describe("Live-Fall W — Verheiratete Steuer-Schwerpunkt (3 Sub-Profile)", () =
           ablaufswert: null,
           ablaufjahr: 2029,
           jaehrlicheEinzahlung: null,
-          einzahlungAb: null,
-          einzahlungBis: null,
+          einzahlungAb: 2026,
+          einzahlungBis: 2026,
         },
       ],
     };

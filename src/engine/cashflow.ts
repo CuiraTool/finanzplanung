@@ -52,6 +52,7 @@ import {
   eigenmietwertAktivImJahr,
   type FremdKantonAnteil,
 } from "./steuer";
+import { sozialversicherung, bvgArbeitnehmerBeitrag } from "./steuer-abzuege";
 import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
 import { IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT } from "./economy-defaults";
 import { effektiverSteuerwert } from "./repartition";
@@ -520,6 +521,7 @@ export function cashflowReihe(
       jahr
     );
     const ausgabenHypozins = hypothekenZinsenJahr(state, jahr);
+    const ausgabenHypoTilgung = hypothekTilgungenJahr(state, jahr);
     const ausgabenSchenkung = schenkungAusgabeJahr(state, jahr);
     // Alimente-Variablen (ausgabenAlimente, einnahmenAlimente, alimenteBetrag,
     // alimenteRichtung) wurden bereits oben definiert, weil einnahmenAlimente
@@ -744,15 +746,27 @@ export function cashflowReihe(
     // Erbschaftssteuer im Bezugsjahr (separater kantonaler Strang).
     const ausgabenSteuern = steuern.total + erbschaftssteuerJahr;
 
-    // Sozialabgaben + BVG-AN-Beitrag aus den Abzügen extrahieren
-    // (nur in Erwerbsphase relevant — bei Pensionierung sind die 0)
-    const ab = steuern.abzuegeDbg;
-    const ausgabenSozialBvg = ab
-      ? ab.sozialversicherungP1 +
-        ab.sozialversicherungP2 +
-        ab.bvgBeitragP1 +
-        ab.bvgBeitragP2
-      : 0;
+    // Sozialabgaben (AHV/IV/EO + ALV + NBU AN-Anteil) + BVG-AN-Beitrag.
+    // Direkt aus Brutto-Erwerb berechnet — robuster als abzuegeDbg-Pfad,
+    // der bei einigen Konstellationen (z.B. Anker-Kalibrierung) leer bleibt.
+    // BVG-AN-Beitrag pro Person nur wenn aktiver Anschluss + Erwerb > Eintrittsschwelle.
+    const sozialP1 = sozialversicherung(bruttoErwerbP1);
+    const sozialP2 =
+      state.fallart === "paar" ? sozialversicherung(bruttoErwerbP2) : 0;
+    const bvgAnP1 = bvgArbeitnehmerBeitrag(
+      bruttoErwerbP1,
+      alterP1 ?? 40,
+      state.bvg.p1.aktiverAnschluss && istVorPensionP1
+    );
+    const bvgAnP2 =
+      state.fallart === "paar"
+        ? bvgArbeitnehmerBeitrag(
+            bruttoErwerbP2,
+            alterP2 ?? 40,
+            state.bvg.p2.aktiverAnschluss && istVorPensionP2
+          )
+        : 0;
+    const ausgabenSozialBvg = sozialP1 + sozialP2 + bvgAnP1 + bvgAnP2;
     // 3a-Einzahlung als separate Vorsorge-Ausgabe (geht NICHT auf das
     // Hauptkonto, sondern wächst den 3a-Saldo)
     // 3a + 3b-Prämien fliessen als Vorsorge-Ausgabe (3a wächst Saldo, 3b
@@ -811,6 +825,7 @@ export function cashflowReihe(
       ausgabenPkEinkauf +
       ausgabenAhvNe +
       ausgabenHypozins +
+      ausgabenHypoTilgung +
       ausgabenSchenkung +
       ausgabenAlimente;
 
@@ -1907,7 +1922,11 @@ function immobilienBilanzAmJahresende(
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
 
     const baseWert = immobilieWert(im, jahr, heute);
-    const baseHypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+    // Pro Tranche: effektiver Stand nach Tilgungsplan
+    const baseHypo = im.hypotheken.reduce(
+      (s, h) => s + hypothekStandImJahr(h, jahr),
+      0
+    );
     const wefSumme = wefSummeFuerImmoBis(state, im.id, jahr);
 
     const hypoNetto = Math.max(0, baseHypo - wefSumme);
@@ -1917,6 +1936,44 @@ function immobilienBilanzAmJahresende(
     schulden += hypoNetto;
   }
   return { aktiva, schulden };
+}
+
+/**
+ * Effektiver Hypothek-Stand einer Tranche im gegebenen Jahr.
+ * Berücksichtigt Tilgungsplan (Summe aller tilgungen mit jahr ≤ aktuellem jahr).
+ * Stand kann nicht negativ werden.
+ */
+function hypothekStandImJahr(
+  h: import("@/lib/store").Hypothek,
+  jahr: number
+): number {
+  if (h.hoehe == null) return 0;
+  let stand = h.hoehe;
+  if (h.tilgungsplan && h.tilgungsplan.length > 0) {
+    for (const t of h.tilgungsplan) {
+      if (t.jahr <= jahr) stand -= Math.max(0, t.betrag);
+    }
+  }
+  return Math.max(0, stand);
+}
+
+/**
+ * Effektiver Zinssatz einer Tranche im gegebenen Jahr.
+ * Vor `ablaufjahr`: zinssatzProzent. Ab `ablaufjahr`: refinanzierungZinssatz
+ * wenn gesetzt, sonst zinssatzProzent (Default = keine Refi).
+ */
+function hypothekZinssatzImJahr(
+  h: import("@/lib/store").Hypothek,
+  jahr: number
+): number {
+  if (
+    h.refinanzierungZinssatzProzent != null &&
+    h.refinanzierungZinssatzProzent >= 0 &&
+    jahr >= h.ablaufjahr
+  ) {
+    return h.refinanzierungZinssatzProzent;
+  }
+  return h.zinssatzProzent ?? 0;
 }
 
 function immobilienWertAmJahresende(
@@ -1972,8 +2029,29 @@ function hypothekenZinsenJahr(state: CashflowInput, jahr: number): number {
     // Vor Kaufjahr: keine Hypothek aktiv → keine Zinsen
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     for (const h of im.hypotheken) {
-      if (h.hoehe == null) continue;
-      total += (h.hoehe * (h.zinssatzProzent ?? 0)) / 100;
+      const stand = hypothekStandImJahr(h, jahr);
+      if (stand === 0) continue;
+      const satz = hypothekZinssatzImJahr(h, jahr);
+      total += (stand * satz) / 100;
+    }
+  }
+  return Math.round(total);
+}
+
+/**
+ * Summe aller Tilgungs-Beträge im gegebenen Jahr (Cashflow-Ausgabe).
+ * Berater plant aktiv Tilgung → wirkt direkt aufs Hauptkonto.
+ */
+function hypothekTilgungenJahr(state: CashflowInput, jahr: number): number {
+  let total = 0;
+  for (const im of state.immobilien.items) {
+    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
+    for (const h of im.hypotheken) {
+      if (!h.tilgungsplan) continue;
+      for (const t of h.tilgungsplan) {
+        if (t.jahr === jahr && t.betrag > 0) total += t.betrag;
+      }
     }
   }
   return Math.round(total);

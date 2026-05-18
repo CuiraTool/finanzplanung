@@ -245,7 +245,7 @@ export interface AbzugDetail {
 /**
  * Sozialversicherungsabgaben Arbeitnehmer (AHV/IV/EO + ALV + NBU).
  */
-function sozialversicherung(brutto: number): number {
+export function sozialversicherung(brutto: number): number {
   if (brutto <= 0) return 0;
   const ahv = brutto * AHV_IV_EO_SATZ;
   const alv =
@@ -259,7 +259,7 @@ function sozialversicherung(brutto: number): number {
 /**
  * BVG-AN-Beitrag pro Person — Mindeststaffel × koordinierter Lohn / 2.
  */
-function bvgArbeitnehmerBeitrag(
+export function bvgArbeitnehmerBeitrag(
   brutto: number,
   alter: number,
   hatAnschluss: boolean

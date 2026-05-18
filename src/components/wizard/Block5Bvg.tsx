@@ -132,6 +132,14 @@ export function Block5Bvg() {
           onRemoveWef={(id) => removeWef(2, id)}
         />
       )}
+
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+        <span className="font-medium">Engine-Vereinfachung:</span> die
+        BVG-Sparphase wird linear zwischen „Altersguthaben heute" und „bei
+        Bezug" interpoliert (±2-3 % Drift vs. exakte Sparzins-Mathematik).
+        Bei Frühpension wird der Saldo proportional reduziert; bei Aufschub
+        wächst er mit BVG-Mindestzins 1.25 % p.a. weiter.
+      </div>
     </div>
   );
 }
