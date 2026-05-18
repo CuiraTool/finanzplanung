@@ -930,14 +930,9 @@ function StepWunsch({ s, set }: { s: State; set: SetState }) {
    ═══════════════════════════════════════════════════════════════════════ */
 
 function StepErgebnis({ s, result }: { s: State; result: Result }) {
-  const verdictClass =
-    result.verdict === "good"
-      ? "is-pos"
-      : result.verdict === "warn"
-      ? "is-warn"
-      : "is-neg";
-  const icon =
-    result.verdict === "good" ? "✓" : result.verdict === "warn" ? "!" : "✕";
+  // Verdict-Card bewusst entfernt (User-Wunsch) — Kurz-Auswertung zeigt
+  // nur die nackten Zahlen, keine Wertung. Berater liefert die Einordnung
+  // im Detail-Gespräch.
   const startWealth = result.series[0]?.wealth ?? 0;
   const retWealth = result.atRet?.wealth ?? 0;
   const endWealth = result.at85?.wealth ?? 0;
@@ -956,15 +951,6 @@ function StepErgebnis({ s, result }: { s: State; result: Result }) {
         </p>
       </div>
       <div className="kunde-result-card">
-        <div className={`kunde-result-verdict ${verdictClass}`}>
-          <div className="kunde-result-icon">{icon}</div>
-          <div>
-            <div className="kunde-result-verdict-title">
-              {result.verdictTitle}
-            </div>
-            <div className="kunde-result-verdict-sub">{result.verdictSub}</div>
-          </div>
-        </div>
         <div className="kunde-result-kpis">
           <div className="kunde-result-kpi">
             <div className="kunde-result-kpi-label">
@@ -1020,8 +1006,9 @@ function StepErgebnis({ s, result }: { s: State; result: Result }) {
           />
         </svg>
         <span>
-          Im nächsten Schritt erhalten Sie das detaillierte PDF und einen
-          30-Min.-Termin mit einem Cuira-Berater — kostenlos und unverbindlich.
+          Im nächsten Schritt können Sie die kostenpflichtige Detailanalyse
+          (CHF 299.–) buchen — mit vollständigem PDF und 60-Min-Termin bei
+          einem unabhängigen Cuira-Berater.
         </span>
       </div>
     </div>
