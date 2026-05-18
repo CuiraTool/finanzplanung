@@ -306,6 +306,7 @@ export default function KundenPage() {
               submitted={submitted}
             />
           )}
+          {/* submitted unused fuer StepTermin — Calendly handelt Submission selbst */}
         </div>
         {showFooter && (
           <div className="kunde-footer">
@@ -1155,139 +1156,125 @@ function ResultChart({
    Step 7 — Termin (Lead-Capture)
    ═══════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Calendly-Buchungs-URL für Detailanalyse-Termin. Hinter Calendly-Event-Type
+ * mit Stripe-Zahlung CHF 299 (in Calendly konfiguriert). UTM-Parameter
+ * tracken die Quelle für Analytics.
+ * In env-var anpassbar via NEXT_PUBLIC_CALENDLY_DETAIL_URL.
+ */
+const CALENDLY_DETAIL_URL =
+  process.env.NEXT_PUBLIC_CALENDLY_DETAIL_URL ??
+  "https://calendly.com/cuirapartners/detailanalyse?utm_source=kunde-tool";
+const DETAILANALYSE_PREIS_CHF = 299;
+
 function StepTermin({
   s,
-  set,
-  onSubmit,
-  submitted,
 }: {
   s: State;
   set: SetState;
   onSubmit: () => void;
   submitted: boolean;
 }) {
-  if (submitted) {
-    return (
-      <div
-        className="kunde-step"
-        style={{ alignItems: "center", textAlign: "center" }}
-      >
-        <div
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: 999,
-            background: "var(--pos-soft)",
-            color: "var(--pos)",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 40,
-          }}
-        >
-          ✓
-        </div>
-        <h2
-          className="kunde-step-title"
-          style={{ textAlign: "center" }}
-        >
-          Vielen Dank, {s.name.split(" ")[0] || "Sie"}!
-        </h2>
-        <p
-          className="kunde-step-sub"
-          style={{ textAlign: "center", margin: "0 auto" }}
-        >
-          Wir haben Ihre Vorab-Berechnung erhalten und melden uns innerhalb
-          von 24 Stunden auf{" "}
-          <strong style={{ color: "var(--ink)" }}>{s.email}</strong> mit dem
-          Termin-Vorschlag und dem PDF Ihrer Hochrechnung.
-        </p>
-        <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-          <a
-            className="kunde-btn kunde-btn-secondary"
-            href="https://cuirapartners.ch"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Mehr über Cuira
-          </a>
-          <button
-            type="button"
-            className="kunde-btn kunde-btn-ghost"
-            onClick={() => window.location.reload()}
-          >
-            Neuen Plan starten
-          </button>
-        </div>
-      </div>
-    );
-  }
-  const valid = s.email && s.name;
+  // Pre-fill Calendly mit erfassten Daten via URL-Parameter (Calendly-Standard).
+  const calendlyUrl = useMemo(() => {
+    const u = new URL(CALENDLY_DETAIL_URL);
+    if (s.name) u.searchParams.set("name", s.name);
+    if (s.email) u.searchParams.set("email", s.email);
+    if (s.phone) {
+      const customParam = `a1=${encodeURIComponent(s.phone)}`;
+      u.search = u.search ? `${u.search}&${customParam}` : `?${customParam}`;
+    }
+    return u.toString();
+  }, [s.name, s.email, s.phone]);
+
   return (
     <div className="kunde-step">
       <div className="kunde-step-head">
         <div className="kunde-step-eyebrow">
-          Beratungstermin · 30 Min · gratis
+          Detailanalyse · CHF {DETAILANALYSE_PREIS_CHF}.– · 60 Min
         </div>
         <h2 className="kunde-step-title">
-          Sprechen wir über <em>Ihren Plan.</em>
+          Holen Sie sich die <em>vollständige Auswertung.</em>
         </h2>
         <p className="kunde-step-sub">
-          Sie erhalten Ihre detaillierte Hochrechnung als PDF und einen Termin
-          mit einem unabhängigen Cuira-Berater. Keine Verkaufsgespräche, keine
-          Provisionen.
+          Sie haben jetzt die Kurz-Auswertung gesehen. In der Detailanalyse
+          erhalten Sie das volle PDF Ihres Pensionsplans + ein 60-minütiges
+          Beratungsgespräch mit einem unabhängigen Cuira-Berater. Honorar-
+          basiert, keine Provisionen, keine Verkaufsgespräche.
         </p>
       </div>
+
       <div className="kunde-lead-card">
         <div>
-          <div className="kunde-lead-eyebrow">Ihr nächster Schritt</div>
-          <div className="kunde-lead-title">PDF & Termin per E-Mail</div>
+          <div className="kunde-lead-eyebrow">Was Sie erhalten</div>
+          <div className="kunde-lead-title">
+            CHF {DETAILANALYSE_PREIS_CHF}.– einmalig
+          </div>
         </div>
-        <div className="kunde-lead-form">
-          <input
-            className="kunde-lead-input kunde-lead-form-full"
-            placeholder="Vorname Nachname"
-            value={s.name}
-            onChange={(e) => set({ name: e.target.value })}
-          />
-          <input
-            className="kunde-lead-input"
-            placeholder="E-Mail-Adresse"
-            type="email"
-            value={s.email}
-            onChange={(e) => set({ email: e.target.value })}
-          />
-          <input
-            className="kunde-lead-input"
-            placeholder="Telefon (optional)"
-            type="tel"
-            value={s.phone}
-            onChange={(e) => set({ phone: e.target.value })}
-          />
-        </div>
-        <div className="kunde-lead-cta-row">
-          <button
-            type="button"
+
+        <ul
+          style={{
+            margin: "12px 0 0",
+            padding: 0,
+            listStyle: "none",
+            color: "rgba(255,255,255,0.85)",
+            fontSize: 14,
+            lineHeight: 1.7,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <li>✓ Vollständiges PDF (~22 Seiten) mit Jahres-Tabellen</li>
+          <li>✓ Steueroptimierungs-Empfehlungen (PK-Einkauf, 3a, Bezug)</li>
+          <li>✓ Stress-Test-Szenarien (Crash, Inflation, Pflegekosten)</li>
+          <li>✓ Massnahmen-Plan mit Wer/Wann/Was</li>
+          <li>✓ KI-gestützte Optimierungs-Empfehlungen</li>
+          <li>✓ 60-Min-Beratungsgespräch (Video oder vor Ort)</li>
+        </ul>
+
+        <div
+          className="kunde-lead-cta-row"
+          style={{ marginTop: 20 }}
+        >
+          <a
             className="kunde-btn-bright"
-            disabled={!valid}
-            onClick={onSubmit}
-            style={{
-              opacity: valid ? 1 : 0.5,
-              cursor: valid ? "pointer" : "not-allowed",
-            }}
+            href={calendlyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none", display: "inline-block" }}
           >
-            PDF anfordern & Termin vereinbaren →
-          </button>
+            Jetzt buchen — CHF {DETAILANALYSE_PREIS_CHF}.– →
+          </a>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-            Antwort innert 24 Std.
+            Sichere Zahlung via Calendly + Stripe
           </span>
         </div>
+
         <div className="kunde-lead-trust">
           <span>FINMA-konform</span>
           <span>Honorarberatung</span>
           <span>Kein Datenverkauf</span>
           <span>DSGVO + revDSG</span>
         </div>
+      </div>
+
+      {/* Calendly-Embed direkt in der Page — Berater kann auch ohne
+          externen Tab buchen. Iframe-Höhe 700px deckt Standard-Calendly-UI. */}
+      <div
+        style={{
+          marginTop: 24,
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid var(--border)",
+          background: "white",
+        }}
+      >
+        <iframe
+          src={calendlyUrl}
+          title="Termin buchen — Detailanalyse"
+          style={{ width: "100%", height: 700, border: 0 }}
+          loading="lazy"
+        />
       </div>
     </div>
   );
