@@ -294,14 +294,15 @@ describe("Live-Fall Q — Liquiditäts-Notfall Lukas Egger", () => {
     expect(z2029.einnahmenAhv).toBeGreaterThan(z2028.einnahmenAhv);
   });
 
-  it("AHV-NE-Beiträge: Pro-Rata bei Halbjahres-Erwerbsende (Engine-Fix)", () => {
-    // Engine-Fix: NE-Anteil = (12 - Erwerbsmonate) / 12.
-    // 2026 voller Erwerb → NE-Anteil 0 → 0 Beitrag.
-    // 2027 Halbjahr-Erwerb (6 Monate Lohn) → NE-Anteil 0.5 → ~halber Beitrag.
-    // 2028 AHV-Bezug ab Juli → kein NE-Beitrag mehr.
+  it("AHV-NE-Beiträge: BSV-Mindestschwelle (Erwerb ≥ 5'000 = erwerbstätig)", () => {
+    // BSV-Merkblatt 2.03: Erwerb ≥ Mindestlohn-Schwelle (~5'000 CHF/J,
+    // entspricht Mindestbeitrag 530) → Person gilt als erwerbstätig →
+    // kein NE-Beitrag.
+    // 2026 voller Erwerb 75k → erwerbstätig → 0
+    // 2027 Halbjahr-Erwerb ~37.5k → noch immer ≥ Schwelle → 0
+    // 2028 AHV-Bezug ab Juli → kein NE-Beitrag mehr (über Bezugsalter)
     expect(z2026.ausgabenAhvNe).toBe(0);
-    expect(z2027.ausgabenAhvNe).toBeGreaterThan(0);
-    expect(z2027.ausgabenAhvNe).toBeLessThan(20_000);
+    expect(z2027.ausgabenAhvNe).toBe(0);
   });
 
   it("Tragbarkeit Hypothek bei Renten-Einkommen: NICHT tragbar", () => {

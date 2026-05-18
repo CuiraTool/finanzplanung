@@ -771,32 +771,33 @@ export function cashflowReihe(
       state.fallart === "paar"
         ? vermoegenJahresanfang / 2
         : vermoegenJahresanfang;
-    const erwerbsMonateP1 = erwerbsMonateJahrPerson(state.budget.einkommen, jahr, 1);
-    const neAnteilP1 = Math.max(0, (12 - erwerbsMonateP1) / 12);
+    // BSV-Merkblatt 2.03 "Beiträge der Nichterwerbstätigen":
+    // Wer im Beitragsjahr aus Erwerb mind. den AHV-Mindestbeitrag (530 CHF/J)
+    // einbezahlt, gilt als erwerbstätig — KEIN zusätzlicher NE-Beitrag.
+    // Bei AHV-Satz 10.6 % entspricht das einem Jahres-Erwerbslohn ab ~5'000 CHF.
+    // → NE-Beitrag nur bei Erwerb < Mindestschwelle UND alter < ahvBezugsalter.
+    const AHV_ERWERBS_MINDESTSCHWELLE = 5_000;
     let ausgabenAhvNe = 0;
     if (
       alterP1 != null &&
       alterP1 < state.ahv.ahvBezugsalterP1 &&
-      neAnteilP1 > 0
+      erwerbP1Roh < AHV_ERWERBS_MINDESTSCHWELLE
     ) {
-      ausgabenAhvNe += Math.round(
-        ahvNeBeitragJahr({
-          vermoegen: ahvNeBeitragsbasisVermoegen,
-          rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-        }) * neAnteilP1
-      );
+      ausgabenAhvNe += ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegen,
+        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+      });
     }
-    if (state.fallart === "paar" && alterP2 != null) {
-      const erwerbsMonateP2 = erwerbsMonateJahrPerson(state.budget.einkommen, jahr, 2);
-      const neAnteilP2 = Math.max(0, (12 - erwerbsMonateP2) / 12);
-      if (alterP2 < state.ahv.ahvBezugsalterP2 && neAnteilP2 > 0) {
-        ausgabenAhvNe += Math.round(
-          ahvNeBeitragJahr({
-            vermoegen: ahvNeBeitragsbasisVermoegen,
-            rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-          }) * neAnteilP2
-        );
-      }
+    if (
+      state.fallart === "paar" &&
+      alterP2 != null &&
+      alterP2 < state.ahv.ahvBezugsalterP2 &&
+      erwerbP2Roh < AHV_ERWERBS_MINDESTSCHWELLE
+    ) {
+      ausgabenAhvNe += ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegen,
+        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
+      });
     }
 
     const ausgabenTotal =

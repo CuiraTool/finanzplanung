@@ -64,14 +64,18 @@ export function ahvNeBeitragJahr(input: {
 }
 
 /**
+ * BSV-Merkblatt 2.03: Wer aus Erwerbseinkommen den AHV-Mindestbeitrag
+ * (530 CHF/J, Stand 2025) einbezahlt, gilt als erwerbstätig und schuldet
+ * KEINEN zusätzlichen NE-Beitrag. Bei AHV-Gesamtsatz 10.6 % entspricht
+ * das einem Jahres-Erwerbslohn ab ~5'000 CHF.
+ */
+export const AHV_ERWERBS_MINDESTSCHWELLE = 5_000;
+
+/**
  * Prüft, ob eine Person für ein bestimmtes Jahr NE-Beiträge schuldet:
- *  - Person ist mind. 20 (immer wahr in unserem Kontext)
- *  - Person hat AHV-Bezugsalter noch nicht erreicht (vor 65 / AHV21-Übergang)
- *  - Person ist im Jahr nicht mehr erwerbstätig (kein Einkommen aus Erwerb)
- *
- * Bei Erwerbstätigkeit unter Mindesteinkommen (CHF 530/J einbezahlt) kommt
- * der NE-Beitrag dazu wenn AHV-Beitrag aus Erwerb < NE-Beitrag — hier
- * vereinfacht: wenn erwerbsEinkommen > 0, kein NE-Beitrag.
+ *  - Person mind. 20 (immer erfüllt in unserem Kontext)
+ *  - AHV-Bezugsalter noch nicht erreicht
+ *  - Erwerbseinkommen unter Mindestschwelle (5'000 CHF/J)
  */
 export function istNichterwerbstaetig(input: {
   alter: number;
@@ -80,6 +84,6 @@ export function istNichterwerbstaetig(input: {
 }): boolean {
   if (input.alter >= input.ahvBezugsalter) return false; // bereits AHV-Bezug
   if (input.alter < 20) return false; // unter NE-Pflicht
-  if (input.erwerbsEinkommenJahr > 0) return false; // noch erwerbstätig
+  if (input.erwerbsEinkommenJahr >= AHV_ERWERBS_MINDESTSCHWELLE) return false; // erwerbstätig
   return true;
 }
