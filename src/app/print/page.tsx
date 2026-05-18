@@ -870,14 +870,20 @@ export default function PrintPage() {
                 Aufschlüsselung nach Vermögensklasse — kompakte Übersicht der
                 gesamten Projektion.
               </p>
-              <VermoegensJahresTabelle cashflow={cashflow} />
+              <VermoegensJahresTabelle
+                cashflow={cashflow}
+                fallart={fullState.fallart}
+              />
             </Section>
             <div className="mt-6">
               <Section titel="Steuern pro Jahr">
                 <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
                   Einkommen + Vermögen + Kapital-Auszahlungs-Steuer pro Jahr.
                 </p>
-                <SteuerJahresTabelle cashflow={cashflow} />
+                <SteuerJahresTabelle
+                  cashflow={cashflow}
+                  fallart={fullState.fallart}
+                />
               </Section>
             </div>
           </div>
@@ -1932,14 +1938,17 @@ function NarrativListe({
  */
 function VermoegensJahresTabelle({
   cashflow,
+  fallart,
 }: {
   cashflow: import("@/engine/cashflow").CashflowZeile[];
+  fallart: "einzel" | "paar";
 }) {
   return (
     <table className="w-full text-[10px]">
       <thead>
         <tr className="border-b-2 border-slate-300 bg-slate-50">
           <th className="px-2 py-1.5 text-left">Jahr</th>
+          <th className="px-2 py-1.5 text-left">Alter</th>
           <th className="px-2 py-1.5 text-right">Liquid</th>
           <th className="px-2 py-1.5 text-right">Wertschr.</th>
           <th className="px-2 py-1.5 text-right">Vorsorge</th>
@@ -1952,6 +1961,9 @@ function VermoegensJahresTabelle({
         {cashflow.map((z) => (
           <tr key={z.jahr} className="border-b border-slate-100">
             <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
+            <td className="px-2 py-1 tabular-nums text-slate-600">
+              {formatAlter(z, fallart)}
+            </td>
             <td className="px-2 py-1 text-right tabular-nums">
               {formatChf(z.vermoegenLiquiditaet)}
             </td>
@@ -1978,18 +1990,35 @@ function VermoegensJahresTabelle({
 }
 
 /**
+ * Formatiert Alter-Spalte für Jahres-Tabellen.
+ * Einzel: "55". Paar: "55 / 53" (P1/P2). Null → "—".
+ */
+function formatAlter(
+  z: import("@/engine/cashflow").CashflowZeile,
+  fallart: "einzel" | "paar"
+): string {
+  const a1 = z.alterP1 != null ? String(z.alterP1) : "—";
+  if (fallart === "einzel") return a1;
+  const a2 = z.alterP2 != null ? String(z.alterP2) : "—";
+  return `${a1} / ${a2}`;
+}
+
+/**
  * Jahres-Tabelle: Steuern pro Jahr (E2-5 / Y-3).
  */
 function SteuerJahresTabelle({
   cashflow,
+  fallart,
 }: {
   cashflow: import("@/engine/cashflow").CashflowZeile[];
+  fallart: "einzel" | "paar";
 }) {
   return (
     <table className="w-full text-[10px]">
       <thead>
         <tr className="border-b-2 border-slate-300 bg-slate-50">
           <th className="px-2 py-1.5 text-left">Jahr</th>
+          <th className="px-2 py-1.5 text-left">Alter</th>
           <th className="px-2 py-1.5 text-right">Einkommen</th>
           <th className="px-2 py-1.5 text-right">Vermögen</th>
           <th className="px-2 py-1.5 text-right">Kapital</th>
@@ -2000,6 +2029,9 @@ function SteuerJahresTabelle({
         {cashflow.map((z) => (
           <tr key={z.jahr} className="border-b border-slate-100">
             <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
+            <td className="px-2 py-1 tabular-nums text-slate-600">
+              {formatAlter(z, fallart)}
+            </td>
             <td className="px-2 py-1 text-right tabular-nums">
               {formatChf(z.ausgabenSteuernEinkommen)}
             </td>
