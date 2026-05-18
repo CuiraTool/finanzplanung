@@ -552,6 +552,7 @@ export default function PrintPage() {
                 massnahmen={optimierungen.slice(0, pdfMaxTop)}
                 fullState={fullState}
                 ordPensionsjahr={ordPensionsjahr}
+                isKurz={isKurz}
               />
             </Section>
           </div>
@@ -666,33 +667,35 @@ export default function PrintPage() {
             </div>
           </header>
 
-          {/* KPIs */}
-          <Section titel="Vermögen — drei Stichtage">
-          <div className="grid grid-cols-3 gap-3">
-            <KpiBox
-              label="Heute"
-              value={formatChf(bilanz.heute)}
-              subtext={`per ${heutigesJahr}`}
-            />
-            <KpiBox
-              label="Bei Pensionierung"
-              value={formatChf(bilanz.beiPensionierung)}
-              subtext={
-                bilanz.pensionierungsjahr ? `Jahr ${bilanz.pensionierungsjahr}` : "—"
-              }
-              highlight
-            />
-            <KpiBox
-              label="20 Jahre nach Pension"
-              value={formatChf(bilanz.zwanzig20JahreSpaeter)}
-              subtext={
-                bilanz.zwanzigJahreReferenzjahr
-                  ? `Jahr ${bilanz.zwanzigJahreReferenzjahr}`
-                  : "—"
-              }
-            />
-          </div>
-        </Section>
+          {/* KPIs — in Kurz weggelassen (Duplikat zur Executive Summary) */}
+          {!isKurz && (
+            <Section titel="Vermögen — drei Stichtage">
+              <div className="grid grid-cols-3 gap-3">
+                <KpiBox
+                  label="Heute"
+                  value={formatChf(bilanz.heute)}
+                  subtext={`per ${heutigesJahr}`}
+                />
+                <KpiBox
+                  label="Bei Pensionierung"
+                  value={formatChf(bilanz.beiPensionierung)}
+                  subtext={
+                    bilanz.pensionierungsjahr ? `Jahr ${bilanz.pensionierungsjahr}` : "—"
+                  }
+                  highlight
+                />
+                <KpiBox
+                  label="20 Jahre nach Pension"
+                  value={formatChf(bilanz.zwanzig20JahreSpaeter)}
+                  subtext={
+                    bilanz.zwanzigJahreReferenzjahr
+                      ? `Jahr ${bilanz.zwanzigJahreReferenzjahr}`
+                      : "—"
+                  }
+                />
+              </div>
+            </Section>
+          )}
 
         {/* ── Eckdaten ────────────────────────────────────────── */}
         <Section titel="Eckdaten">
@@ -899,8 +902,8 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Reform-Hinweis bei Eigenheim ───────────────────── */}
-        {fullState.immobilien.items.some(
+        {/* ── Reform-Hinweis bei Eigenheim (nur in Voll-PDF) ───── */}
+        {!isKurz && fullState.immobilien.items.some(
           (i) => i.typ === "selbstbewohnt"
         ) && (
           <div
@@ -1783,12 +1786,14 @@ function ExecutiveSummary({
   massnahmen,
   fullState,
   ordPensionsjahr,
+  isKurz = false,
 }: {
   verdict: { type: string; titel: string; text: string };
   cashflow: import("@/engine/cashflow").CashflowZeile[];
   massnahmen: import("@/engine/massnahmen").Massnahme[];
   fullState: import("@/lib/store").PlanState;
   ordPensionsjahr: number | null;
+  isKurz?: boolean;
 }) {
   const heute = cashflow[0];
   const bezugJahr = ordPensionsjahr ?? cashflow[0]?.jahr ?? 0;
@@ -1811,8 +1816,20 @@ function ExecutiveSummary({
         <KpiBox label="Mit 85 Jahren" value={formatChf(letzte.vermoegenNetto)} subtext={`im Jahr ${letzte.jahr}`} />
       </div>
 
-      {/* Top-3-Massnahmen */}
-      {massnahmen.length > 0 && (
+      {/* Kurzbeschrieb zu den 3 Stichtagen */}
+      <p className="text-xs leading-relaxed" style={{ color: "#4b566b" }}>
+        <strong className="text-slate-700">Wie diese Zahlen zu lesen sind:</strong>
+        {" "}Netto-Vermögen (Aktiva minus Schulden) zu drei Zeitpunkten —
+        <strong> heute</strong> als Ausgangspunkt,
+        <strong> bei Pensionierung</strong> als Ergebnis der Sparphase und
+        <strong> mit Alter 85</strong> als Auslegeordnung über die gesamte
+        Pensionszeit. Steigt das Vermögen zwischen den drei Werten, bauen Sie
+        weiter Substanz auf; sinkt es, wird Vermögen entzogen — was nach
+        Pensionierung normal ist.
+      </p>
+
+      {/* Top-3-Massnahmen — nur in Voll-PDF */}
+      {!isKurz && massnahmen.length > 0 && (
         <div>
           <div className="mb-2 text-sm font-semibold" style={{ color: "#0a2540" }}>
             Top-{massnahmen.length} Massnahmen für die nächsten 12 Monate
