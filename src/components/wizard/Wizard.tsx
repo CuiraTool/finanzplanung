@@ -283,12 +283,12 @@ export function Wizard() {
             title="Frage-für-Frage-Modus für die Beratung mit dem Kunden"
           />
           <ActionPill
-            icon="⬇"
-            label="Daten importieren"
+            icon="⇅"
+            label="Daten Import / Export"
             active={importOpen}
             caret="down"
             onClick={() => setImportOpen((o) => !o)}
-            title="JSON aus V2-Erfassung (Berater-Email) ins Tool laden"
+            title="Snapshot exportieren / Erfassungs-JSON oder Snapshot importieren"
           />
         </div>
       </header>

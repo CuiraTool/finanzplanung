@@ -1,27 +1,37 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { usePlanStore, type PlanState } from "@/lib/store";
-import type { FlowAntworten } from "@/flow/types";
+import { usePlanStore } from "@/lib/store";
+import {
+  buildSnapshot,
+  buildSnapshotFilename,
+  parseSnapshot,
+  snapshotToJson,
+} from "@/lib/plan-export";
+import { useBeraterProfil } from "@/lib/berater-profil";
 
 /**
- * Import-Panel im Hauptool.
+ * Daten Import/Export-Panel.
  *
- * Akzeptiert ein JSON-File oder Paste-Text mit einem FlowAntworten-Output
- * (aus V2-Erfassung). Übernimmt den Plan-Snapshot in den Hauptstore.
+ * IMPORT: akzeptiert zwei JSON-Formate (Auto-Erkennung in parseSnapshot):
+ *  1. Pro-Tool-Snapshot (`format: "cuira-pro-snapshot"`) — vorher per
+ *     Export-Knopf hier erzeugt; läuft durch Migration-Chain wenn aus
+ *     älterer Schema-Version.
+ *  2. FlowAntworten (V2-Erfassung) — Berater hat per Email vom
+ *     Kunden-Erfassungs-Flow erhalten.
  *
- * Sicherheits-Idee: nur die "Daten-Felder" aus snapshot.plan werden übernommen,
- * keine Setter-Funktionen (die kommen aus dem Store-Init). Berater-Meta wird
- * angezeigt aber nicht in den Store geschrieben.
+ * EXPORT: schreibt aktuellen Pro-Tool-State als Pro-Snapshot-JSON, damit
+ * der Berater die Datei lokal speichern + später wieder importieren kann.
+ * Setter-Funktionen werden beim Serialisieren ausgefiltert.
  */
 interface ImportPanelProps {
-  /** Wenn gesetzt: Komponente ist immer offen, kein eigener Trigger,
-   *  Schließen ruft onClose auf. */
+  /** Wenn gesetzt: Komponente ist immer offen, Schliessen ruft onClose auf. */
   controlled?: { onClose: () => void };
 }
 
 export function ImportPanel({ controlled }: ImportPanelProps = {}) {
   const importState = usePlanStore((s) => s.importState);
+  const { profil: beraterProfil } = useBeraterProfil();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -45,40 +55,36 @@ export function ImportPanel({ controlled }: ImportPanelProps = {}) {
   };
 
   const applyJson = (text: string, source: string) => {
-    let parsed: FlowAntworten;
-    try {
-      parsed = JSON.parse(text) as FlowAntworten;
-    } catch {
-      setStatus({
-        type: "error",
-        msg: `${source}: ungültiges JSON`,
-      });
+    const result = parseSnapshot(text);
+    if (!result.ok || !result.plan) {
+      setStatus({ type: "error", msg: `${source}: ${result.hinweis}` });
       return;
     }
-    if (!parsed.plan || typeof parsed.plan !== "object") {
-      setStatus({
-        type: "error",
-        msg: `${source}: kein gültiger Cuira-Erfassungs-JSON`,
-      });
-      return;
-    }
-
-    // State der Store-Methoden behalten — nur Datenfelder überschreiben
-    const current = usePlanStore.getState();
-    const merged: Partial<PlanState> = {
-      ...parsed.plan,
-    };
-    importState(merged);
-    const beraterName = parsed.beraterMeta?.beraterName ?? "(ohne Berater-Meta)";
-    const kunde =
-      parsed.beraterMeta?.kundeP1Name ?? current.person1.vorname ?? "Kunde";
-    setStatus({
-      type: "ok",
-      msg: `Importiert: ${kunde} (von ${beraterName}, ${parsed.erfasstAm.slice(0, 10)})`,
-    });
+    importState(result.plan);
+    setStatus({ type: "ok", msg: `${source}: ${result.hinweis}` });
     setPasteText("");
     if (controlled) controlled.onClose();
     else setOpen(false);
+  };
+
+  const handleExport = () => {
+    const state = usePlanStore.getState();
+    const snap = buildSnapshot(state, beraterProfil.name);
+    const json = snapshotToJson(snap);
+    const filename = buildSnapshotFilename(state);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatus({
+      type: "ok",
+      msg: `Snapshot heruntergeladen: ${filename}`,
+    });
   };
 
   if (!isOpen) {
@@ -90,9 +96,9 @@ export function ImportPanel({ controlled }: ImportPanelProps = {}) {
           setStatus(null);
         }}
         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-slate-400 hover:bg-slate-50"
-        title="JSON aus V2-Erfassung importieren"
+        title="Plan-Daten importieren oder als JSON-Snapshot exportieren"
       >
-        ⬇ Daten importieren
+        ⇅ Daten Import / Export
       </button>
     );
   }
@@ -102,10 +108,11 @@ export function ImportPanel({ controlled }: ImportPanelProps = {}) {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-slate-700">
-            Daten importieren
+            Daten Import / Export
           </div>
           <div className="text-xs text-slate-500">
-            JSON aus V2-Erfassung (per Email erhalten)
+            Pro-Tool-Snapshot speichern · Erfassungs-JSON oder älteren Snapshot
+            laden
           </div>
         </div>
         <button
@@ -120,47 +127,77 @@ export function ImportPanel({ controlled }: ImportPanelProps = {}) {
         </button>
       </div>
 
-      <div className="space-y-3">
-        {/* File upload */}
-        <div>
+      <div className="space-y-5">
+        {/* ─── EXPORT ─── */}
+        <div className="rounded-md border border-emerald-200 bg-emerald-50/50 p-3">
+          <div className="mb-2 text-xs font-semibold text-emerald-900">
+            ⬆ Snapshot exportieren
+          </div>
+          <p className="mb-2 text-xs text-emerald-800">
+            Lädt den aktuellen Plan-Zustand als JSON-Datei herunter. Datei
+            kann später hier wieder importiert werden — auch nach Tool-Updates
+            (Migrations-Logik eingebaut).
+          </p>
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-md bg-[var(--color-cuira-deep)] px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+            onClick={handleExport}
+            className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
           >
-            Datei wählen …
+            Snapshot herunterladen
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-            }}
-          />
         </div>
 
-        <div className="text-center text-xs text-slate-400">— oder —</div>
+        {/* ─── IMPORT ─── */}
+        <div className="rounded-md border border-slate-200 bg-slate-50/50 p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-700">
+            ⬇ Snapshot importieren
+          </div>
+          <p className="mb-2 text-xs text-slate-600">
+            Erkennt automatisch: Pro-Tool-Snapshot (aus früherem Export) oder
+            V2-Erfassungs-JSON (per Email vom Kunden-Erfassungs-Flow).
+          </p>
 
-        {/* Paste */}
-        <div>
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            placeholder='JSON hier einfügen … {"plan": {...}, ...}'
-            rows={4}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
-          />
-          <button
-            type="button"
-            onClick={() => applyJson(pasteText, "Paste-Eingabe")}
-            disabled={pasteText.trim().length === 0}
-            className="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            JSON übernehmen
-          </button>
+          <div className="space-y-3">
+            <div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-md bg-[var(--color-cuira-deep)] px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+              >
+                Datei wählen …
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+            </div>
+
+            <div className="text-center text-xs text-slate-400">— oder —</div>
+
+            <div>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder='JSON hier einfügen … {"format": "cuira-pro-snapshot", ...} oder {"plan": {...}, "erfasstAm": ...}'
+                rows={4}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => applyJson(pasteText, "Paste-Eingabe")}
+                disabled={pasteText.trim().length === 0}
+                className="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                JSON übernehmen
+              </button>
+            </div>
+          </div>
         </div>
 
         {status && (
