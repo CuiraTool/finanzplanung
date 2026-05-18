@@ -187,20 +187,34 @@ export default function PrintPage() {
   };
 
   // Section-Sichtbarkeit pro Profil.
-  // Kurz = pragmatischer Berater-Output: Cover + Bilanz + Säulen + Cashflow
-  //        + Vermögen + Tragbarkeit + Massnahmen + Optimierungen + KI + Berater.
-  //        Stresstests, Detail-Liq und Jahres-Tabellen ausgeblendet.
-  // Voll  = alle Sektionen inkl. Stress + Detail-Liq + Jahres-Tabellen.
+  // Kurz = minimaler Berater-Output: Cover + Bilanz + Säulen + Hinterlassen
+  //        + Vermögens-Chart (grau, ohne Buckets) + Cashflow-Chart (grau)
+  //        + Tragbarkeits-Status (ja/nein, nur bei Eigenheim) + Berater.
+  // Voll  = alle Sektionen inkl. Sankey + Steuer-Charts + Massnahmen + KI +
+  //        Optimierungen + Stress + Termine + Detail-Liq + Jahres-Tabellen +
+  //        Tragbarkeits-Details.
+  const KURZ_HIDDEN_KEYS = new Set<string>([
+    "detail-liq",
+    "stress",
+    "jahres-tabellen",
+    "sankey",
+    "steuer-chart",
+    "ki",
+    "optimierungen",
+    "reminder",
+    "massnahmen",
+  ]);
   const showInProfile = (key:
     | "bilanz" | "drei-saeulen" | "hinterlassen" | "vermoegens-chart"
     | "cashflow-chart" | "detail-liq" | "sankey" | "steuer-chart"
     | "tragbarkeit" | "stress" | "ki" | "optimierungen" | "reminder"
+    | "massnahmen"
     | "berater" | "plausi" | "varianten-diff" | "narrativ" | "jahres-tabellen"): boolean => {
     if (pdfProfile === "voll") return true;
-    // kurz: ausgeblendet sind Stress, Detail-Liq, Jahres-Tabellen
-    if (key === "detail-liq" || key === "stress" || key === "jahres-tabellen") return false;
-    return true;
+    return !KURZ_HIDDEN_KEYS.has(key);
   };
+  /** True wenn aktuelles Profil = "kurz" — für Chart-Stil + Tragbarkeit-Variante. */
+  const isKurz = pdfProfile === "kurz";
 
   // KI-Massnahmen aus LocalStorage laden (vom Dashboard generiert)
   const [kiMassnahmen, setKiMassnahmen] = useState<
@@ -770,6 +784,7 @@ export default function PrintPage() {
                     pensionsjahr={ordPensionsjahr}
                     wunschPensionsjahr={null}
                     fallart={fullState.fallart}
+                    simple={isKurz}
                   />
                 )}
               </div>
@@ -789,6 +804,7 @@ export default function PrintPage() {
                     pensionsjahr={ordPensionsjahr}
                     wunschPensionsjahr={null}
                     fallart={fullState.fallart}
+                    simple={isKurz}
                   />
                 )}
               </div>
@@ -909,28 +925,37 @@ export default function PrintPage() {
         {showInProfile("tragbarkeit") && (tragbarkeitHeute || tragbarkeitPension) && (
           <div className="page-break-soft pt-4">
             <Section titel="Tragbarkeit Eigenheim">
-              <div className="grid grid-cols-2 gap-3">
-                {tragbarkeitHeute && (
-                  <TragbarkeitBox
-                    titel="heute"
-                    verhaeltnis={tragbarkeitHeute.verhaeltnis}
-                    kosten={tragbarkeitHeute.kostenJahr}
-                    status={tragbarkeitHeute.status}
-                  />
-                )}
-                {tragbarkeitPension && (
-                  <TragbarkeitBox
-                    titel="bei Pension"
-                    verhaeltnis={tragbarkeitPension.verhaeltnis}
-                    kosten={tragbarkeitPension.kostenJahr}
-                    status={tragbarkeitPension.status}
-                  />
-                )}
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                Schweizer Bankenstandard: Wohnkosten ÷ Bruttoeinkommen ≤ 33 %.
-                Kalkulatorischer Zinssatz 5 %, Nebenkosten 1 % vom Verkehrswert.
-              </p>
+              {isKurz ? (
+                <TragbarkeitKurzStatus
+                  heute={tragbarkeitHeute?.status ?? null}
+                  pension={tragbarkeitPension?.status ?? null}
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tragbarkeitHeute && (
+                      <TragbarkeitBox
+                        titel="heute"
+                        verhaeltnis={tragbarkeitHeute.verhaeltnis}
+                        kosten={tragbarkeitHeute.kostenJahr}
+                        status={tragbarkeitHeute.status}
+                      />
+                    )}
+                    {tragbarkeitPension && (
+                      <TragbarkeitBox
+                        titel="bei Pension"
+                        verhaeltnis={tragbarkeitPension.verhaeltnis}
+                        kosten={tragbarkeitPension.kostenJahr}
+                        status={tragbarkeitPension.status}
+                      />
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Schweizer Bankenstandard: Wohnkosten ÷ Bruttoeinkommen ≤ 33 %.
+                    Kalkulatorischer Zinssatz 5 %, Nebenkosten 1 % vom Verkehrswert.
+                  </p>
+                </>
+              )}
             </Section>
           </div>
         )}
@@ -1653,6 +1678,62 @@ function KpiBox({
       {subtext && (
         <div className="mt-0.5 text-[10px] text-slate-400">{subtext}</div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Tragbarkeit-Kurzansicht für PDF-Kurzversion: nur Status-Pill ohne
+ * Verhältnis-Details. Erscheint nur wenn Eigenheim vorhanden.
+ */
+function TragbarkeitKurzStatus({
+  heute,
+  pension,
+}: {
+  heute: string | null;
+  pension: string | null;
+}) {
+  const istGegeben = (s: string | null) =>
+    s === "tragbar" || s === "tragbar_mit_amortisation";
+  const labelFor = (s: string | null): string => {
+    if (s == null) return "—";
+    if (istGegeben(s)) return "gegeben";
+    return "nicht gegeben";
+  };
+  const colorFor = (s: string | null): string => {
+    if (s == null) return "#94a3b8";
+    return istGegeben(s) ? "#16a34a" : "#dc2626";
+  };
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div
+        className="rounded-md border p-4 text-center"
+        style={{ borderColor: "#e7eaee", background: "#f9fafb" }}
+      >
+        <div className="text-[10px] uppercase tracking-wider text-slate-500">
+          Heute
+        </div>
+        <div
+          className="mt-1 text-lg font-semibold"
+          style={{ color: colorFor(heute) }}
+        >
+          {labelFor(heute)}
+        </div>
+      </div>
+      <div
+        className="rounded-md border p-4 text-center"
+        style={{ borderColor: "#e7eaee", background: "#f9fafb" }}
+      >
+        <div className="text-[10px] uppercase tracking-wider text-slate-500">
+          Bei Pension
+        </div>
+        <div
+          className="mt-1 text-lg font-semibold"
+          style={{ color: colorFor(pension) }}
+        >
+          {labelFor(pension)}
+        </div>
+      </div>
     </div>
   );
 }

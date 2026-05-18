@@ -20,6 +20,11 @@ interface Props {
   pensionsjahr: number | null;
   wunschPensionsjahr: number | null;
   fallart: "einzel" | "paar";
+  /**
+   * Wenn true: nur Einnahmen-Total grau oben + Ausgaben-Total grau unten +
+   * Saldo-Linie. Keine Bucket-Aufteilung (für Kurz-PDF).
+   */
+  simple?: boolean;
 }
 
 const FARBE = {
@@ -44,6 +49,7 @@ export function EinnahmenAusgabenChart({
   pensionsjahr,
   wunschPensionsjahr,
   fallart,
+  simple = false,
 }: Props) {
   const formatChfKurz = (value: number) => {
     const abs = Math.abs(value);
@@ -64,6 +70,8 @@ export function EinnahmenAusgabenChart({
     ausgabenVorsorge3aViz: -d.ausgabenVorsorge3a,
     ausgabenHypozinsViz: -(d.ausgabenHypozins ?? 0),
     ausgabenEinmaligViz: -d.ausgabenEinmalig,
+    einnahmenTotalViz: d.einnahmenTotal,
+    ausgabenTotalViz: -d.ausgabenTotal,
     saldoB: datenB?.[i]?.saldo ?? null,
   }));
 
@@ -75,10 +83,12 @@ export function EinnahmenAusgabenChart({
             Einnahmen / Ausgaben
           </div>
           <div className="text-xs text-slate-400">
-            Einnahmen oberhalb der Null-Linie, Ausgaben unterhalb — Saldo als Linie
+            {simple
+              ? "Einnahmen total grau oben, Ausgaben total grau unten, Saldo als Linie"
+              : "Einnahmen oberhalb der Null-Linie, Ausgaben unterhalb — Saldo als Linie"}
           </div>
         </div>
-        <Legende />
+        {!simple && <Legende />}
       </header>
 
       <ResponsiveContainer width="100%" height={460}>
@@ -112,59 +122,81 @@ export function EinnahmenAusgabenChart({
           {/* Null-Linie als visueller Anker zwischen Einnahmen und Ausgaben */}
           <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
 
-          {/* Einnahmen — gestapelt nach oben */}
-          <Bar dataKey="einnahmenErwerb" stackId="cf" fill={FARBE.erwerb} name="Erwerb" />
-          <Bar dataKey="einnahmenAhv" stackId="cf" fill={FARBE.ahv} name="AHV" />
-          <Bar
-            dataKey="einnahmenBvgRente"
-            stackId="cf"
-            fill={FARBE.bvg}
-            name="BVG-Rente"
-          />
-          <Bar
-            dataKey="einnahmenMieten"
-            stackId="cf"
-            fill={FARBE.mieten}
-            name="Mieten"
-          />
+          {simple ? (
+            /* Kurz-PDF: nur Total-Bars in Grau, keine Buckets */
+            <>
+              <Bar
+                dataKey="einnahmenTotalViz"
+                fill="#cbd5e1"
+                stroke="#94a3b8"
+                strokeWidth={1}
+                name="Einnahmen total"
+              />
+              <Bar
+                dataKey="ausgabenTotalViz"
+                fill="#94a3b8"
+                stroke="#64748b"
+                strokeWidth={1}
+                name="Ausgaben total"
+              />
+            </>
+          ) : (
+            <>
+              {/* Einnahmen — gestapelt nach oben */}
+              <Bar dataKey="einnahmenErwerb" stackId="cf" fill={FARBE.erwerb} name="Erwerb" />
+              <Bar dataKey="einnahmenAhv" stackId="cf" fill={FARBE.ahv} name="AHV" />
+              <Bar
+                dataKey="einnahmenBvgRente"
+                stackId="cf"
+                fill={FARBE.bvg}
+                name="BVG-Rente"
+              />
+              <Bar
+                dataKey="einnahmenMieten"
+                stackId="cf"
+                fill={FARBE.mieten}
+                name="Mieten"
+              />
 
-          {/* Ausgaben — gestapelt nach unten (negative Werte) */}
-          <Bar
-            dataKey="ausgabenSozialBvgViz"
-            stackId="cf"
-            fill={FARBE.sozial}
-            name="Sozial+BVG"
-          />
-          <Bar
-            dataKey="ausgabenVorsorge3aViz"
-            stackId="cf"
-            fill={FARBE.vorsorge3a}
-            name="Säule 3a"
-          />
-          <Bar
-            dataKey="ausgabenHaushaltViz"
-            stackId="cf"
-            fill={FARBE.haushalt}
-            name="Haushalt"
-          />
-          <Bar
-            dataKey="ausgabenHypozinsViz"
-            stackId="cf"
-            fill={FARBE.hypozins}
-            name="Hypozins"
-          />
-          <Bar
-            dataKey="ausgabenSteuernViz"
-            stackId="cf"
-            fill={FARBE.steuern}
-            name="Steuern"
-          />
-          <Bar
-            dataKey="ausgabenEinmaligViz"
-            stackId="cf"
-            fill={FARBE.einmalig}
-            name="Einmalige"
-          />
+              {/* Ausgaben — gestapelt nach unten (negative Werte) */}
+              <Bar
+                dataKey="ausgabenSozialBvgViz"
+                stackId="cf"
+                fill={FARBE.sozial}
+                name="Sozial+BVG"
+              />
+              <Bar
+                dataKey="ausgabenVorsorge3aViz"
+                stackId="cf"
+                fill={FARBE.vorsorge3a}
+                name="Säule 3a"
+              />
+              <Bar
+                dataKey="ausgabenHaushaltViz"
+                stackId="cf"
+                fill={FARBE.haushalt}
+                name="Haushalt"
+              />
+              <Bar
+                dataKey="ausgabenHypozinsViz"
+                stackId="cf"
+                fill={FARBE.hypozins}
+                name="Hypozins"
+              />
+              <Bar
+                dataKey="ausgabenSteuernViz"
+                stackId="cf"
+                fill={FARBE.steuern}
+                name="Steuern"
+              />
+              <Bar
+                dataKey="ausgabenEinmaligViz"
+                stackId="cf"
+                fill={FARBE.einmalig}
+                name="Einmalige"
+              />
+            </>
+          )}
 
           {/* Saldo-Linie A über den Bars */}
           <Line
