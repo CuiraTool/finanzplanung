@@ -32,6 +32,11 @@ import { runAllStressTests, STRESS_TESTS } from "@/engine/stress-tests";
 import { generiereNarrativ } from "@/engine/narrativ";
 import { useBeraterProfil } from "@/lib/berater-profil";
 import { usePdfMassnahmen } from "@/lib/pdf-massnahmen-selection";
+import {
+  usePdfCustomization,
+  applyOrder,
+} from "@/lib/pdf-customization";
+import { SectionCustomizer } from "@/components/print/SectionCustomizer";
 
 interface KiMassnahmePrint {
   titel: string;
@@ -110,12 +115,49 @@ export default function PrintPage() {
 
   const allMassnahmen = useMemo(() => massnahmenAusState(fullState), [fullState]);
   const { selectedIds: pdfMassnSelIds, maxTop: pdfMaxTop } = usePdfMassnahmen();
-  // Tiago-Fix: PDF zeigt nur User-Selektion (leer = alle). maxTop für Exec-Summary.
-  const massnahmen = useMemo(() => {
+  const { sections: pdfCustom } = usePdfCustomization();
+  // PDF zeigt nur User-Selektion (leer = alle). maxTop für Exec-Summary.
+  // Plus: SectionCustomizer-Hide-Liste + Reihenfolge + Inhalts-Edits.
+  const massnahmenSelected = useMemo(() => {
     if (pdfMassnSelIds.length === 0) return allMassnahmen;
     return allMassnahmen.filter((m) => pdfMassnSelIds.includes(m.id));
   }, [allMassnahmen, pdfMassnSelIds]);
-  const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
+  const massnahmen = useMemo(() => {
+    const cfg = pdfCustom.massnahmen;
+    let list = massnahmenSelected;
+    if (cfg.hiddenIds.length > 0) {
+      list = list.filter((m) => !cfg.hiddenIds.includes(m.id));
+    }
+    if (cfg.orderIds.length > 0) {
+      list = applyOrder(list, cfg.orderIds);
+    }
+    return list.map((m) => {
+      const edit = cfg.edits[m.id];
+      if (!edit) return m;
+      return {
+        ...m,
+        titel: edit.titel ?? m.titel,
+        detail: edit.text ?? m.detail,
+      };
+    });
+  }, [massnahmenSelected, pdfCustom.massnahmen]);
+  const optimierungen = useMemo(() => {
+    const cfg = pdfCustom.optimierungen;
+    let list = massnahmen.filter((m) => m.kategorie === "optimierung");
+    if (cfg.hiddenIds.length > 0) {
+      list = list.filter((m) => !cfg.hiddenIds.includes(m.id));
+    }
+    if (cfg.orderIds.length > 0) list = applyOrder(list, cfg.orderIds);
+    return list.map((m) => {
+      const edit = cfg.edits[m.id];
+      if (!edit) return m;
+      return {
+        ...m,
+        titel: edit.titel ?? m.titel,
+        detail: edit.text ?? m.detail,
+      };
+    });
+  }, [massnahmen, pdfCustom.optimierungen]);
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
 
   // Detail-Liquidität: Default-On (E2-5 / Y-3-Audit), kann via Dashboard
@@ -127,15 +169,15 @@ export default function PrintPage() {
     setShowDetailLiq(v !== "0"); // default = on, nur explizit "0" off
   }, []);
 
-  // PDF-Profile (E2-2): Kurz / Standard / Vollständig
-  type PdfProfile = "kurz" | "standard" | "voll";
-  const [pdfProfile, setPdfProfile] = useState<PdfProfile>("standard");
+  // PDF-Profile: Kurz / Vollständig (Standard entfernt — User-Wunsch)
+  type PdfProfile = "kurz" | "voll";
+  const [pdfProfile, setPdfProfile] = useState<PdfProfile>("kurz");
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("cuira-pdf-profile") as PdfProfile | null;
-    if (stored === "kurz" || stored === "standard" || stored === "voll") {
-      setPdfProfile(stored);
-    }
+    const stored = window.localStorage.getItem("cuira-pdf-profile");
+    // Migration: "standard" → "kurz" (häufigste Praxis-Wahl)
+    if (stored === "kurz" || stored === "standard") setPdfProfile("kurz");
+    else if (stored === "voll") setPdfProfile("voll");
   }, []);
   const setPdfProfileAndStore = (p: PdfProfile) => {
     setPdfProfile(p);
@@ -144,18 +186,18 @@ export default function PrintPage() {
     }
   };
 
-  // Section-Sichtbarkeit pro Profil. Standard = alle ausser Detail-Liq + Stress
-  // (Detail-Liq weiterhin via User-Toggle). Kurz = nur Cover + Exec + Massnahmen.
+  // Section-Sichtbarkeit pro Profil.
+  // Kurz = pragmatischer Berater-Output: Cover + Bilanz + Säulen + Cashflow
+  //        + Vermögen + Tragbarkeit + Massnahmen + Optimierungen + KI + Berater.
+  //        Stresstests, Detail-Liq und Jahres-Tabellen ausgeblendet.
+  // Voll  = alle Sektionen inkl. Stress + Detail-Liq + Jahres-Tabellen.
   const showInProfile = (key:
     | "bilanz" | "drei-saeulen" | "hinterlassen" | "vermoegens-chart"
     | "cashflow-chart" | "detail-liq" | "sankey" | "steuer-chart"
     | "tragbarkeit" | "stress" | "ki" | "optimierungen" | "reminder"
     | "berater" | "plausi" | "varianten-diff" | "narrativ" | "jahres-tabellen"): boolean => {
     if (pdfProfile === "voll") return true;
-    if (pdfProfile === "kurz") {
-      return key === "optimierungen" || key === "berater";
-    }
-    // standard: minus Detail-Liq + Stress + Sankey + Jahres-Tabellen
+    // kurz: ausgeblendet sind Stress, Detail-Liq, Jahres-Tabellen
     if (key === "detail-liq" || key === "stress" || key === "jahres-tabellen") return false;
     return true;
   };
@@ -183,15 +225,61 @@ export default function PrintPage() {
     }
   }, []);
 
+  // KI-Massnahmen mit synthetischen IDs für Customizer
+  const kiItemsRaw = useMemo(() => {
+    if (!kiMassnahmen) return [];
+    return kiMassnahmen.massnahmen.map((m, i) => ({
+      ...m,
+      id: `ki-${i}`,
+    }));
+  }, [kiMassnahmen]);
+  const kiItems = useMemo(() => {
+    const cfg = pdfCustom.ki;
+    let list = kiItemsRaw;
+    if (cfg.hiddenIds.length > 0) {
+      list = list.filter((m) => !cfg.hiddenIds.includes(m.id));
+    }
+    if (cfg.orderIds.length > 0) list = applyOrder(list, cfg.orderIds);
+    return list.map((m) => {
+      const edit = cfg.edits[m.id];
+      if (!edit) return m;
+      return {
+        ...m,
+        titel: edit.titel ?? m.titel,
+        begruendung: edit.text ?? m.begruendung,
+      };
+    });
+  }, [kiItemsRaw, pdfCustom.ki]);
+
   // Stress-Tests (nur wenn genug Daten erfasst)
   const hatStressBasis =
     !!fullState.person1.geburtsdatum &&
     (fullState.vermoegen.items.some((it) => (it.saldoHeute ?? 0) > 0) ||
       (fullState.bvg.p1.altersguthabenHeute ?? 0) > 0);
-  const stressTests = useMemo(
+  const stressTestsRaw = useMemo(
     () => (hatStressBasis ? runAllStressTests(fullState) : []),
     [fullState, hatStressBasis]
   );
+  const stressTests = useMemo(() => {
+    const cfg = pdfCustom.stress;
+    let list = stressTestsRaw;
+    if (cfg.hiddenIds.length > 0) {
+      list = list.filter((s) => !cfg.hiddenIds.includes(s.id));
+    }
+    if (cfg.orderIds.length > 0) list = applyOrder(list, cfg.orderIds);
+    return list.map((s) => {
+      const edit = cfg.edits[s.id];
+      if (!edit) return s;
+      return {
+        ...s,
+        titel: edit.titel ?? s.titel,
+      };
+    });
+  }, [stressTestsRaw, pdfCustom.stress]);
+
+  /** Lookup beschreibung for stress test ID (für Customizer-UI). */
+  const stressDescription = (id: string): string =>
+    STRESS_TESTS.find((s) => s.id === id)?.beschreibung ?? "";
 
   // Verdict aus dem letzten Cashflow-Eintrag (Vermögen am Lebensende)
   const verdict = useMemo(() => {
@@ -291,7 +379,7 @@ export default function PrintPage() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
             <span className="px-2 text-slate-500">Profil:</span>
-            {(["kurz", "standard", "voll"] as const).map((p) => (
+            {(["kurz", "voll"] as const).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -303,13 +391,11 @@ export default function PrintPage() {
                 }`}
                 title={
                   p === "kurz"
-                    ? "Cover + Executive Summary + Top-Massnahmen (≈4 Seiten)"
-                    : p === "standard"
-                      ? "Standard ohne Detail-Liq + Stress (≈10 Seiten)"
-                      : "Alle Sections (≈22 Seiten)"
+                    ? "Berater-Output ohne Stress-Tests, Detail-Liquidität und Jahres-Tabellen (≈10 Seiten)"
+                    : "Alle Sektionen inkl. Stress-Tests + Detail-Liq + Jahres-Tabellen (≈22 Seiten)"
                 }
               >
-                {p === "kurz" ? "Kurz" : p === "standard" ? "Standard" : "Vollständig"}
+                {p === "kurz" ? "Kurz" : "Vollständig"}
               </button>
             ))}
           </div>
@@ -327,6 +413,53 @@ export default function PrintPage() {
           >
             🖨 Drucken / als PDF speichern
           </button>
+        </div>
+      </div>
+
+      {/* ── Section-Customizer-Leiste (nur am Bildschirm) ── */}
+      <div className="border-b border-slate-100 bg-slate-50 px-6 py-2 print:hidden">
+        <div className="mb-1 text-[11px] font-medium text-slate-500">
+          Sektionen anpassen — Sichtbarkeit, Reihenfolge, Titel + Text
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SectionCustomizer
+            section="massnahmen"
+            sectionLabel="Massnahmen"
+            items={massnahmenSelected.map((m) => ({
+              id: m.id,
+              titel: m.titel,
+              text: m.detail ?? "",
+            }))}
+          />
+          <SectionCustomizer
+            section="optimierungen"
+            sectionLabel="Optimierungen"
+            items={massnahmen
+              .filter((m) => m.kategorie === "optimierung")
+              .map((m) => ({
+                id: m.id,
+                titel: m.titel,
+                text: m.detail ?? "",
+              }))}
+          />
+          <SectionCustomizer
+            section="stress"
+            sectionLabel="Stress-Tests"
+            items={stressTestsRaw.map((s) => ({
+              id: s.id,
+              titel: s.titel,
+              text: stressDescription(s.id),
+            }))}
+          />
+          <SectionCustomizer
+            section="ki"
+            sectionLabel="KI-Empfehlungen"
+            items={kiItemsRaw.map((m) => ({
+              id: m.id,
+              titel: m.titel,
+              text: m.begruendung,
+            }))}
+          />
         </div>
       </div>
 
@@ -917,7 +1050,7 @@ export default function PrintPage() {
         )}
 
         {/* ── KI-Empfehlungen (wenn im Dashboard generiert) ──── */}
-        {showInProfile("ki") && kiMassnahmen && kiMassnahmen.massnahmen.length > 0 && (
+        {showInProfile("ki") && kiMassnahmen && kiItems.length > 0 && (
           <div className="page-break-before pt-4">
             <Section titel="KI-Empfehlungen">
               <p className="mb-3 text-xs" style={{ color: "#4b566b" }}>
@@ -929,7 +1062,7 @@ export default function PrintPage() {
                 von Claude (Anthropic) anhand des aktuellen Plans.
               </p>
               <ul className="space-y-2">
-                {kiMassnahmen.massnahmen.map((m, i) => (
+                {kiItems.map((m, i) => (
                   <li
                     key={i}
                     className="rounded-md border p-3"
