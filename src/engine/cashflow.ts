@@ -52,7 +52,6 @@ import {
   eigenmietwertAktivImJahr,
   type FremdKantonAnteil,
 } from "./steuer";
-import { sozialversicherung, bvgArbeitnehmerBeitrag } from "./steuer-abzuege";
 import { ahvNeBeitragJahr, istNichterwerbstaetig } from "./ahv-ne";
 import { IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT } from "./economy-defaults";
 import { effektiverSteuerwert } from "./repartition";
@@ -746,27 +745,13 @@ export function cashflowReihe(
     // Erbschaftssteuer im Bezugsjahr (separater kantonaler Strang).
     const ausgabenSteuern = steuern.total + erbschaftssteuerJahr;
 
-    // Sozialabgaben (AHV/IV/EO + ALV + NBU AN-Anteil) + BVG-AN-Beitrag.
-    // Direkt aus Brutto-Erwerb berechnet — robuster als abzuegeDbg-Pfad,
-    // der bei einigen Konstellationen (z.B. Anker-Kalibrierung) leer bleibt.
-    // BVG-AN-Beitrag pro Person nur wenn aktiver Anschluss + Erwerb > Eintrittsschwelle.
-    const sozialP1 = sozialversicherung(bruttoErwerbP1);
-    const sozialP2 =
-      state.fallart === "paar" ? sozialversicherung(bruttoErwerbP2) : 0;
-    const bvgAnP1 = bvgArbeitnehmerBeitrag(
-      bruttoErwerbP1,
-      alterP1 ?? 40,
-      state.bvg.p1.aktiverAnschluss && istVorPensionP1
-    );
-    const bvgAnP2 =
-      state.fallart === "paar"
-        ? bvgArbeitnehmerBeitrag(
-            bruttoErwerbP2,
-            alterP2 ?? 40,
-            state.bvg.p2.aktiverAnschluss && istVorPensionP2
-          )
-        : 0;
-    const ausgabenSozialBvg = sozialP1 + sozialP2 + bvgAnP1 + bvgAnP2;
+    // Budget-Modell: User gibt NETTO-Einkommen im Budget ein. Sozial-AN-
+    // Abzüge (AHV/IV/EO + ALV + NBU + BVG-AN) sind NICHT zusätzlich ab-
+    // zuziehen — sie sind bereits aus der Lohnabrechnung weg. ausgaben-
+    // SozialBvg bleibt deshalb 0 im Cashflow + Dashboard. Steuer-Engine
+    // arbeitet ebenfalls mit Netto (einkommenIstNetto: true).
+    // Tragbarkeit-Check rechnet separat Netto × 1.15 → Brutto-Schätzung.
+    const ausgabenSozialBvg = 0;
     // 3a-Einzahlung als separate Vorsorge-Ausgabe (geht NICHT auf das
     // Hauptkonto, sondern wächst den 3a-Saldo)
     // 3a + 3b-Prämien fliessen als Vorsorge-Ausgabe (3a wächst Saldo, 3b

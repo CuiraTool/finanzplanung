@@ -167,10 +167,13 @@ export function TragbarkeitPanel() {
       )}
 
       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        <span className="font-medium">Engine-Vereinfachung:</span> ordentliche
-        Tilgung in Prozent pro Jahr ist nicht modelliert. Tilgungen jahrgenau
-        pro Hypothek-Tranche unter „Tilgungsplan" eintragen — Engine reduziert
-        den Stand entsprechend.
+        <span className="font-medium">Modell-Hinweise:</span> Budget rechnet
+        mit <strong>Netto</strong>-Einkommen — Sozial-Abzüge (AHV/IV/EO/ALV/
+        BVG-AN) sind bereits aus der Lohnabrechnung weg. Tragbarkeit
+        verwendet <strong>Brutto</strong> (Netto × 1.15-Hochrechnung,
+        Bankenstandard). Ordentliche Tilgung in % pro Jahr ist nicht
+        modelliert — Tilgungen jahrgenau pro Hypothek-Tranche unter
+        „Tilgungsplan" eintragen.
       </div>
     </fieldset>
   );
