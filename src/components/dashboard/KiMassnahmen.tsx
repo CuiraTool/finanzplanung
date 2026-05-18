@@ -26,6 +26,8 @@ import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
 import { massnahmenAusState } from "@/engine/massnahmen";
 import { buildPlanSnapshot } from "@/lib/plan-snapshot";
 import { formatChf } from "@/lib/format";
+import { usePdfCustomization } from "@/lib/pdf-customization";
+import { SectionCustomizer } from "@/components/print/SectionCustomizer";
 
 interface KiMassnahme {
   titel: string;
@@ -94,6 +96,8 @@ const PRIO_BADGE: Record<KiMassnahme["prioritaet"], string> = {
 
 export function KiMassnahmen() {
   const fullState = usePlanStore();
+  const { sections: pdfCustom } = usePdfCustomization();
+  const kiCustom = pdfCustom.ki;
   const [data, setData] = useState<KiMassnahme[] | null>(() => {
     // Bei Mount: prüfe ob persistierte Massnahmen vorhanden sind
     const persisted = loadPersisted();
@@ -349,11 +353,44 @@ export function KiMassnahmen() {
 
       {/* Massnahmen-Liste */}
       {data && data.length > 0 && (
-        <div className="space-y-2.5">
-          {data.map((m, i) => (
-            <KiMassnahmeCard key={i} m={m} />
-          ))}
-        </div>
+        <>
+          <div className="mb-2">
+            <SectionCustomizer
+              section="ki"
+              sectionLabel="KI-Empfehlungen"
+              items={data.map((m, i) => ({
+                id: `ki-${i}`,
+                titel: m.titel,
+                text: m.begruendung,
+              }))}
+            />
+          </div>
+          <div className="space-y-2.5">
+            {data
+              .map((m, i) => ({ m, i, id: `ki-${i}` }))
+              .filter(({ id }) => !kiCustom.hiddenIds.includes(id))
+              .sort((a, b) => {
+                if (kiCustom.orderIds.length === 0) return 0;
+                const ai = kiCustom.orderIds.indexOf(a.id);
+                const bi = kiCustom.orderIds.indexOf(b.id);
+                if (ai < 0 && bi < 0) return 0;
+                if (ai < 0) return 1;
+                if (bi < 0) return -1;
+                return ai - bi;
+              })
+              .map(({ m, i, id }) => {
+                const edit = kiCustom.edits[id];
+                const merged = edit
+                  ? {
+                      ...m,
+                      titel: edit.titel ?? m.titel,
+                      begruendung: edit.text ?? m.begruendung,
+                    }
+                  : m;
+                return <KiMassnahmeCard key={i} m={merged} />;
+              })}
+          </div>
+        </>
       )}
 
       {data && data.length === 0 && !loading && (

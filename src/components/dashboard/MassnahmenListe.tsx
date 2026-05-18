@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Massnahme, MassnahmenKategorie } from "@/engine/massnahmen";
 import { usePdfMassnahmen } from "@/lib/pdf-massnahmen-selection";
+import {
+  usePdfCustomization,
+  applyOrder,
+} from "@/lib/pdf-customization";
+import { SectionCustomizer } from "@/components/print/SectionCustomizer";
 
 const KATEGORIE_BADGE: Record<MassnahmenKategorie, { label: string; color: string }> = {
   vorsorge: { label: "Vorsorge", color: "bg-blue-50 text-blue-700" },
@@ -44,7 +49,7 @@ const VIEW_KEY = "cuira-massnahmen-view";
 type View = "liste" | "tabelle";
 
 export function MassnahmenListe({
-  massnahmen,
+  massnahmen: massnahmenRaw,
   vornameP1,
   vornameP2,
   fallart,
@@ -60,6 +65,25 @@ export function MassnahmenListe({
     if (typeof window !== "undefined")
       window.localStorage.setItem(VIEW_KEY, v);
   };
+
+  // Customization (Hide / Reorder / Edit) — wird auch im PDF angewandt.
+  const { sections: pdfCustom } = usePdfCustomization();
+  const massnahmen = useMemo(() => {
+    const cfg = pdfCustom.massnahmen;
+    let list = massnahmenRaw;
+    if (cfg.hiddenIds.length > 0)
+      list = list.filter((m) => !cfg.hiddenIds.includes(m.id));
+    if (cfg.orderIds.length > 0) list = applyOrder(list, cfg.orderIds);
+    return list.map((m) => {
+      const edit = cfg.edits[m.id];
+      if (!edit) return m;
+      return {
+        ...m,
+        titel: edit.titel ?? m.titel,
+        detail: edit.text ?? m.detail,
+      };
+    });
+  }, [massnahmenRaw, pdfCustom.massnahmen]);
 
   const optimierungen = massnahmen.filter((m) => m.kategorie === "optimierung");
   const reminder = massnahmen.filter((m) => m.kategorie !== "optimierung");
@@ -114,6 +138,17 @@ export function MassnahmenListe({
           </div>
         </div>
       </header>
+      <div className="mb-3">
+        <SectionCustomizer
+          section="massnahmen"
+          sectionLabel="Massnahmen"
+          items={massnahmenRaw.map((m) => ({
+            id: m.id,
+            titel: m.titel,
+            text: m.detail ?? "",
+          }))}
+        />
+      </div>
 
       {/* Tiago-Fix: PDF-Massnahmen-Selektor */}
       {massnahmen.length > 0 && <PdfMassnahmenSelektor massnahmen={massnahmen} />}

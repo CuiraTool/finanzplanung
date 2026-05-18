@@ -27,6 +27,11 @@ import {
   type StressTestResultat,
 } from "@/engine/stress-tests";
 import { formatChf } from "@/lib/format";
+import {
+  usePdfCustomization,
+  applyOrder,
+} from "@/lib/pdf-customization";
+import { SectionCustomizer } from "@/components/print/SectionCustomizer";
 
 const SCHWERE_BADGE: Record<StressTestResultat["schwere"], string> = {
   leicht: "cui-pill-pos",
@@ -50,10 +55,23 @@ export function StressTests() {
     (fullState.vermoegen.items.some((it) => (it.saldoHeute ?? 0) > 0) ||
       (fullState.bvg.p1.altersguthabenHeute ?? 0) > 0);
 
-  const results = useMemo(
+  const resultsRaw = useMemo(
     () => (hatBasis ? runAllStressTests(fullState) : []),
     [fullState, hatBasis]
   );
+  const { sections: pdfCustom } = usePdfCustomization();
+  const results = useMemo(() => {
+    const cfg = pdfCustom.stress;
+    let list = resultsRaw;
+    if (cfg.hiddenIds.length > 0)
+      list = list.filter((s) => !cfg.hiddenIds.includes(s.id));
+    if (cfg.orderIds.length > 0) list = applyOrder(list, cfg.orderIds);
+    return list.map((s) => {
+      const edit = cfg.edits[s.id];
+      if (!edit) return s;
+      return { ...s, titel: edit.titel ?? s.titel };
+    });
+  }, [resultsRaw, pdfCustom.stress]);
 
   if (!hatBasis) {
     return (
@@ -158,6 +176,17 @@ export function StressTests() {
             Vergleich zum aktuellen Plan.
           </p>
 
+          <div className="mb-2">
+            <SectionCustomizer
+              section="stress"
+              sectionLabel="Stress-Tests"
+              items={resultsRaw.map((r) => ({
+                id: r.id,
+                titel: r.titel,
+                text: STRESS_TESTS.find((s) => s.id === r.id)?.beschreibung ?? "",
+              }))}
+            />
+          </div>
           <div className="space-y-2">
             {results.map((r) => {
               const def = STRESS_TESTS.find((s) => s.id === r.id);
