@@ -122,80 +122,102 @@ export function EinnahmenAusgabenChart({
           {/* Null-Linie als visueller Anker zwischen Einnahmen und Ausgaben */}
           <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
 
-          {simple ? (
-            /* Kurz-PDF: nur Total-Bars in Grau, keine Buckets */
-            <>
-              <Bar
-                dataKey="einnahmenTotalViz"
-                fill="#cbd5e1"
-                stroke="#94a3b8"
-                strokeWidth={1}
-                name="Einnahmen total"
-              />
-              <Bar
-                dataKey="ausgabenTotalViz"
-                fill="#94a3b8"
-                stroke="#64748b"
-                strokeWidth={1}
-                name="Ausgaben total"
-              />
-            </>
-          ) : (
-            <>
-              {/* Einnahmen — gestapelt nach oben */}
-              <Bar dataKey="einnahmenErwerb" stackId="cf" fill={FARBE.erwerb} name="Erwerb" />
-              <Bar dataKey="einnahmenAhv" stackId="cf" fill={FARBE.ahv} name="AHV" />
-              <Bar
-                dataKey="einnahmenBvgRente"
-                stackId="cf"
-                fill={FARBE.bvg}
-                name="BVG-Rente"
-              />
-              <Bar
-                dataKey="einnahmenMieten"
-                stackId="cf"
-                fill={FARBE.mieten}
-                name="Mieten"
-              />
+          {/* Recharts erkennt Chart-Series nur als DIREKTE Children —
+              kein React-Fragment-Wrap, sonst rendern Bars nicht + Y-Achse
+              skaliert falsch. Daher conditional pro einzelnem <Bar>. */}
 
-              {/* Ausgaben — gestapelt nach unten (negative Werte) */}
-              <Bar
-                dataKey="ausgabenSozialBvgViz"
-                stackId="cf"
-                fill={FARBE.sozial}
-                name="Sozial+BVG"
-              />
-              <Bar
-                dataKey="ausgabenVorsorge3aViz"
-                stackId="cf"
-                fill={FARBE.vorsorge3a}
-                name="Säule 3a"
-              />
-              <Bar
-                dataKey="ausgabenHaushaltViz"
-                stackId="cf"
-                fill={FARBE.haushalt}
-                name="Haushalt"
-              />
-              <Bar
-                dataKey="ausgabenHypozinsViz"
-                stackId="cf"
-                fill={FARBE.hypozins}
-                name="Hypozins"
-              />
-              <Bar
-                dataKey="ausgabenSteuernViz"
-                stackId="cf"
-                fill={FARBE.steuern}
-                name="Steuern"
-              />
-              <Bar
-                dataKey="ausgabenEinmaligViz"
-                stackId="cf"
-                fill={FARBE.einmalig}
-                name="Einmalige"
-              />
-            </>
+          {/* Kurz-PDF (simple): zwei graue Total-Bars */}
+          {simple && (
+            <Bar
+              dataKey="einnahmenTotalViz"
+              fill="#cbd5e1"
+              stroke="#94a3b8"
+              strokeWidth={1}
+              name="Einnahmen total"
+            />
+          )}
+          {simple && (
+            <Bar
+              dataKey="ausgabenTotalViz"
+              fill="#94a3b8"
+              stroke="#64748b"
+              strokeWidth={1}
+              name="Ausgaben total"
+            />
+          )}
+
+          {/* Voll: Einnahmen gestapelt nach oben */}
+          {!simple && (
+            <Bar dataKey="einnahmenErwerb" stackId="cf" fill={FARBE.erwerb} name="Erwerb" />
+          )}
+          {!simple && (
+            <Bar dataKey="einnahmenAhv" stackId="cf" fill={FARBE.ahv} name="AHV" />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="einnahmenBvgRente"
+              stackId="cf"
+              fill={FARBE.bvg}
+              name="BVG-Rente"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="einnahmenMieten"
+              stackId="cf"
+              fill={FARBE.mieten}
+              name="Mieten"
+            />
+          )}
+
+          {/* Voll: Ausgaben gestapelt nach unten (negative Werte) */}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenSozialBvgViz"
+              stackId="cf"
+              fill={FARBE.sozial}
+              name="Sozial+BVG"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenVorsorge3aViz"
+              stackId="cf"
+              fill={FARBE.vorsorge3a}
+              name="Säule 3a"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenHaushaltViz"
+              stackId="cf"
+              fill={FARBE.haushalt}
+              name="Haushalt"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenHypozinsViz"
+              stackId="cf"
+              fill={FARBE.hypozins}
+              name="Hypozins"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenSteuernViz"
+              stackId="cf"
+              fill={FARBE.steuern}
+              name="Steuern"
+            />
+          )}
+          {!simple && (
+            <Bar
+              dataKey="ausgabenEinmaligViz"
+              stackId="cf"
+              fill={FARBE.einmalig}
+              name="Einmalige"
+            />
           )}
 
           {/* Saldo-Linie A über den Bars */}

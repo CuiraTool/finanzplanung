@@ -96,8 +96,12 @@ export function VermoegensChart({
           />
           <Tooltip content={<CustomTooltip />} />
 
-          {simple ? (
-            /* Kurz-PDF: nur eine graue Aktiva-Total-Fläche, keine Buckets. */
+          {/* Recharts erkennt Chart-Series nur als DIREKTE Children —
+              kein React-Fragment-Wrap, sonst rendern Areas nicht + Y-Achse
+              skaliert falsch. Daher conditional pro einzelnem <Area>. */}
+
+          {/* Kurz-PDF (simple): eine graue Aktiva-Total-Fläche */}
+          {simple && (
             <Area
               type="monotone"
               dataKey="vermoegenAktiva"
@@ -107,62 +111,68 @@ export function VermoegensChart({
               fillOpacity={0.6}
               name="Aktiva total"
             />
-          ) : (
-            <>
-              {/* Stacked Aktiva-Komponenten — Reihenfolge von unten nach oben:
-                  illiquide Assets unten (Immobilien), liquide oben (Cash).
-                  Logik: 'was kann ich morgen anfassen' wandert nach oben. */}
-              <Area
-                type="monotone"
-                dataKey="vermoegenImmobilien"
-                stackId="aktiva"
-                stroke={FARBE.immobilien}
-                strokeWidth={1}
-                fill={FARBE.immobilien}
-                fillOpacity={0.7}
-                name="Immobilien"
-              />
-              <Area
-                type="monotone"
-                dataKey="vermoegenVorsorge"
-                stackId="aktiva"
-                stroke={FARBE.vorsorge}
-                strokeWidth={1}
-                fill={FARBE.vorsorge}
-                fillOpacity={0.7}
-                name="Vorsorge"
-              />
-              <Area
-                type="monotone"
-                dataKey="vermoegenFirma"
-                stackId="aktiva"
-                stroke={FARBE.firma}
-                strokeWidth={1}
-                fill={FARBE.firma}
-                fillOpacity={0.7}
-                name="Firma"
-              />
-              <Area
-                type="monotone"
-                dataKey="vermoegenWertschriften"
-                stackId="aktiva"
-                stroke={FARBE.wertschriften}
-                strokeWidth={1}
-                fill={FARBE.wertschriften}
-                fillOpacity={0.7}
-                name="Wertschriften"
-              />
-              <Area
-                type="monotone"
-                dataKey="vermoegenLiquiditaet"
-                stackId="aktiva"
-                stroke={FARBE.liquiditaet}
-                strokeWidth={1}
-                fill={FARBE.liquiditaet}
-                fillOpacity={0.7}
-                name="Liquidität"
-              />
-            </>
+          )}
+
+          {/* Voll: Stacked Aktiva-Komponenten — illiquide unten, liquide oben */}
+          {!simple && (
+            <Area
+              type="monotone"
+              dataKey="vermoegenImmobilien"
+              stackId="aktiva"
+              stroke={FARBE.immobilien}
+              strokeWidth={1}
+              fill={FARBE.immobilien}
+              fillOpacity={0.7}
+              name="Immobilien"
+            />
+          )}
+          {!simple && (
+            <Area
+              type="monotone"
+              dataKey="vermoegenVorsorge"
+              stackId="aktiva"
+              stroke={FARBE.vorsorge}
+              strokeWidth={1}
+              fill={FARBE.vorsorge}
+              fillOpacity={0.7}
+              name="Vorsorge"
+            />
+          )}
+          {!simple && (
+            <Area
+              type="monotone"
+              dataKey="vermoegenFirma"
+              stackId="aktiva"
+              stroke={FARBE.firma}
+              strokeWidth={1}
+              fill={FARBE.firma}
+              fillOpacity={0.7}
+              name="Firma"
+            />
+          )}
+          {!simple && (
+            <Area
+              type="monotone"
+              dataKey="vermoegenWertschriften"
+              stackId="aktiva"
+              stroke={FARBE.wertschriften}
+              strokeWidth={1}
+              fill={FARBE.wertschriften}
+              fillOpacity={0.7}
+              name="Wertschriften"
+            />
+          )}
+          {!simple && (
+            <Area
+              type="monotone"
+              dataKey="vermoegenLiquiditaet"
+              stackId="aktiva"
+              stroke={FARBE.liquiditaet}
+              strokeWidth={1}
+              fill={FARBE.liquiditaet}
+              fillOpacity={0.7}
+              name="Liquidität"
+            />
           )}
 
           {/* Schulden als Linie (unten) */}
