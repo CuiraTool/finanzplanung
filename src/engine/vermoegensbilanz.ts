@@ -116,6 +116,73 @@ export function nettovermoegenHeute(state: VermoegensbilanzInput): number {
   return Math.round(total);
 }
 
+/**
+ * Vermögens-Buckets HEUTE (Eingabe-Zustand, vor Cashflow-Iteration).
+ * Für die "Vermögensbilanz heute"-Darstellung im PDF — zeigt die vom
+ * Berater erfassten Werte, NICHT das Cashflow-Jahresende.
+ */
+export interface BilanzHeuteBuckets {
+  liquiditaet: number;
+  wertschriften: number;
+  vorsorge: number;
+  immobilien: number;
+  firma: number;
+  schulden: number;
+  aktiva: number;
+  netto: number;
+}
+
+export function bilanzHeuteBuckets(
+  state: VermoegensbilanzInput
+): BilanzHeuteBuckets {
+  let liquiditaet = 0;
+  let wertschriften = 0;
+  let darlehen = 0;
+  for (const it of state.vermoegen.items) {
+    if (it.saldoHeute == null) continue;
+    if (it.typ === "konto") liquiditaet += it.saldoHeute;
+    else if (it.typ === "depot") wertschriften += it.saldoHeute;
+    else if (it.typ === "darlehen") darlehen += it.saldoHeute;
+  }
+
+  let immoAktiva = 0;
+  let immoSchulden = 0;
+  for (const im of state.immobilien.items) {
+    if (im.verkehrswert == null) continue;
+    immoAktiva += im.verkehrswert;
+    immoSchulden += im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+  }
+
+  let vorsorge =
+    pkAltersguthabenHeute(state.bvg.p1) +
+    freizuegigkeitenHeute(state.bvg.p1.freizuegigkeit) +
+    saeuleDreiHeute(state.saeuleDrei.p1);
+  if (state.fallart === "paar") {
+    vorsorge +=
+      pkAltersguthabenHeute(state.bvg.p2) +
+      freizuegigkeitenHeute(state.bvg.p2.freizuegigkeit) +
+      saeuleDreiHeute(state.saeuleDrei.p2);
+  }
+
+  const firma =
+    state.firma.vorhanden && state.firma.moeglicherVerkaufserloes != null
+      ? state.firma.moeglicherVerkaufserloes
+      : 0;
+
+  const schulden = darlehen + immoSchulden;
+  const aktiva = liquiditaet + wertschriften + vorsorge + immoAktiva + firma;
+  return {
+    liquiditaet: Math.round(liquiditaet),
+    wertschriften: Math.round(wertschriften),
+    vorsorge: Math.round(vorsorge),
+    immobilien: Math.round(immoAktiva),
+    firma: Math.round(firma),
+    schulden: Math.round(schulden),
+    aktiva: Math.round(aktiva),
+    netto: Math.round(aktiva - schulden),
+  };
+}
+
 /** Nettovermögen an einem zukünftigen Stichtag (z.B. Pensionierungsjahr). */
 function nettovermoegenAnJahr(state: VermoegensbilanzInput, zieljahr: number): number {
   const jetzt = new Date().getFullYear();

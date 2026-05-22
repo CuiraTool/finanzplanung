@@ -127,6 +127,10 @@ export interface SteuerOutput {
   /** Optional: Detail der Abzüge (DBG + Kanton) für UI-Anzeige. */
   abzuegeDbg?: AbzugDetail;
   abzuegeKanton?: AbzugDetail;
+  /** Steuerbares Einkommen Kanton (Bemessungsgrundlage Kantons-/Gemeindesteuer). */
+  steuerbaresEinkommenKanton?: number;
+  /** Steuerbares Einkommen Bund (DBG-Bemessungsgrundlage). */
+  steuerbaresEinkommenBund?: number;
 }
 
 /** Clamp Jahr auf verfügbare Tarife (2025/2026). */
@@ -309,6 +313,10 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     kalibriert,
     abzuegeDbg: abzuegeBund,
     abzuegeKanton: abzuegeKt,
+    /** Steuerbares Einkommen Kanton (Bemessungsgrundlage Kantons-/Gemeindesteuer). */
+    steuerbaresEinkommenKanton: Math.round(steuerbarKanton),
+    /** Steuerbares Einkommen Bund (DBG-Bemessungsgrundlage). */
+    steuerbaresEinkommenBund: Math.round(steuerbarBund),
   };
 }
 
@@ -432,6 +440,8 @@ export function steuerProJahrIK(
     kalibriert: voll.kalibriert,
     abzuegeDbg: voll.abzuegeDbg,
     abzuegeKanton: voll.abzuegeKanton,
+    steuerbaresEinkommenKanton: voll.steuerbaresEinkommenKanton,
+    steuerbaresEinkommenBund: voll.steuerbaresEinkommenBund,
   };
 }
 
@@ -452,4 +462,27 @@ export function indikativeSteuerHeute(
     kanton,
     religion,
   }).total;
+}
+
+/**
+ * Indikative Steuer-Eckwerte heute — Total + steuerbares Einkommen.
+ * Für Block-3-Anzeige im Wizard (Berater sieht die Bemessungsgrundlage).
+ */
+export function indikativeSteuerDetailHeute(
+  einkommenHeute: number,
+  vermoegenHeute: number,
+  kanton: string,
+  religion: Religion
+): { total: number; steuerbaresEinkommen: number } {
+  const r = steuerProJahr({
+    einkommenJahr: einkommenHeute,
+    vermoegenJahr: vermoegenHeute,
+    kapAuszahlungenJahr: 0,
+    kanton,
+    religion,
+  });
+  return {
+    total: r.total,
+    steuerbaresEinkommen: r.steuerbaresEinkommenKanton ?? 0,
+  };
 }

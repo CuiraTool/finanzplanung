@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { usePlanStore } from "@/lib/store";
-import { vermoegensbilanz } from "@/engine/vermoegensbilanz";
+import { vermoegensbilanz, bilanzHeuteBuckets } from "@/engine/vermoegensbilanz";
 import { cashflowReihe } from "@/engine/cashflow";
 import { pensionsjahr, ORDENTLICHES_AHV_ALTER } from "@/lib/pension";
 import { formatChf } from "@/lib/format";
@@ -759,7 +759,7 @@ export default function PrintPage() {
                 hilft Klumpen-Risiken (z.B. Eigenheim &gt; 50 %) und Liquiditäts-
                 Engpässe sofort zu erkennen.
               </p>
-              <BilanzDonut zeile={cashflow[0]!} />
+              <BilanzDonut buckets={bilanzHeuteBuckets(fullState)} />
             </Section>
           </div>
         )}
@@ -782,6 +782,47 @@ export default function PrintPage() {
                 AHV + BVG + Waisenrenten.
               </p>
               <HinterlassenenCard />
+            </Section>
+          </div>
+        )}
+
+        {/* ── Tragbarkeit (soft break — direkt nach 3-Säulen/Hinterlassen,
+            damit kleine Sektionen die Seite füllen, bevor die ganzseitigen
+            Charts mit hartem Umbruch folgen) ──────────────────── */}
+        {showInProfile("tragbarkeit") && (tragbarkeitHeute || tragbarkeitPension) && (
+          <div className="page-break-soft pt-4">
+            <Section titel="Tragbarkeit Eigenheim">
+              {isKurz ? (
+                <TragbarkeitKurzStatus
+                  heute={tragbarkeitHeute?.status ?? null}
+                  pension={tragbarkeitPension?.status ?? null}
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tragbarkeitHeute && (
+                      <TragbarkeitBox
+                        titel="heute"
+                        verhaeltnis={tragbarkeitHeute.verhaeltnis}
+                        kosten={tragbarkeitHeute.kostenJahr}
+                        status={tragbarkeitHeute.status}
+                      />
+                    )}
+                    {tragbarkeitPension && (
+                      <TragbarkeitBox
+                        titel="bei Pension"
+                        verhaeltnis={tragbarkeitPension.verhaeltnis}
+                        kosten={tragbarkeitPension.kostenJahr}
+                        status={tragbarkeitPension.status}
+                      />
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Schweizer Bankenstandard: Wohnkosten ÷ Bruttoeinkommen ≤ 33 %.
+                    Kalkulatorischer Zinssatz 5 %, Nebenkosten 1 % vom Verkehrswert.
+                  </p>
+                </>
+              )}
             </Section>
           </div>
         )}
@@ -938,45 +979,6 @@ export default function PrintPage() {
             zinsen als Abzug. Ab Steuerjahr <strong>2030</strong> entfällt beides
             automatisch — die Volksabstimmung vom Sept. 2025 hat die Reform
             angenommen.
-          </div>
-        )}
-
-        {/* ── Tragbarkeit (soft break) ────────────── */}
-        {showInProfile("tragbarkeit") && (tragbarkeitHeute || tragbarkeitPension) && (
-          <div className="page-break-soft pt-4">
-            <Section titel="Tragbarkeit Eigenheim">
-              {isKurz ? (
-                <TragbarkeitKurzStatus
-                  heute={tragbarkeitHeute?.status ?? null}
-                  pension={tragbarkeitPension?.status ?? null}
-                />
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    {tragbarkeitHeute && (
-                      <TragbarkeitBox
-                        titel="heute"
-                        verhaeltnis={tragbarkeitHeute.verhaeltnis}
-                        kosten={tragbarkeitHeute.kostenJahr}
-                        status={tragbarkeitHeute.status}
-                      />
-                    )}
-                    {tragbarkeitPension && (
-                      <TragbarkeitBox
-                        titel="bei Pension"
-                        verhaeltnis={tragbarkeitPension.verhaeltnis}
-                        kosten={tragbarkeitPension.kostenJahr}
-                        status={tragbarkeitPension.status}
-                      />
-                    )}
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Schweizer Bankenstandard: Wohnkosten ÷ Bruttoeinkommen ≤ 33 %.
-                    Kalkulatorischer Zinssatz 5 %, Nebenkosten 1 % vom Verkehrswert.
-                  </p>
-                </>
-              )}
-            </Section>
           </div>
         )}
 
@@ -1969,32 +1971,49 @@ function VermoegensJahresTabelle({
         </tr>
       </thead>
       <tbody>
-        {cashflow.map((z) => (
-          <tr key={z.jahr} className="border-b border-slate-100">
-            <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
-            <td className="px-2 py-1 tabular-nums text-slate-600">
-              {formatAlter(z, fallart)}
-            </td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatChf(z.vermoegenLiquiditaet)}
-            </td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatChf(z.vermoegenWertschriften)}
-            </td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatChf(z.vermoegenVorsorge)}
-            </td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatChf(z.vermoegenImmobilien)}
-            </td>
-            <td className="px-2 py-1 text-right tabular-nums text-rose-700">
-              {z.vermoegenSchulden > 0 ? `−${formatChf(z.vermoegenSchulden)}` : "—"}
-            </td>
-            <td className="px-2 py-1 text-right font-semibold tabular-nums">
-              {formatChf(z.vermoegenNetto)}
-            </td>
-          </tr>
-        ))}
+        {cashflow.map((z) => {
+          // Ab dem ersten Jahr mit negativem Nettovermögen → leichte rote
+          // Schattierung der Zeile (Vermögen aufgebraucht).
+          const negativ = z.vermoegenNetto < 0;
+          return (
+            <tr
+              key={z.jahr}
+              className="border-b border-slate-100"
+              style={
+                negativ
+                  ? { background: "#fef2f2", printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties
+                  : undefined
+              }
+            >
+              <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
+              <td className="px-2 py-1 tabular-nums text-slate-600">
+                {formatAlter(z, fallart)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                {formatChf(z.vermoegenLiquiditaet)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                {formatChf(z.vermoegenWertschriften)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                {formatChf(z.vermoegenVorsorge)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                {formatChf(z.vermoegenImmobilien)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums text-rose-700">
+                {z.vermoegenSchulden > 0 ? `−${formatChf(z.vermoegenSchulden)}` : "—"}
+              </td>
+              <td
+                className={`px-2 py-1 text-right font-semibold tabular-nums ${
+                  negativ ? "text-rose-700" : ""
+                }`}
+              >
+                {formatChf(z.vermoegenNetto)}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -2030,6 +2049,7 @@ function SteuerJahresTabelle({
         <tr className="border-b-2 border-slate-300 bg-slate-50">
           <th className="px-2 py-1.5 text-left">Jahr</th>
           <th className="px-2 py-1.5 text-left">Alter</th>
+          <th className="px-2 py-1.5 text-right">Steuerb. Eink.</th>
           <th className="px-2 py-1.5 text-right">Einkommen</th>
           <th className="px-2 py-1.5 text-right">Vermögen</th>
           <th className="px-2 py-1.5 text-right">Kapital</th>
@@ -2042,6 +2062,9 @@ function SteuerJahresTabelle({
             <td className="px-2 py-1 tabular-nums">{z.jahr}</td>
             <td className="px-2 py-1 tabular-nums text-slate-600">
               {formatAlter(z, fallart)}
+            </td>
+            <td className="px-2 py-1 text-right tabular-nums text-slate-500">
+              {formatChf(z.steuerbaresEinkommen)}
             </td>
             <td className="px-2 py-1 text-right tabular-nums">
               {formatChf(z.ausgabenSteuernEinkommen)}
@@ -2079,13 +2102,17 @@ function Row({ k, v }: { k: string; v: string }) {
  * Aktiva-Donut: Liquidität / Wertschriften / Vorsorge / Immobilien / Firma.
  * Plus eine Tabelle mit allen Komponenten + Schulden + Netto.
  */
-function BilanzDonut({ zeile }: { zeile: import("@/engine/cashflow").CashflowZeile }) {
+function BilanzDonut({
+  buckets,
+}: {
+  buckets: import("@/engine/vermoegensbilanz").BilanzHeuteBuckets;
+}) {
   const segments = [
-    { label: "Liquidität", value: zeile.vermoegenLiquiditaet, color: "#3b82f6" },
-    { label: "Wertschriften", value: zeile.vermoegenWertschriften, color: "#8b5cf6" },
-    { label: "Vorsorge (PK/3a/FZ)", value: zeile.vermoegenVorsorge, color: "#10b981" },
-    { label: "Immobilien", value: zeile.vermoegenImmobilien, color: "#f59e0b" },
-    { label: "Firma", value: zeile.vermoegenFirma, color: "#6b7280" },
+    { label: "Liquidität", value: buckets.liquiditaet, color: "#3b82f6" },
+    { label: "Wertschriften", value: buckets.wertschriften, color: "#8b5cf6" },
+    { label: "Vorsorge (PK/3a/FZ)", value: buckets.vorsorge, color: "#10b981" },
+    { label: "Immobilien", value: buckets.immobilien, color: "#f59e0b" },
+    { label: "Firma", value: buckets.firma, color: "#6b7280" },
   ].filter((s) => s.value > 0);
 
   const total = segments.reduce((s, x) => s + x.value, 0);
@@ -2178,7 +2205,7 @@ function BilanzDonut({ zeile }: { zeile: import("@/engine/cashflow").CashflowZei
             <tr>
               <td className="py-1.5 text-rose-700">− Schulden (Hypo + Darlehen)</td>
               <td className="py-1.5 text-right tabular-nums text-rose-700">
-                −{formatChf(zeile.vermoegenSchulden)}
+                −{formatChf(buckets.schulden)}
               </td>
               <td className="py-1.5" />
             </tr>
@@ -2187,14 +2214,14 @@ function BilanzDonut({ zeile }: { zeile: import("@/engine/cashflow").CashflowZei
                 Nettovermögen
               </td>
               <td className="py-2 text-right text-sm font-semibold tabular-nums text-slate-800">
-                {formatChf(zeile.vermoegenNetto)}
+                {formatChf(buckets.netto)}
               </td>
               <td className="py-2" />
             </tr>
           </tbody>
         </table>
-        {zeile.vermoegenImmobilien > 0 &&
-          zeile.vermoegenImmobilien / total > 0.5 && (
+        {buckets.immobilien > 0 &&
+          buckets.immobilien / total > 0.5 && (
             <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
               ⚖ Klumpen-Risiko: über 50 % des Vermögens sind in Immobilien
               gebunden. Bei Bedarf Liquiditätspuffer prüfen.

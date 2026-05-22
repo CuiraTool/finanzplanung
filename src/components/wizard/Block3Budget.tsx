@@ -7,7 +7,7 @@ import {
   type AusgabenModus,
   type Einkommensperiode,
 } from "@/lib/store";
-import { indikativeSteuerHeute } from "@/engine/steuer";
+import { indikativeSteuerDetailHeute } from "@/engine/steuer";
 import { Field } from "@/components/ui/Field";
 import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
 import { inputClass } from "@/components/ui/styles";
@@ -47,10 +47,16 @@ export function Block3Budget() {
   const setAlimente = usePlanStore((s) => s.setAlimente);
   const adresse = usePlanStore((s) => s.adresse);
 
-  const indikativHeute =
+  const indikativDetail =
     budget.einkommenHeute != null && budget.einkommenHeute > 0
-      ? indikativeSteuerHeute(budget.einkommenHeute, 0, adresse.kanton, budget.religion)
+      ? indikativeSteuerDetailHeute(
+          budget.einkommenHeute,
+          0,
+          adresse.kanton,
+          budget.religion
+        )
       : null;
+  const indikativHeute = indikativDetail?.total ?? null;
 
   function personOption(idx: 1 | 2): string {
     const v = (idx === 1 ? person1.vorname : person2.vorname).trim();
@@ -221,6 +227,24 @@ export function Block3Budget() {
             das Netto-Einkommen — Religion und Wohnort werden in Block 1
             erfasst.
           </p>
+        )}
+
+        {indikativDetail != null && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">
+                Steuerbares Einkommen (geschätzt)
+              </span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {formatChf(indikativDetail.steuerbaresEinkommen)}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              Bemessungsgrundlage der Einkommenssteuer — Netto-Einkommen
+              minus Sozial-/Berufsauslagen-/Versicherungs-/Kinder-Abzüge.
+              Indikativ; verfeinert sich mit den Eingaben in Block 4-6.
+            </p>
+          </div>
         )}
       </fieldset>
 

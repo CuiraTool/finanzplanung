@@ -219,6 +219,8 @@ export interface CashflowZeile {
   ausgabenSteuernEinkommen: number;
   ausgabenSteuernEinkommenBund: number; // davon Bund (DBG)
   ausgabenSteuernEinkommenKanton: number; // davon Kanton+Gemeinde+Kirche
+  /** Steuerbares Einkommen (Kanton-Bemessungsgrundlage) — Basis der Einkommenssteuer. */
+  steuerbaresEinkommen: number;
   ausgabenSteuernVermoegen: number;
   ausgabenSteuernKapital: number;
   ausgabenSteuernKapitalBund: number; // davon Bund (1/5 DBG)
@@ -705,6 +707,13 @@ export function cashflowReihe(
         total: s1.total + s2.total,
         kalibriert: s1.kalibriert || s2.kalibriert,
         abzuegeDbg: s1.abzuegeDbg,
+        abzuegeKanton: s1.abzuegeKanton,
+        steuerbaresEinkommenKanton:
+          (s1.steuerbaresEinkommenKanton ?? 0) +
+          (s2.steuerbaresEinkommenKanton ?? 0),
+        steuerbaresEinkommenBund:
+          (s1.steuerbaresEinkommenBund ?? 0) +
+          (s2.steuerbaresEinkommenBund ?? 0),
       };
     } else {
       steuern = steuerProJahrIK(
@@ -898,6 +907,9 @@ export function cashflowReihe(
       ausgabenSteuernEinkommen: Math.round(steuern.einkommen),
       ausgabenSteuernEinkommenBund: Math.round(steuern.einkommenBund),
       ausgabenSteuernEinkommenKanton: Math.round(steuern.einkommenKanton),
+      steuerbaresEinkommen: Math.round(
+        steuern.steuerbaresEinkommenKanton ?? 0
+      ),
       ausgabenSteuernVermoegen: Math.round(steuern.vermoegen),
       ausgabenSteuernKapital: Math.round(steuern.kapital),
       ausgabenSteuernKapitalBund: Math.round(steuern.kapitalBund),
