@@ -108,6 +108,7 @@ src/engine/
 | 3 | Multi-Kanton + PDF-Export (Puppeteer) | offen |
 | 4 | Supabase-Auth + Berater-Dashboard + Sharing | offen |
 | 5 | B2C-Self-Service + Pricing | offen |
+| 6 | Mehrsprachigkeit FR/IT (Romandie + Tessin) | offen |
 
 ## Invarianten (nicht verhandelbar)
 
