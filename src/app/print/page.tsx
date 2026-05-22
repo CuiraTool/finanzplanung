@@ -478,8 +478,12 @@ export default function PrintPage() {
       </div>
 
       <article className="mx-auto max-w-[210mm] px-8 py-10 text-slate-800 print:px-0 print:py-0">
-        {/* ── Cover-Seite (eigene Seite) ──────────────────────── */}
-        <div className="cover-page flex h-[260mm] flex-col justify-between print:h-[260mm]">
+        {/* ── Cover-Seite (eigene Seite) ──────────────────────────
+            Print: keine fixe Höhe — die @media-print-Regel
+            `.cover-page { min-height: 240mm }` greift. Fixe 260mm liefen
+            über die A4-Nutzhöhe (267mm minus Padding) → Cover-Footer
+            rutschte auf eine leere Seite 2. */}
+        <div className="cover-page flex h-[260mm] flex-col justify-between print:h-auto">
           <header className="border-b-2 pb-6" style={{ borderColor: "#0a2540" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -489,6 +493,9 @@ export default function PrintPage() {
               style={{
                 height: "56px",
                 width: "auto",
+                // Logo-PNG ist hell (für dunkle Topbar). Auf weissem
+                // Druck-Hintergrund → brightness(0) macht es schwarz/sichtbar.
+                filter: "brightness(0)",
                 printColorAdjust: "exact",
                 WebkitPrintColorAdjust: "exact",
               } as React.CSSProperties}
@@ -542,9 +549,11 @@ export default function PrintPage() {
           </footer>
         </div>
 
-        {/* ── Executive Summary (Kurz-Profil: nach Cover) ──────── */}
+        {/* ── Executive Summary (direkt nach Cover) ──────────────
+            KEIN page-break-before: die Cover-Page hat bereits
+            page-break-after. Zwei Breaks hintereinander = leere Seite. */}
         {cashflow.length > 0 && (
-          <div className="page-break-before pt-6">
+          <div className="pt-6">
             <Section titel="Executive Summary">
               <ExecutiveSummary
                 verdict={verdict}
@@ -588,6 +597,7 @@ export default function PrintPage() {
                   style={{
                     height: "28px",
                     width: "auto",
+                    filter: "brightness(0)",
                     printColorAdjust: "exact",
                     WebkitPrintColorAdjust: "exact",
                   } as React.CSSProperties}
@@ -650,6 +660,7 @@ export default function PrintPage() {
                 style={{
                   height: "28px",
                   width: "auto",
+                  filter: "brightness(0)",
                   printColorAdjust: "exact",
                   WebkitPrintColorAdjust: "exact",
                 } as React.CSSProperties}

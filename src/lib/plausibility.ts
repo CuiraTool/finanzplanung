@@ -165,20 +165,41 @@ export function checkePlan(state: PlanState): PlausibilityHinweis[] {
   }
 
   // ─── Block 4: AHV ───────────────────────────────────────────────
-  // Wenn vor Pensionierung und AHV-Einkommen null → 3a-Max + AHV-Rente
-  // werden ungenau. Hinweis.
+  // Hinweis nur, wenn WEDER massgebendes Durchschnitts-Einkommen NOCH die
+  // direkte AHV-Jahresrente (Override) erfasst ist. Eines von beidem genügt:
+  //  - einkommenP{1,2} gesetzt → Skala 44 berechnet die Rente
+  //  - ahvRenteJahrEffektivP{1,2} gesetzt → Override-Wert wird direkt genutzt
   if (
     alterP1 != null &&
     alterP1 < state.ahv.ahvBezugsalterP1 &&
     (state.ahv.einkommenP1 == null || state.ahv.einkommenP1 === 0) &&
+    state.ahv.ahvRenteJahrEffektivP1 == null &&
     einkommenTotal > 0
   ) {
     out.push({
       id: "ahv-einkommen-fehlt-p1",
       block: "4 AHV",
       schwere: "info",
-      text: "AHV-Einkommen P1 nicht erfasst — Tool nutzt Netto×1.15 als Fallback (3a-Max, PK-Einkauf-Berechnung).",
+      text: "AHV-Einkommen P1 nicht erfasst — Tool nutzt Netto×1.15 als Fallback (3a-Max, PK-Einkauf-Berechnung). Alternativ AHV-Jahresrente direkt eintragen.",
     });
+  }
+  if (state.fallart === "paar") {
+    const gj2P = parseGeburtsjahr(state.person2.geburtsdatum);
+    const alterP2 = gj2P != null ? heute - gj2P : null;
+    if (
+      alterP2 != null &&
+      alterP2 < state.ahv.ahvBezugsalterP2 &&
+      (state.ahv.einkommenP2 == null || state.ahv.einkommenP2 === 0) &&
+      state.ahv.ahvRenteJahrEffektivP2 == null &&
+      einkommenTotal > 0
+    ) {
+      out.push({
+        id: "ahv-einkommen-fehlt-p2",
+        block: "4 AHV",
+        schwere: "info",
+        text: "AHV-Einkommen P2 nicht erfasst — Tool nutzt Netto×1.15 als Fallback (3a-Max, PK-Einkauf-Berechnung). Alternativ AHV-Jahresrente direkt eintragen.",
+      });
+    }
   }
 
   // ─── Block 5: BVG ───────────────────────────────────────────────
