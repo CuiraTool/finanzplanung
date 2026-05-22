@@ -160,7 +160,7 @@ describe("ESTV-Validierung Phase 1+2 (208 Profile, Single + Paar, Hauptort)", ()
   }
 
   // Aggregat-Test: median + worst-case (ohne KNOWN_DRIFT)
-  it("Aggregat: median |Δ| < 5 %, max |Δ| < 25 % (KNOWN_DRIFT ausgeklammert)", () => {
+  it("Aggregat: median |Δ| ≤ 3 %, max |Δ| ≤ 8 % (KNOWN_DRIFT ausgeklammert)", () => {
     if (drifts.length === 0) {
       // wird nicht erreicht wenn pro-profile tests skipped wurden
       return;
@@ -175,12 +175,12 @@ describe("ESTV-Validierung Phase 1+2 (208 Profile, Single + Paar, Hauptort)", ()
     // weiches median-target, hartes max-target
     expect(
       median,
-      `Median |Δ%| = ${median.toFixed(2)} (Ziel ≤ 5 %)`
-    ).toBeLessThanOrEqual(15);
+      `Median |Δ%| = ${median.toFixed(2)} (Ziel ≤ 3 %)`
+    ).toBeLessThanOrEqual(3);
     expect(
       max,
-      `Max |Δ%| = ${max.toFixed(2)} (Ziel ≤ 25 %; höher = Engine-Bug oder Sondertarif-Lücke)`
-    ).toBeLessThanOrEqual(50);
+      `Max |Δ%| = ${max.toFixed(2)} (Ziel ≤ 8 %; höher = Engine-Bug oder Sondertarif-Lücke)`
+    ).toBeLessThanOrEqual(8);
   });
 });
 

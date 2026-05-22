@@ -1169,8 +1169,8 @@ export default function PrintPage() {
                 className="mt-3 text-[10px] italic"
                 style={{ color: "#8390a3" }}
               >
-                KI-generiert · keine Rechts- oder Steuerberatung im Sinne von
-                Art. 2 RAG. Im Cuira-Termin verfeinert.
+                KI-generiert · keine Rechts-, Steuer- oder Anlageberatung.
+                Im Cuira-Termin verfeinert.
               </p>
             </Section>
           </div>

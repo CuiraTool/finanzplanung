@@ -26,7 +26,7 @@ const SYSTEM_PROMPT = `Du bist ein Schweizer Pensionsplanungs-Berater bei Cuira 
 
 Du analysierst einen Mandanten-Plan und schlägst 3-5 personalisierte
 Optimierungs-Massnahmen vor. Du kennst Schweizer Recht (AHV21, BVG,
-3a/3b, Steuerrecht alle 26 Kantone, Eigenmietwert-Reform 2028,
+3a/3b, Steuerrecht alle 26 Kantone, Eigenmietwert-Reform 2030,
 13. AHV ab 2026).
 
 REGELN:
@@ -53,7 +53,15 @@ REGELN:
 7. Bei Frühpension < 65: Vorbezug-Kürzung berücksichtigen.
 8. Steuerersparnis nur grob — User wird im Termin verfeinert.
 9. CHF-Beträge ohne Apostroph (50000, nicht "50'000").
-10. NIE Anlagetipps geben (FINMA). Nur Vorsorge/Steuer/Strukturierung.
+10. KEINE ANLAGEBERATUNG (FIDLEG-Schranke). Erlaubt sind ausschliesslich
+   Massnahmen zu: AHV-Bezug (Vorbezug/Aufschub), BVG-Einkauf, BVG-Bezugsform
+   (Kapital/Rente/Mischung), Säule-3a-Einzahlung, Steueroptimierung,
+   Wohnsitz-/Kantonswahl, Hypothekar-Strategie (direkte/indirekte
+   Amortisation), Nachlass-/Erbschaftsplanung, Budget und Liquidität.
+   VERBOTEN: Empfehlung konkreter Finanzinstrumente oder Anbieter (ETF,
+   Fonds, Aktien, Obligationen, strukturierte Produkte, konkrete
+   3a-Wertschriftenlösungen, Depotbanken), Asset-Allocation-Empfehlungen,
+   Aussagen wie "investieren Sie in ...". Im Zweifel die Massnahme weglassen.
 
 DOMAIN-KENNTNISSE:
 - 3a-Maximum 7'258 CHF (Angestellte) / 36'288 (Selbständige). Optimal alle
@@ -122,6 +130,31 @@ export interface PlanSnapshot {
     ehevertrag: boolean;
   };
   bekannteMassnahmen: string[]; // bereits regelbasiert vorgeschlagen
+}
+
+/**
+ * Anlageberatungs-Sperrbegriffe (FIDLEG-Schutz). Massnahmen, deren Text auf
+ * eine konkrete Finanzinstrument-Empfehlung hindeutet, werden serverseitig
+ * verworfen — zusätzliche Sicherung neben der Prompt-Regel, da das LLM nicht
+ * deterministisch ist.
+ */
+const ANLAGE_SPERRBEGRIFFE = [
+  "etf",
+  "fonds",
+  "aktien",
+  "obligationen",
+  "wertschrift",
+  "indexfond",
+  "investier",
+  "anlageprodukt",
+  "depotbank",
+  "strukturierte produkt",
+];
+
+/** True, wenn eine Massnahme nach konkreter Anlageberatung klingt. */
+function klingtNachAnlageberatung(m: KiMassnahme): boolean {
+  const text = `${m.titel} ${m.begruendung}`.toLowerCase();
+  return ANLAGE_SPERRBEGRIFFE.some((begriff) => text.includes(begriff));
 }
 
 /** Max. 15 KI-Massnahmen-Anfragen pro Minute und IP — Schutz vor Kostenmissbrauch. */
@@ -232,7 +265,10 @@ ausschliesslich mit dem JSON-Array.`;
           typeof m.begruendung === "string" &&
           typeof m.wirkungChf === "number" &&
           validPrios.has(m.prioritaet) &&
-          validKats.has(m.kategorie)
+          validKats.has(m.kategorie) &&
+          // FIDLEG-Schutz: Massnahmen, die nach konkreter Anlageberatung
+          // klingen, werden verworfen.
+          !klingtNachAnlageberatung(m)
       )
       .sort((a, b) => {
         const prioRank = { hoch: 0, mittel: 1, niedrig: 2 };

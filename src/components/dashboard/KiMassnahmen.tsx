@@ -411,8 +411,8 @@ export function KiMassnahmen() {
           className="mt-4 text-[10.5px]"
           style={{ color: "var(--ink-3)" }}
         >
-          Generiert von Claude · keine Rechts- oder Steuerberatung im Sinne
-          von Art. 2 RAG. Im Cuira-Termin verfeinert.
+          Generiert von Claude · keine Rechts-, Steuer- oder Anlageberatung.
+          Im Cuira-Termin verfeinert.
         </p>
       )}
     </div>
