@@ -28,7 +28,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 | Bereich | Entscheidung |
 |---|---|
 | Frontend | Next.js 15 + React 19 + TypeScript strict + Tailwind v4 |
-| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v30) |
+| State | Zustand mit LocalStorage-Persist (`cuira-plan-vNN`, aktuell v43) |
 | Forms | controlled inputs gegen Zustand-Store, kein React Hook Form |
 | Charts (geplant) | Recharts |
 | **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |
@@ -124,7 +124,7 @@ src/engine/
 - **Erstes Code-Projekt** für Kathir — Tooling-Konzepte beim ersten Vorkommen kurz erklären
 - **Auto-push-Modus**: kleine, isolierte Commits gehen sofort auf `main`. Nur bei Force-Push, DB-Migrationen oder externen API-Calls explizit nachfragen.
 - **Git-Identität in Commits:** `git -c user.name="Kathir" -c user.email="kathir@cuirapartners.ch" commit ...` — globale Konfiguration setzt Kathir ggf. selbst
-- **Schema-Bump:** bei jeder Strukturänderung in `src/lib/store.ts` den Storage-Namen erhöhen (`cuira-plan-vNN+1`), damit alte LocalStorage-States nicht in inkompatible Strukturen rehydrieren
+- **Schema-Bump:** bei jeder Strukturänderung in `src/lib/store.ts` drei Werte gemeinsam erhöhen und identisch halten — den Storage-`name` (`cuira-plan-vNN+1`), das `version`-Feld der persist-Config und `AKTUELLE_SCHEMA_VERSION` in `src/lib/plan-export.ts`. Strukturändernde Migrationen (Rename/Type-Change/Removal) brauchen zusätzlich einen Branch in der `migrate`-Funktion der persist-Config in `store.ts`. So rehydrieren alte LocalStorage-States nicht in inkompatible Strukturen.
 
 ## Commands
 

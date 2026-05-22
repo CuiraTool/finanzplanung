@@ -1574,7 +1574,9 @@ function haushaltsausgabenJahr(budget: CashflowInput["budget"], istPensioniert: 
     return budget.ausgabenTotal * 12;
   }
   if (budget.ausgabenModus === "detailliert") {
-    const sum = Object.values(budget.ausgabenKategorien).reduce(
+    // ?? {} schützt vor Crash, wenn ausgabenKategorien fehlt (alter
+    // persistierter State oder importiertes JSON mit unvollständigem Budget).
+    const sum = Object.values(budget.ausgabenKategorien ?? {}).reduce(
       (s, v) => s + (v ?? 0),
       0
     );

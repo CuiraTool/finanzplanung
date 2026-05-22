@@ -21,3 +21,24 @@
 # Next.js Plugin sollte automatisch installiert werden — falls nicht, manuell
 # im Netlify-UI unter Site Settings → Build & Deploy → Build Plugins:
 # "@netlify/plugin-nextjs" hinzufügen.
+
+# ── HTTP-Security-Header ─────────────────────────────────────────────────
+# Gelten für alle Routen. Schützen vor Clickjacking, MIME-Sniffing und
+# Referrer-Leaks.
+#
+# Die Content-Security-Policy läuft BEWUSST im Report-Only-Modus: sie
+# blockiert noch nichts, sondern meldet Verstösse nur in der Browser-Konsole.
+# Grund: ein zu strenger CSP-Header kann die Live-Seite lautlos kaputtmachen
+# (z.B. den Calendly-Buchungs-iframe im /kunde-Flow). Vorgehen: nach einem
+# Deploy einmal /kunde durchklicken, Konsole auf CSP-Verstösse prüfen, dann
+# den Header-Namen von "Content-Security-Policy-Report-Only" auf
+# "Content-Security-Policy" ändern = scharfe Durchsetzung.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self' https://calendly.com https://*.calendly.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"

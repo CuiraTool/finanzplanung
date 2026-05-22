@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedDocument } from "@/lib/extract-schema";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -108,7 +109,19 @@ Schema (alle Felder müssen vorhanden sein, Werte können null sein):
   }
 }`;
 
+/**
+ * Max. 8 Dokument-Analysen pro Minute und IP. Strenger als die übrigen
+ * KI-Routen, da jeder Aufruf eine teure Claude-Vision-Anfrage auslöst.
+ */
+const checkRateLimit = createRateLimiter(60_000, 8);
+
 export async function POST(req: NextRequest) {
+  if (!checkRateLimit(req)) {
+    return NextResponse.json(
+      { error: "Zu viele Anfragen — bitte einen Moment warten." },
+      { status: 429 }
+    );
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

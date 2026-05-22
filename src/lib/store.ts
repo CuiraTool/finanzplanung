@@ -2022,8 +2022,37 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "cuira-plan-v43",
-      version: 42,
-      migrate: (persistedState: unknown, fromVersion: number): unknown => {
+      // Schema-Version: MUSS mit dem name-Suffix (vNN) und
+      // AKTUELLE_SCHEMA_VERSION in plan-export.ts übereinstimmen.
+      version: 43,
+      // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
+      // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
+      // Plan-Slot existiert.
+      partialize: (state) => {
+        const aktuellerSnapshot = extractVariant(state);
+        return {
+          ...state,
+          plaene: {
+            ...state.plaene,
+            [state.aktiverPlan]: aktuellerSnapshot,
+          },
+        };
+      },
+      migrate: migratePersistedState,
+    }
+  )
+);
+
+/**
+ * Migrations-Chain für persistierte LocalStorage-States (zustand-persist).
+ * Ein `fromVersion < N`-Branch strukturiert ältere States auf das aktuelle
+ * Schema um. Separat als benannte Funktion (statt inline), damit
+ * store-migrate.test.ts die datenverlust-kritische Logik direkt testen kann.
+ */
+export function migratePersistedState(
+  persistedState: unknown,
+  fromVersion: number
+): unknown {
         let state = persistedState as Record<string, unknown> & {
           szenarioB?: { aktiv: boolean };
           saeuleDrei?: { p1: SaeuleDreiEntry[]; p2: SaeuleDreiEntry[] };
@@ -2233,20 +2262,4 @@ export const usePlanStore = create<PlanState>()(
           }
         }
         return state;
-      },
-      // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
-      // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
-      // Plan-Slot existiert.
-      partialize: (state) => {
-        const aktuellerSnapshot = extractVariant(state);
-        return {
-          ...state,
-          plaene: {
-            ...state.plaene,
-            [state.aktiverPlan]: aktuellerSnapshot,
-          },
-        };
-      },
-    }
-  )
-);
+}

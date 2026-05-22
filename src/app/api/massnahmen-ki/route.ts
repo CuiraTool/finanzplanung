@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -123,7 +124,16 @@ export interface PlanSnapshot {
   bekannteMassnahmen: string[]; // bereits regelbasiert vorgeschlagen
 }
 
+/** Max. 15 KI-Massnahmen-Anfragen pro Minute und IP — Schutz vor Kostenmissbrauch. */
+const checkRateLimit = createRateLimiter(60_000, 15);
+
 export async function POST(req: NextRequest) {
+  if (!checkRateLimit(req)) {
+    return NextResponse.json(
+      { error: "Zu viele Anfragen — bitte einen Moment warten." },
+      { status: 429 }
+    );
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

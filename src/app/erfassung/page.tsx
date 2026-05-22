@@ -613,14 +613,18 @@ function Row({
   help?: string;
   children: React.ReactNode;
 }) {
+  // <label> statt <div>: das umschliessende Label verknüpft den enthaltenen
+  // Input/Select implizit — Klick auf den Beschriftungstext fokussiert das
+  // Feld, Screenreader lesen den Feldnamen. Schliesst die WCAG-1.3.1/4.1.2-
+  // Lücke (Felder ohne zugeordnete Beschriftung).
   return (
-    <div className="erf-row">
+    <label className="erf-row">
       <div className="erf-row-label">
         <span>{label}</span>
         {help && <span className="erf-row-help">{help}</span>}
       </div>
       <div className="erf-row-control">{children}</div>
-    </div>
+    </label>
   );
 }
 
@@ -1203,6 +1207,7 @@ function SecVermoegen() {
         <div key={it.id} className="erf-rep-row erf-grid-rep-4">
           <select
             className="erf-input"
+            aria-label="Vermögensart"
             value={it.typ}
             onChange={(e) =>
               updateVermoegen(it.id, {
@@ -1216,6 +1221,7 @@ function SecVermoegen() {
           </select>
           <input
             className="erf-input"
+            aria-label="Beschreibung"
             value={it.beschreibung}
             placeholder="Lohnkonto, Depot…"
             onChange={(e) =>
@@ -1224,6 +1230,7 @@ function SecVermoegen() {
           />
           <input
             className="erf-input is-num"
+            aria-label="Saldo CHF"
             value={fmt(it.saldoHeute)}
             placeholder="0"
             onChange={(e) =>
@@ -1297,6 +1304,7 @@ function SecImmo() {
               <select
                 className="erf-input"
                 style={{ flex: "0 0 120px" }}
+                aria-label="Liegenschaftstyp"
                 value={im.typ}
                 onChange={(e) =>
                   updateImmobilie(im.id, {
@@ -1310,6 +1318,7 @@ function SecImmo() {
               <input
                 className="erf-input"
                 style={{ flex: 1 }}
+                aria-label="Beschreibung der Liegenschaft"
                 value={im.beschreibung}
                 placeholder="z.B. Haus Horgen"
                 onChange={(e) =>
@@ -1319,6 +1328,7 @@ function SecImmo() {
             </div>
             <input
               className="erf-input is-num"
+              aria-label="Verkehrswert CHF"
               value={fmt(im.verkehrswert)}
               placeholder="0"
               onChange={(e) =>
@@ -1329,6 +1339,7 @@ function SecImmo() {
             />
             <input
               className="erf-input is-num"
+              aria-label="Hypothek total CHF"
               value={fmt(hypoTotal)}
               placeholder="0"
               onChange={(e) => {

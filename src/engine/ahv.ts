@@ -218,6 +218,12 @@ interface Skala44Daten {
 const SKALA44 = skala44Daten as unknown as Skala44Daten;
 
 function bsvSkala44Exakt(massgebendesEinkommen: number): number {
+  // Schutz vor NaN/Infinity/negativem Einkommen: ohne diesen Guard fallen
+  // solche Werte durch alle Vergleiche und die Funktion liefert fälschlich
+  // die Maximalrente. Bei ungültigem Input → konservativ Minimalrente.
+  if (!Number.isFinite(massgebendesEinkommen) || massgebendesEinkommen < 0) {
+    return SKALA44.minRenteJahr;
+  }
   if (massgebendesEinkommen <= SKALA44.minEinkommen) {
     return SKALA44.minRenteJahr;
   }

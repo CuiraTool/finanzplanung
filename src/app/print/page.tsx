@@ -877,6 +877,11 @@ export default function PrintPage() {
                 Wohnen+Zinsen, Steuern, Kapitalsteuern, 3a/Vorsorge), Saldo und
                 Vermögens-Komponenten zum Jahresende.
               </p>
+              <p className="mb-2 text-[10px]" style={{ color: "#8390a3" }}>
+                Hinweis: Diese breite Tabelle wird im Querformat gedruckt. Für
+                die korrekte Darstellung empfiehlt sich der Druck über Google
+                Chrome.
+              </p>
               <DetailLiquiditaetTable daten={cashflow} printMode />
             </Section>
           </div>
@@ -1416,6 +1421,18 @@ export default function PrintPage() {
             Steuerjahr 2029. Ab Steuerjahr 2030 entfällt beides aufgrund der
             Reform 2030 (Volksabstimmung Sept 2025 angenommen) — die Auslegeordnung
             spiegelt diese Rechtslage automatisch wider.
+          </p>
+          <p className="mb-2">
+            <strong>Modell-Vereinfachungen.</strong> Die Berechnung verwendet
+            bewusste Vereinfachungen: Das BVG-Altersguthaben wird linear bis
+            zum Bezugsjahr hochgerechnet (Abweichung ±2–3 % gegenüber exakter
+            Sparphasen-Mathematik), der Umwandlungssatz wird pauschal pro
+            Person angesetzt. Die Grundstückgewinnsteuer ist für neun Kantone
+            (ZH, ZG, SZ, BE, LU, AG, SG, TI, VD) tarifgenau hinterlegt, für
+            die übrigen Kantone als Median-Näherung. Steuertarife liegen für
+            die Jahre 2025 und 2026 vor; Projektionsjahre danach rechnen mit
+            dem Tarif 2026. Die ausgewiesenen Werte sind Schätzungen, keine
+            garantierten Beträge.
           </p>
           <p className="mb-2">
             <strong>Keine Beratung im engeren Sinn.</strong> Diese

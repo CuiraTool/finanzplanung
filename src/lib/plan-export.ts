@@ -13,6 +13,7 @@
  * State-Export für späteres Wieder-Importieren.
  */
 
+import { z } from "zod";
 import type { PlanState } from "./store";
 
 /**
@@ -59,6 +60,62 @@ export interface ParseResult {
   migriert: boolean;
   /** True wenn aus FlowAntworten (V2-Erfassung), nicht aus ProSnapshot. */
   ausErfassung: boolean;
+}
+
+/**
+ * Entfernt rekursiv prototyp-vergiftende Keys aus einem geparsten JSON-Wert.
+ * Defense-in-depth: ein importiertes File darf weder `__proto__` noch
+ * `constructor`/`prototype` in den Store schleusen.
+ */
+function stripGefaehrlicheKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripGefaehrlicheKeys);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") {
+        continue;
+      }
+      out[k] = stripGefaehrlicheKeys(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Grobe Struktur-Validierung des importierten Plans. Prüft NICHT jedes Feld
+ * (das wäre Wartungs-Drift), sondern nur, dass die Top-Level-Schlüssel, auf
+ * die Engine und UI hart zugreifen, vom richtigen groben Typ sind. Fängt
+ * Datei-Korruption ab (z.B. `budget` als String statt Objekt). Unbekannte
+ * Keys passieren via `.passthrough()` — neue Felder brechen die Prüfung nicht.
+ */
+const objektFeld = z.object({}).passthrough();
+const planShapeSchema = z
+  .object({
+    person1: objektFeld.optional(),
+    person2: objektFeld.nullable().optional(),
+    adresse: objektFeld.optional(),
+    budget: objektFeld.optional(),
+    ahv: objektFeld.optional(),
+    bvg: objektFeld.optional(),
+    immobilien: objektFeld.optional(),
+    vermoegen: objektFeld.optional(),
+    nachlass: objektFeld.optional(),
+    plaene: objektFeld.optional(),
+    einmaligeAusgaben: z.array(z.unknown()).optional(),
+    laufendeAusgaben: z.array(z.unknown()).optional(),
+  })
+  .passthrough();
+
+/**
+ * Sanitisiert + validiert ein rohes Plan-Objekt. Gibt das bereinigte Objekt
+ * zurück oder null, wenn die Grundstruktur korrupt ist.
+ */
+function pruefePlan(planRaw: unknown): Partial<PlanState> | null {
+  const sauber = stripGefaehrlicheKeys(planRaw);
+  const res = planShapeSchema.safeParse(sauber);
+  if (!res.success) return null;
+  return sauber as Partial<PlanState>;
 }
 
 /**
@@ -123,7 +180,18 @@ export function parseSnapshot(text: string): ParseResult {
         ausErfassung: false,
       };
     }
-    let plan = planRaw as Partial<PlanState>;
+    const planGeprueft = pruefePlan(planRaw);
+    if (!planGeprueft) {
+      return {
+        ok: false,
+        plan: null,
+        hinweis:
+          "Snapshot-Plan hat eine ungültige Struktur — Datei möglicherweise beschädigt.",
+        migriert: false,
+        ausErfassung: false,
+      };
+    }
+    let plan = planGeprueft;
     let migriert = false;
     for (let v = schemaVersion; v < AKTUELLE_SCHEMA_VERSION; v++) {
       const migrator = MIGRATIONS[v];
@@ -165,9 +233,20 @@ export function parseSnapshot(text: string): ParseResult {
       typeof meta?.beraterName === "string" ? meta.beraterName : "—";
     const erfasstAm =
       typeof obj.erfasstAm === "string" ? obj.erfasstAm.slice(0, 10) : "";
+    const planFlow = pruefePlan(obj.plan);
+    if (!planFlow) {
+      return {
+        ok: false,
+        plan: null,
+        hinweis:
+          "Erfassungs-JSON hat eine ungültige Struktur — Datei möglicherweise beschädigt.",
+        migriert: false,
+        ausErfassung: false,
+      };
+    }
     return {
       ok: true,
-      plan: obj.plan as Partial<PlanState>,
+      plan: planFlow,
       hinweis: `Erfassungs-JSON geladen: ${kundeName} (Berater ${beraterName}, erfasst ${erfasstAm})`,
       migriert: false,
       ausErfassung: true,

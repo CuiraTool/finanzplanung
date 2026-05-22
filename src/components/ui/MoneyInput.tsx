@@ -29,9 +29,17 @@ export function MoneyInput({
       type="number"
       inputMode="numeric"
       value={value ?? ""}
-      onChange={(e) =>
-        onChange(e.target.value === "" ? null : Number(e.target.value))
-      }
+      onChange={(e) => {
+        if (e.target.value === "") {
+          onChange(null);
+          return;
+        }
+        const n = Number(e.target.value);
+        // Infinity (z.B. Eingabe "1e999") und NaN abweisen — sonst fliessen
+        // sie in Store und Engine und erzeugen falsche Zahlen statt Fehler.
+        if (!Number.isFinite(n)) return;
+        onChange(n);
+      }}
       placeholder={placeholder}
       aria-label={ariaLabel}
       className={`${inputClass} tabular-nums ${className}`}
