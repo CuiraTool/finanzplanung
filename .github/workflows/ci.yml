@@ -1,0 +1,40 @@
+name: CI
+
+# Gate vor jedem Merge: typecheck + test + build müssen grün sein.
+# Sobald Branch-Protection auf main aktiviert ist, blockiert ein roter
+# Lauf den Merge. (pnpm lint ist aktuell nicht eingerichtet — bewusst
+# ausgelassen, bis das ESLint-Setup migriert ist.)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: pnpm aktivieren
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - name: Node 22 einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Dependencies installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript-Check
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Production-Build
+        run: pnpm build

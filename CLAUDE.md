@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projektstatus
 
-**Etappe 1 weitgehend implementiert.** Alle 10 Wizard-Blöcke haben funktionsfähige UI mit Live-Berechnung, Vermögensbilanz-Engine läuft mit drei Stichtagen (heute / Pensionierung / +20 Jahre). Tests grün (170/170), TypeScript strict.
+**Etappe 1 weitgehend implementiert.** Alle 10 Wizard-Blöcke haben funktionsfähige UI mit Live-Berechnung, Vermögensbilanz-Engine läuft mit drei Stichtagen (heute / Pensionierung / +20 Jahre). Tests grün (1267), TypeScript strict.
 
 **Was als nächstes kommt:** echte Cashflow-Engine mit Jahres-Iteration (Etappe 2), Charts (Recharts), Steuer-Engine pro Kanton, dann Etappe 1.5 (BSV-Rententabellen statt linearer Approximation).
 
@@ -34,7 +34,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 | **Berechnungs-Engine** | **Pure TypeScript, läuft im Browser** (sub-50ms Echtzeit) |
 | Tests | Vitest, validiert gegen Eckwerte aus Muster-PDF |
 | Auth + DB (ab Etappe 4) | Supabase Frankfurt |
-| Deploy | Vercel (siehe Abschnitt "Deployment") |
+| Deploy | Netlify (siehe Abschnitt "Deployment") |
 
 ## Wizard-Reihenfolge (10 Blöcke)
 
@@ -53,7 +53,7 @@ Geschäftliches Ziel: **Markt-Disruption gegen VZ Vermögenszentrum** (CHF 3'000
 
 **Kontextsensitivität:** Sektion-Titel wechseln je Fallart (Einzelperson → "Personendaten", Paar → "Person 1 — Vorname"). Zivilstand-Optionen abhängig von Fallart.
 
-## Engine-Module (Stand 170 Tests grün)
+## Engine-Module (Stand 1267 Tests grün)
 
 ```
 src/engine/
@@ -132,7 +132,7 @@ src/engine/
 ```bash
 pnpm install               # Dependencies
 pnpm dev                   # Dev-Server localhost:3000
-pnpm test                  # Vitest single-run (165 Tests aktuell)
+pnpm test                  # Vitest single-run (1267 Tests aktuell)
 pnpm test:watch            # Vitest watch mode
 pnpm typecheck             # TS strict check (tsc --noEmit)
 pnpm build                 # Production build

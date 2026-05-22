@@ -1,0 +1,8 @@
+# Code-Ownership — Cuira Pensionsplanung
+#
+# Aktuell Solo-Entwicklung. Diese Datei ist vorbereitet für Team-Wachstum
+# und für Branch-Protection mit "Require review from Code Owners".
+# TODO: GitHub-Handle verifizieren, bei zweitem Engineer pro Bereich
+# differenzieren (z.B. src/engine/ separat).
+
+*                       @rise4best

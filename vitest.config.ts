@@ -5,6 +5,8 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.{test,spec}.ts"],
     globals: false,
+    // Globale Test-Clock (fixe Systemzeit) — siehe src/test-setup.ts.
+    setupFiles: ["./src/test-setup.ts"],
   },
   resolve: {
     alias: {

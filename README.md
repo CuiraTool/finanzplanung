@@ -9,7 +9,7 @@ Interaktives Pensionsplanungs-Webtool für Cuira Partners GmbH. Live-Dashboard e
 ```bash
 pnpm install
 pnpm dev          # localhost:3000
-pnpm test         # 73 Tests gegen BSV-Werte 2025 + Muster-PDF-Eckwerte
+pnpm test         # 1267 Tests gegen BSV-Werte 2025 + Muster-PDF-Eckwerte
 pnpm typecheck    # TS strict
 ```
 
@@ -36,12 +36,12 @@ src/
 docs/
   Def.FinancialPlanning - Muster.pdf       Taxware-Referenz
   Pensionsplanung_Typeform_Optimierung.docx Datenmodell-Spec
-  DEPLOY.md            Vercel-Deployment-Anleitung
+  DEPLOY.md            Netlify-Deployment-Anleitung
 ```
 
 ## Status
 
-**Etappe 1 weitgehend komplett** — alle 10 Wizard-Blöcke implementiert, Vermögensbilanz-Engine berechnet drei Stichtage (heute / Pensionierung / +20 Jahre). 73/73 Tests grün.
+**Etappe 1 weitgehend komplett** — alle 10 Wizard-Blöcke implementiert, Vermögensbilanz-Engine berechnet drei Stichtage (heute / Pensionierung / +20 Jahre). 1267 Tests grün.
 
 Roadmap-Etappen 1.5 (BSV-Tabellen), 2 (Cashflow + Charts), 2.5 (Steuer-Engine), 3 (PDF-Export), 4 (Auth/Sharing) folgen — siehe [`CLAUDE.md`](CLAUDE.md).
 
