@@ -239,6 +239,11 @@ async function main() {
       einkommenHeute: 95600,
       religion: "andere",
       alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" },
+      // Inflation hier bewusst aus: Taxware drosselt Haushalt 2030 strukturell
+      // (Wohnkosten Eigentum 5'000 fallen weg bei Liegenschafts-Übergabe an
+      // Sohn) und unsere Engine modelliert das nicht — ohne Inflation
+      // kompensieren die zwei Effekte einander zufällig.
+      inflationProzent: null,
     },
     einmaligeAusgaben: [],
     laufendeAusgaben: [],
