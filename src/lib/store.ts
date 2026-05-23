@@ -763,6 +763,22 @@ export interface Budget {
    * Voll vom steuerbaren Einkommen abzugsfähig + Cashflow-Ausgabe.
    */
   alimente: AlimenteInput;
+  /**
+   * Optionaler Inflations-Toggle für die Cashflow-Engine (% p.a., 0-5
+   * sinnvoll). Wirkt auf laufende Haushaltsausgaben (haushaltsausgabenJahr):
+   * Ausgaben werden ab dem aktuellen Jahr mit `(1 + p/100)^(jahr-heute)`
+   * hochinflationiert. `null` oder `undefined` (default) → 0 %, vollständig
+   * rückwärtskompatibel.
+   *
+   * Hintergrund: Taxware rechnet 1 % p.a. auf Haushaltsausgaben — ohne
+   * Inflation driftet unsere Engine bei langen Horizonten (>5 J.) gegen
+   * das Referenztool. Default bleibt 0, damit alle Bestands-Tests grün
+   * bleiben und der Berater bewusst aktivieren muss.
+   *
+   * `?` (optional) statt nur `null`-Union: Bestands-Tests bauen Budget-
+   * Literale ohne dieses Feld — die müssen weiterhin compilieren.
+   */
+  inflationProzent?: number | null;
 }
 
 export interface PlanState {
@@ -987,6 +1003,7 @@ const initialBudget: Budget = {
   einkommenHeute: null,
   religion: "keine",
   alimente: { aktiv: false, betragJahr: null, richtung: "zahlt" },
+  inflationProzent: null,
 };
 
 function currentYearMonth(): string {
@@ -2021,10 +2038,10 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v43",
+      name: "cuira-plan-v44",
       // Schema-Version: MUSS mit dem name-Suffix (vNN) und
       // AKTUELLE_SCHEMA_VERSION in plan-export.ts übereinstimmen.
-      version: 43,
+      version: 44,
       // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
       // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
       // Plan-Slot existiert.
@@ -2218,6 +2235,31 @@ export function migratePersistedState(
               a: fix4(state.plaene.a) as PlanVariantData,
               b: fix4(state.plaene.b),
               c: fix4(state.plaene.c),
+            };
+          }
+        }
+
+        // v43 → v44: Budget.inflationProzent (optionaler Inflations-Toggle
+        // für die Cashflow-Engine). Default null → Engine rechnet 0 %, also
+        // identisch zum bisherigen Verhalten — kein Datenverlust, alle
+        // alten Pläne rehydrieren ohne Drift.
+        if (fromVersion < 44) {
+          const ensureInflation = (b: Budget | undefined): Budget | undefined => {
+            if (!b) return b;
+            const bm = b as Budget & { inflationProzent?: number | null };
+            if (bm.inflationProzent !== undefined) return b;
+            return { ...b, inflationProzent: null };
+          };
+          if (state.budget) state.budget = ensureInflation(state.budget);
+          if (state.plaene) {
+            const fixV44 = (v: PlanVariantData | null): PlanVariantData | null =>
+              v
+                ? { ...v, budget: ensureInflation(v.budget) as Budget }
+                : null;
+            state.plaene = {
+              a: fixV44(state.plaene.a) as PlanVariantData,
+              b: fixV44(state.plaene.b),
+              c: fixV44(state.plaene.c),
             };
           }
         }

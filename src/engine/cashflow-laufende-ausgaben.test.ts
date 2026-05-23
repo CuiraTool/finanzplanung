@@ -231,3 +231,48 @@ describe("Laufende temporäre Ausgaben (Von/Bis)", () => {
     expect(z2040.ausgabenTotal - z2040_ohne.ausgabenTotal).toBe(1_200);
   });
 });
+
+/**
+ * Inflations-Toggle (Budget.inflationProzent): opt-in, default 0 %.
+ * Wirkt auf Haushaltsausgaben mit (1 + p/100)^(jahr - heute).
+ * Heute ist 2026 (test-setup.ts faked Date auf 2026-06-15).
+ */
+describe("Inflations-Toggle für Haushaltsausgaben", () => {
+  it("Default (inflationProzent=null) = identisch zu vor dem Fix (nominal)", () => {
+    const ohne = cashflowReihe(base(), 2026, 2036);
+    // 5'000/Mt × 12 = 60'000 nominal — bleibt für alle Jahre konstant
+    // (laufende Ausgaben sind 0; nur Wunschverbrauch in Pension ab 65 wirkt anders)
+    // Person geboren 1980 → pensioniert mit 65 = 2045, also alle Jahre vor 2045 = Vor-Pension-Budget.
+    const z2026 = ohne.find((z) => z.jahr === 2026)!;
+    const z2036 = ohne.find((z) => z.jahr === 2036)!;
+    expect(z2026.ausgabenHaushalt).toBe(60_000);
+    expect(z2036.ausgabenHaushalt).toBe(60_000);
+  });
+
+  it("inflationProzent=1.0: 2036 ≈ 2026 × 1.01^10 (±1 CHF Rundung)", () => {
+    const k = base();
+    k.budget = { ...k.budget, inflationProzent: 1.0 };
+    const mit = cashflowReihe(k, 2026, 2036);
+    const z2026 = mit.find((z) => z.jahr === 2026)!;
+    const z2036 = mit.find((z) => z.jahr === 2036)!;
+    // 2026 = heuteJahr → unverändert
+    expect(z2026.ausgabenHaushalt).toBe(60_000);
+    // 2036 = +10 Jahre → 60'000 × 1.01^10 ≈ 66'285.7
+    const erwartet = Math.round(60_000 * Math.pow(1.01, 10));
+    expect(Math.abs(z2036.ausgabenHaushalt - erwartet)).toBeLessThanOrEqual(1);
+  });
+
+  it("inflationProzent=0 oder negativ: kein Effekt (defensive)", () => {
+    const k = base();
+    k.budget = { ...k.budget, inflationProzent: 0 };
+    const z = cashflowReihe(k, 2036, 2036)[0]!;
+    expect(z.ausgabenHaushalt).toBe(60_000);
+  });
+
+  it("Inflation wirkt nicht rückwärts (jahr <= heuteJahr): kein Faktor", () => {
+    const k = base();
+    k.budget = { ...k.budget, inflationProzent: 2.0 };
+    const z2026 = cashflowReihe(k, 2026, 2026)[0]!;
+    expect(z2026.ausgabenHaushalt).toBe(60_000); // 2026 = heuteJahr → kein Hub
+  });
+});

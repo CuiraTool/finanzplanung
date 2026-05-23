@@ -76,6 +76,25 @@ describe("migratePersistedState()", () => {
   it("aktuelle Version: migrate läuft ohne Fehler durch", () => {
     const aktuell = frischerStateSnapshot();
 
-    expect(() => runMigrate(aktuell, 43)).not.toThrow();
+    expect(() => runMigrate(aktuell, 44)).not.toThrow();
+  });
+
+  it("v43 → v44: budget.inflationProzent default null (rückwärtskompatibel)", () => {
+    const alt = frischerStateSnapshot();
+    // alter v43-State hatte kein inflationProzent — explizit entfernen
+    const budget = alt.budget as Record<string, unknown>;
+    delete budget.inflationProzent;
+    const planeA = (alt.plaene as { a: Record<string, unknown> }).a;
+    const budgetA = planeA.budget as Record<string, unknown>;
+    delete budgetA.inflationProzent;
+
+    const res = runMigrate(alt, 43);
+
+    const resBudget = res.budget as Record<string, unknown>;
+    expect("inflationProzent" in resBudget).toBe(true);
+    expect(resBudget.inflationProzent).toBe(null);
+    // gleiches gilt für plaene.a
+    const resPlaneA = (res.plaene as { a: { budget: Record<string, unknown> } }).a;
+    expect(resPlaneA.budget.inflationProzent).toBe(null);
   });
 });

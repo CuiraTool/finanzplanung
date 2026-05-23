@@ -16,8 +16,17 @@
  *   - Vermögen wird Jahr für Jahr fortgeschrieben (Saldo + Kap.-Auszahlungen
  *     − Steuern aufs Kap.). Block 7 verzinst sich mit eigener Rendite.
  *
+ * Inflation: optional via Budget.inflationProzent (default 0 %). Wirkt
+ * auf laufende Haushaltsausgaben (haushaltsausgabenJahr) mit Faktor
+ * (1 + p/100)^(jahr − heuteJahr). Default null = 0 % = bisheriges
+ * Nominal-Verhalten, alle Bestands-Tests bleiben grün.
+ *
  * Bewusst nicht modelliert:
- *   - Inflation, Eigenmietwert, Schuldzinsabzug, GGSt, Kinderabzüge
+ *   - Eigenmietwert, Schuldzinsabzug, GGSt, Kinderabzüge (Steuer-Engine
+ *     behandelt diese — hier nur Verweis)
+ *   - Inflation auf Versicherungs-Steuerabzüge (kantonale Pauschalen),
+ *     einmalige Ausgaben, Hypothek-Zinsen, Wunschverbrauch-Override —
+ *     nur die laufenden Haushaltsausgaben werden inflationiert.
  *   - Hypothek-Amortisation, Wertsteigerung Immobilien
  *   - Sterbetafel, partielle Pension (Pensumsreduktion)
  */
@@ -531,7 +540,12 @@ export function cashflowReihe(
     // ─── Ausgaben ────────────────────────────────────────────────
     const istPensioniert =
       pkBezugsjahrP1 != null && jahr >= pkBezugsjahrP1;
-    const ausgabenHaushalt = haushaltsausgabenJahr(state.budget, istPensioniert);
+    const ausgabenHaushalt = haushaltsausgabenJahr(
+      state.budget,
+      istPensioniert,
+      jahr,
+      heuteJahr
+    );
     const ausgabenEinmalig = einmaligeAusgabenJahr(state.einmaligeAusgaben, jahr);
     const ausgabenLaufend = laufendeAusgabenJahr(state.laufendeAusgaben, jahr);
     // V5: Selbständigkeits-AHV-Mehraufwand (10 % statt 5.3 % AN-Anteil)
@@ -1620,23 +1634,45 @@ function immobilienVerkaufErloesJahr(state: CashflowInput, jahr: number): number
   return total;
 }
 
-function haushaltsausgabenJahr(budget: CashflowInput["budget"], istPensioniert: boolean): number {
+/**
+ * Haushaltsausgaben/Jahr — Wunschverbrauch in Pension, sonst aktuelles
+ * Budget (total oder detailliert summiert), mal 12.
+ *
+ * Inflation: wenn `budget.inflationProzent` gesetzt ist (>0 %), wird das
+ * Nominal-Ergebnis mit `(1 + p/100)^(jahr − heuteJahr)` hochskaliert. Für
+ * `jahr <= heuteJahr` oder `inflationProzent` null/≤0 bleibt das Ergebnis
+ * nominal (= bisheriges Verhalten). Wirkt sowohl auf Wunschverbrauch in
+ * Pension als auch auf das Vor-Pension-Budget (egal ob total oder
+ * detailliert) — die Inflation läuft konsistent über den gesamten Horizont.
+ */
+function haushaltsausgabenJahr(
+  budget: CashflowInput["budget"],
+  istPensioniert: boolean,
+  jahr: number,
+  heuteJahr: number
+): number {
+  let basis = 0;
   if (istPensioniert && budget.wunschverbrauchPension != null) {
-    return budget.wunschverbrauchPension * 12;
-  }
-  if (budget.ausgabenModus === "total" && budget.ausgabenTotal != null) {
-    return budget.ausgabenTotal * 12;
-  }
-  if (budget.ausgabenModus === "detailliert") {
+    basis = budget.wunschverbrauchPension * 12;
+  } else if (budget.ausgabenModus === "total" && budget.ausgabenTotal != null) {
+    basis = budget.ausgabenTotal * 12;
+  } else if (budget.ausgabenModus === "detailliert") {
     // ?? {} schützt vor Crash, wenn ausgabenKategorien fehlt (alter
     // persistierter State oder importiertes JSON mit unvollständigem Budget).
     const sum = Object.values(budget.ausgabenKategorien ?? {}).reduce(
       (s, v) => s + (v ?? 0),
       0
     );
-    return sum * 12;
+    basis = sum * 12;
   }
-  return 0;
+
+  // Inflations-Toggle: opt-in via Budget.inflationProzent. Wir greifen
+  // safe auf das Feld zu — alter LocalStorage-State ohne v44-Migration
+  // (theoretisch unmöglich, aber defensive) würde `undefined` liefern.
+  const p = (budget as { inflationProzent?: number | null }).inflationProzent;
+  if (p == null || p <= 0 || jahr <= heuteJahr) return basis;
+  const faktor = Math.pow(1 + p / 100, jahr - heuteJahr);
+  return basis * faktor;
 }
 
 function einmaligeAusgabenJahr(
