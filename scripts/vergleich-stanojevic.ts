@@ -9,8 +9,9 @@
  *    Override-Feld erwartet 12-Monats-Basis → 43'326 × 12/13 = 39'993.
  *    Aufteilung: Milivoje einzel 26'377 → 24'347 / Dusica 16'949 → 15'646.
  *  - Liegenschafts-Übergabe an Sohn 2030 ohne Geldfluss → modelliert als
- *    Verkauf 2030 (Anlagekosten = Verkehrswert → GGSt 0) + gleichzeitige
- *    Schenkung des Nettoerlöses (372'000), damit kein Cash-Zufluss bleibt.
+ *    plan="verschenken" 2030 (Erbvorbezug). Engine zieht Verkehrswert UND
+ *    Hypothek aus der Bilanz, KEIN Geldfluss, KEINE GGSt. Sauberer als der
+ *    frühere Workaround (Verkauf + Schenkung des Erlöses).
  *  - Hauptkonto-Rendite 0 % (Taxware verzinst die Liquidität nicht).
  */
 import type { CashflowInput } from "../src/engine/cashflow";
@@ -188,11 +189,11 @@ async function main() {
               ablaufjahr: 2050,
             },
           ],
-          plan: "verkaufen",
-          verkaufsjahr: 2030,
+          plan: "verschenken",
+          verkaufsjahr: 2030, // = Übergabejahr an Sohn (Erbvorbezug)
           jaehrlicheMieteinnahmen: null,
           kaufjahr: 2005,
-          anlagekosten: 1000000, // = Verkehrswert → GGSt 0 (Schenkung an Nachkomme)
+          anlagekosten: null, // bei "verschenken" irrelevant (kein GGSt-Aufschub-Mechanismus)
           wertsteigerungProzent: 0, // Taxware hält Verkehrswert flach
           eigenmietwertProzent: 1.13,
         },
@@ -254,11 +255,13 @@ async function main() {
       erwartetJahr: null,
       erwartetBeruecksichtigen: false,
       erwartetVerwandtschaft: "nachkomme",
-      schenkungenStatus: "geplant",
-      schenkungenBetrag: 372000,
-      schenkungenJahr: 2030,
-      schenkungenBeruecksichtigen: true,
-      schenkungenDetails: "Liegenschaft an Sohn",
+      // Liegenschafts-Übergabe an Sohn ist via immo.plan="verschenken"
+      // intrinsisch modelliert — keine separate Cash-Schenkung mehr nötig.
+      schenkungenStatus: "nein",
+      schenkungenBetrag: null,
+      schenkungenJahr: null,
+      schenkungenBeruecksichtigen: false,
+      schenkungenDetails: "Liegenschaft an Sohn (via plan='verschenken')",
       gueterstand: "errungenschaft",
     },
   };

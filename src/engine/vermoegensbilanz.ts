@@ -307,7 +307,11 @@ function mieteinnahmenJahresHaushalt(state: VermoegensbilanzInput, refJahr: numb
   for (const im of state.immobilien.items) {
     if (im.typ !== "rendite") continue;
     if (im.jaehrlicheMieteinnahmen == null) continue;
-    if (im.plan === "verkaufen" && im.verkaufsjahr <= refJahr) continue;
+    if (
+      (im.plan === "verkaufen" || im.plan === "verschenken") &&
+      im.verkaufsjahr <= refJahr
+    )
+      continue;
     total += im.jaehrlicheMieteinnahmen;
   }
   return total;

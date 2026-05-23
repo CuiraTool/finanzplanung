@@ -318,3 +318,150 @@ describe("Immobilien-Verkauf — keine Kapitalleistungs-Sondertarif-Steuer", () 
     expect(r.ausgabenSteuernKapital).toBe(rNurPk.ausgabenSteuernKapital);
   });
 });
+
+describe("Immobilien-Plan 'verschenken' (Erbvorbezug an Nachkommen)", () => {
+  /**
+   * Plan "verschenken" modelliert die Übergabe einer Liegenschaft an einen
+   * Nachkommen vor dem Tod = Erbvorbezug. Effekte im Übergabejahr:
+   *  - Verkehrswert UND Hypothek raus aus der Bilanz
+   *  - KEIN Geldfluss aufs Hauptkonto
+   *  - KEINE Grundstückgewinnsteuer (Steueraufschub Art. 14 StHG für Nachkommen)
+   *  - KEIN Eigenmietwert, KEIN Schuldzinsabzug, KEINE Mieten ab Übergabejahr
+   */
+  function makeEigenheimVerschenkt(): CashflowInput {
+    const k = makeBase();
+    // 1 Hauptkonto wie im Base, kein Lohn-Spike → simpel
+    k.immobilien.items[0] = {
+      id: "eigenheim",
+      beschreibung: "Eigenheim",
+      typ: "selbstbewohnt",
+      verkehrswert: 800_000,
+      hypotheken: [
+        {
+          id: "h1",
+          beschreibung: "Hypothek",
+          hoehe: 200_000,
+          zinssatzProzent: 1.5,
+          ablaufjahr: 2050,
+        },
+      ],
+      plan: "verschenken",
+      verkaufsjahr: 2030, // = Übergabejahr
+      jaehrlicheMieteinnahmen: null,
+      kaufjahr: 2010,
+      anlagekosten: 500_000, // im Verkaufsfall wären 300k Gewinn → GGSt > 0
+      wertvermehrendeInvestitionen: null,
+      wertsteigerungProzent: 0,
+    };
+    k.bvg.p1.aktiverAnschluss = false;
+    k.saeuleDrei = { p1: [], p2: [] };
+    return k;
+  }
+
+  it("Im Übergabejahr: Verkehrswert UND Hypothek raus aus Bilanz", () => {
+    const k = makeEigenheimVerschenkt();
+    const reihe = cashflowReihe(k, 2029, 2031);
+    const vor = reihe.find((r) => r.jahr === 2029)!;
+    const ab = reihe.find((r) => r.jahr === 2030)!;
+
+    // Vor Übergabe: 800k Verkehrswert + 200k Hypothek in der Bilanz
+    expect(vor.vermoegenImmobilien).toBe(800_000);
+    expect(vor.vermoegenSchulden).toBe(200_000);
+    // Ab Übergabejahr: beides weg
+    expect(ab.vermoegenImmobilien).toBe(0);
+    expect(ab.vermoegenSchulden).toBe(0);
+  });
+
+  it("Im Übergabejahr: KEIN Geldfluss aufs Hauptkonto (kapAuszahlungen aus Immo = 0)", () => {
+    const k = makeEigenheimVerschenkt();
+    const r = cashflowReihe(k, 2030, 2030)[0]!;
+    // KEIN kapAuszahlung aus Immobilien-Übergabe (im Gegensatz zu plan="verkaufen",
+    // wo 600k netto aufs Konto fliessen würden)
+    expect(r.kapAuszahlungen).toBe(0);
+  });
+
+  it("Im Übergabejahr: KEINE Kapitalleistungs-Sondertarif-Steuer", () => {
+    const k = makeEigenheimVerschenkt();
+    const r = cashflowReihe(k, 2030, 2030)[0]!;
+    expect(r.ausgabenSteuernKapital).toBe(0);
+  });
+
+  it("Übergabe: KEIN Einkommens-Steuer-Spike durch GGSt (Steueraufschub)", () => {
+    // Vergleichs-Setup: gleicher Anlagekosten-Gewinn (300k) — bei "verkaufen"
+    // würde GGSt anfallen, bei "verschenken" nicht (Steueraufschub).
+    const verschenkt = makeEigenheimVerschenkt();
+    const verkauft = makeEigenheimVerschenkt();
+    verkauft.immobilien.items[0]!.plan = "verkaufen";
+
+    const rV = cashflowReihe(verschenkt, 2030, 2030)[0]!;
+    const rK = cashflowReihe(verkauft, 2030, 2030)[0]!;
+
+    // Beim Verkauf wird GGSt vom Erlös abgezogen (kapAuszahlung tiefer als
+    // Brutto 600k). Beim Verschenken: kein Geldfluss überhaupt.
+    expect(rK.kapAuszahlungen).toBeGreaterThan(0);
+    expect(rV.kapAuszahlungen).toBe(0);
+    // Einkommens-Steuer in beiden Fällen aus dem operativen Cashflow heraus
+    // ähnlich — GGSt ist eine separate Steuerart, taucht NICHT in
+    // ausgabenSteuernEinkommen auf, sondern wird bei "verkaufen" direkt vom
+    // Erlös abgezogen. Sanity: keine extreme Differenz.
+    expect(Math.abs(rV.ausgabenSteuernEinkommen - rK.ausgabenSteuernEinkommen))
+      .toBeLessThan(5_000);
+  });
+
+  it("Vor Übergabejahr: alles normal (Eigenmietwert, Hypozins, Verkehrswert in Bilanz)", () => {
+    const k = makeEigenheimVerschenkt();
+    const r = cashflowReihe(k, 2029, 2029)[0]!;
+    expect(r.vermoegenImmobilien).toBe(800_000);
+    expect(r.vermoegenSchulden).toBe(200_000);
+    // Hypothek 200k × 1.5% = 3'000 Zinsen — fliessen in ausgabenSteuernEinkommen
+    // (Schuldzinsabzug). Eigenmietwert ~9'040 (1.13% × 800k) erhöht steuerbares
+    // Einkommen. Schon eine moderate Steuerlast erwartet (bei AR-Tarif ≥ 0).
+    expect(r.ausgabenSteuernEinkommen).toBeGreaterThanOrEqual(0);
+  });
+
+  it("Mieteinnahmen Rendite: ab Verschenken-Jahr weg", () => {
+    const k = makeEigenheimVerschenkt();
+    k.immobilien.items[0]!.typ = "rendite";
+    k.immobilien.items[0]!.jaehrlicheMieteinnahmen = 24_000;
+    const reihe = cashflowReihe(k, 2029, 2031);
+    const vor = reihe.find((r) => r.jahr === 2029)!;
+    const ab = reihe.find((r) => r.jahr === 2030)!;
+    // Vor Übergabe: Mieten zählen
+    expect(vor.einnahmenTotal).toBeGreaterThan(20_000);
+    // Ab Übergabe: keine Mieten mehr (nur Lohn restliche Monate / 0)
+    expect(ab.einnahmenTotal).toBeLessThan(vor.einnahmenTotal);
+  });
+
+  it("Doppel-Verbuchung: Liegenschaft verschenken + separate Schenkung 200k im gleichen Jahr → unabhängig", () => {
+    // Realer Fall: Berater verschenkt die Liegenschaft via plan="verschenken"
+    // (Engine-intrinsisch: Bilanz raus, kein Cash) UND erfasst zusätzlich eine
+    // separate Schenkung (z.B. 200'000 Cash an gleiches oder anderes Kind) im
+    // Block 10 / Nachlass. Beide müssen unabhängig wirken; der Liegenschafts-
+    // wert darf NICHT zusätzlich als ausgabenSchenkung gebucht werden.
+    const k = makeEigenheimVerschenkt();
+    k.erbschaft = {
+      erwartet: "nein",
+      groessenordnung: null,
+      erwartetBetrag: null,
+      erwartetJahr: null,
+      erwartetBeruecksichtigen: false,
+      erwartetVerwandtschaft: "nachkomme",
+      schenkungenStatus: "geplant",
+      schenkungenBetrag: 200_000,
+      schenkungenJahr: 2030,
+      schenkungenBeruecksichtigen: true,
+      schenkungenDetails: "Cash-Geschenk an Kind",
+      gueterstand: "errungenschaft",
+    };
+    const r = cashflowReihe(k, 2030, 2030)[0]!;
+
+    // ausgabenSchenkung = nur die explizite Cash-Schenkung 200k —
+    // NICHT 200k + 600k Liegenschaftswert.
+    expect(r.ausgabenSchenkung).toBe(200_000);
+    // Trotz Schenkungs-Ausgang ist immer noch kein Geldfluss aus Liegenschaft
+    expect(r.kapAuszahlungen).toBe(0);
+    // Bilanz: Liegenschaft raus (verschenkt), Schulden raus
+    expect(r.vermoegenImmobilien).toBe(0);
+    expect(r.vermoegenSchulden).toBe(0);
+  });
+});

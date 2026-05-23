@@ -566,9 +566,7 @@ export function cashflowReihe(
     // (ohne 60k-Pauschale / Vermögensertrag-Begrenzung). Korrekt für
     // typische Eigenheim-Fälle in der Auslegeordnung.
     const hatEigenheim = state.immobilien.items.some(
-      (im) =>
-        im.typ === "selbstbewohnt" &&
-        !(im.plan === "verkaufen" && jahr >= im.verkaufsjahr)
+      (im) => im.typ === "selbstbewohnt" && !immobilieAbgegeben(im, jahr)
     );
     const schuldzinsenAbzug =
       eigenmietwertAktivImJahr(jahr) && hatEigenheim ? ausgabenHypozins : 0;
@@ -607,8 +605,8 @@ export function cashflowReihe(
     for (const im of state.immobilien.items) {
       if (!im.adresse?.kanton) continue;
       if (im.adresse.kanton === wohnsitzKt) continue;
-      // Liegenschaft schon verkauft? Wirkt erst ab Verkaufsjahr.
-      if (im.plan === "verkaufen" && im.verkaufsjahr <= jahr) continue;
+      // Liegenschaft schon weg (verkauft oder verschenkt)? Wirkt erst ab dem Jahr.
+      if (immobilieAbgegeben(im, jahr)) continue;
       const mietenImm =
         im.typ === "rendite" ? im.jaehrlicheMieteinnahmen ?? 0 : 0;
       const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
@@ -1193,7 +1191,7 @@ function eigenmietwertJahrTotal(state: CashflowInput, jahr: number): number {
   for (const im of state.immobilien.items) {
     if (im.typ !== "selbstbewohnt") continue;
     if (im.verkehrswert == null) continue;
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     const prozent = im.eigenmietwertProzent ?? DEFAULT_EIGENMIETWERT_PROZENT;
     const wert = immobilieWert(im, jahr, heute);
     total += (wert * prozent) / 100;
@@ -1497,7 +1495,7 @@ function mieteinnahmenJahr(items: Immobilie[], jahr: number): number {
   for (const im of items) {
     if (im.typ !== "rendite") continue;
     if (im.jaehrlicheMieteinnahmen == null) continue;
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     // Vor Kaufjahr: keine Mieteinnahmen
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     total += im.jaehrlicheMieteinnahmen;
@@ -1756,9 +1754,7 @@ function wefVorbezugJahr(state: CashflowInput, jahr: number): number {
  */
 function defaultWefImmoId(state: CashflowInput, jahr: number): string | null {
   const im = state.immobilien.items.find(
-    (x) =>
-      x.typ === "selbstbewohnt" &&
-      !(x.plan === "verkaufen" && jahr >= x.verkaufsjahr)
+    (x) => x.typ === "selbstbewohnt" && !immobilieAbgegeben(x, jahr)
   );
   return im?.id ?? null;
 }
@@ -1968,6 +1964,23 @@ function vorsorgeVermoegenAmJahresende(
 }
 
 /**
+ * True wenn die Liegenschaft im gegebenen Jahr nicht mehr in der Bilanz steht
+ * — entweder verkauft oder an Nachkommen verschenkt (Erbvorbezug). In beiden
+ * Fällen werden Verkehrswert und Hypothek per `verkaufsjahr` aus der Bilanz
+ * genommen; der Unterschied liegt nur im Geldfluss (Verkauf = Netto-Erlös aufs
+ * Hauptkonto + ggf. GGSt; Verschenken = kein Geldfluss, kein GGSt).
+ */
+function immobilieAbgegeben(
+  im: { plan: import("@/lib/store").ImmobilienPlan; verkaufsjahr: number },
+  jahr: number
+): boolean {
+  return (
+    (im.plan === "verkaufen" || im.plan === "verschenken") &&
+    jahr >= im.verkaufsjahr
+  );
+}
+
+/**
  * Immobilien-Verkehrswert mit Wertsteigerung.
  *
  * Approximation: jährlich um wertsteigerungProzent (default 1.5 % —
@@ -2007,7 +2020,7 @@ function immobilienBilanzAmJahresende(
   let schulden = 0;
   for (const im of state.immobilien.items) {
     if (im.verkehrswert == null) continue;
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     // Vor Kaufjahr: keine Aktiva, keine Hypothek
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
 
@@ -2086,7 +2099,7 @@ function immoSteuerwertAmJahresende(
   let total = 0;
   for (const im of state.immobilien.items) {
     if (im.verkehrswert == null) continue;
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     const baseWert = immobilieWert(im, jahr, heute);
     // Steuerwert: User-Override oder Kanton-Faktor × Verkehrswert (mit Wertsteigerung)
@@ -2115,7 +2128,7 @@ function hypothekenAmJahresende(
 function hypothekenZinsenJahr(state: CashflowInput, jahr: number): number {
   let total = 0;
   for (const im of state.immobilien.items) {
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     // Vor Kaufjahr: keine Hypothek aktiv → keine Zinsen
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     for (const h of im.hypotheken) {
@@ -2135,7 +2148,7 @@ function hypothekenZinsenJahr(state: CashflowInput, jahr: number): number {
 function hypothekTilgungenJahr(state: CashflowInput, jahr: number): number {
   let total = 0;
   for (const im of state.immobilien.items) {
-    if (im.plan === "verkaufen" && jahr >= im.verkaufsjahr) continue;
+    if (immobilieAbgegeben(im, jahr)) continue;
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     for (const h of im.hypotheken) {
       if (!h.tilgungsplan) continue;

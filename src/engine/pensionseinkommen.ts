@@ -109,6 +109,10 @@ export function pensionseinkommenJahr(
   }
 
   // ─── Mieteinnahmen Rendite ──────────────────────────────────
+  // Mieteinnahmen nur bei "behalten" — sowohl Verkauf als auch Verschenken
+  // (Erbvorbezug) beendet die Mieteinnahmen ab Übergabejahr; in der Pensions-
+  // einkommens-Heuristik (zeitlos) wird vereinfacht jeder nicht-"behalten"
+  // Plan als künftig weg behandelt.
   const mieten = state.immobilien.items
     .filter((i) => i.typ === "rendite" && i.plan === "behalten")
     .reduce((sum, i) => sum + (i.jaehrlicheMieteinnahmen ?? 0), 0);

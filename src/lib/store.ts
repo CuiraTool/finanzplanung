@@ -279,7 +279,18 @@ export interface VermoegenInput {
  *    via Doppelbesteuerungsabkommen, hier vereinfacht als CH-Vermögen).
  */
 export type ImmobilienTyp = "selbstbewohnt" | "rendite" | "sonstiges";
-export type ImmobilienPlan = "behalten" | "verkaufen";
+/**
+ * Immobilien-Plan:
+ *  - behalten: Liegenschaft bleibt in der Bilanz
+ *  - verkaufen: Verkauf im `verkaufsjahr` → Netto-Erlös (Verkehrswert − Hypothek
+ *    − GGSt) fliesst aufs Hauptkonto, Bilanz raus.
+ *  - verschenken: Übergabe (Erbvorbezug) an Nachkommen im `verkaufsjahr` →
+ *    Bilanz raus (Verkehrswert UND Hypothek), KEIN Geldfluss. Steueraufschub
+ *    bei der Grundstückgewinnsteuer pro Art. 14 StHG (in 26 Kantonen Standard
+ *    für direkte Nachkommen, hier vereinfacht angenommen).
+ *    Im UI separat in Block 10 (Nachlass) als Erbvorbezug dokumentieren.
+ */
+export type ImmobilienPlan = "behalten" | "verkaufen" | "verschenken";
 
 export interface Hypothek {
   id: string;

@@ -192,17 +192,28 @@ export function massnahmenAusState(state: PlanState): Massnahme[] {
     }
   }
 
-  // 7. Immobilien-Verkauf
+  // 7. Immobilien-Verkauf oder -Verschenken (Erbvorbezug)
   for (const im of state.immobilien.items) {
-    if (im.plan !== "verkaufen") continue;
-    out.push({
-      id: `immo-verkauf-${im.id}`,
-      jahr: im.verkaufsjahr,
-      wer: "beide",
-      kategorie: "wohnen",
-      titel: `Immobilie verkaufen: ${im.beschreibung || "(ohne Bezeichnung)"}`,
-      detail: "Käufer suchen, Notarvertrag, Grundbucheintrag — Vorlauf 6–12 Monate",
-    });
+    if (im.plan === "verkaufen") {
+      out.push({
+        id: `immo-verkauf-${im.id}`,
+        jahr: im.verkaufsjahr,
+        wer: "beide",
+        kategorie: "wohnen",
+        titel: `Immobilie verkaufen: ${im.beschreibung || "(ohne Bezeichnung)"}`,
+        detail: "Käufer suchen, Notarvertrag, Grundbucheintrag — Vorlauf 6–12 Monate",
+      });
+    } else if (im.plan === "verschenken") {
+      out.push({
+        id: `immo-verschenken-${im.id}`,
+        jahr: im.verkaufsjahr,
+        wer: "beide",
+        kategorie: "wohnen",
+        titel: `Immobilie verschenken (Erbvorbezug): ${im.beschreibung || "(ohne Bezeichnung)"}`,
+        detail:
+          "Schenkungsvertrag / Erbvorbezugs-Vertrag öffentlich beurkunden, Grundbucheintrag, Hypothek auf Empfänger übertragen oder ablösen. Auch im Block 10 (Nachlass) dokumentieren.",
+      });
+    }
   }
 
   // 8. Hypothek-Verlängerung bei Ablauf

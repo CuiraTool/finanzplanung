@@ -23,7 +23,12 @@ import {
 } from "./grundstueckgewinn";
 
 export type ImmobilienTyp = "selbstbewohnt" | "rendite";
-export type ImmobilienPlan = "behalten" | "verkaufen";
+/**
+ * Plan-Optionen — siehe `src/lib/store.ts` für ausführliche Doku.
+ * "verschenken" entspricht einem Erbvorbezug an Nachkommen: Bilanz raus
+ * (Verkehrswert + Hypothek), KEIN Geldfluss, KEINE GGSt (Steueraufschub).
+ */
+export type ImmobilienPlan = "behalten" | "verkaufen" | "verschenken";
 
 export interface ImmobilieFuerEngine {
   verkehrswert: number | null;
