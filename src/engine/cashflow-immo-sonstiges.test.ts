@@ -214,3 +214,107 @@ describe("Immobilien-Typ 'sonstiges' (Bauland / Ausland)", () => {
     expect(r.vermoegenImmobilien).toBe(100_000);
   });
 });
+
+describe("Immobilien-Verkauf — keine Kapitalleistungs-Sondertarif-Steuer", () => {
+  /**
+   * Regression: Bis zur Korrektur in cashflow.ts wurde der Immobilien-
+   * Netto-Verkaufserlös in die Bemessungsgrundlage der Kapitalleistungs-
+   * Sondertarif-Steuer (`kapAuszahlungenFuerSteuer`) addiert — neben der
+   * korrekt verrechneten Grundstückgewinnsteuer. Resultat: Phantom-Steuer
+   * bei jedem Liegenschaftsverkauf (Beispiel Stanojevic 2030: CHF 28'046).
+   * Steuerlich falsch — Immobilien-Gewinne unterliegen ausschliesslich
+   * der GGSt, der Kapitalleistungs-Sondertarif gilt nur für Vorsorge-
+   * Kapital (PK/3a/FZ).
+   */
+  it("Verkauf eines selbstbewohnten Eigenheims löst keine Kapitalleistungssteuer aus", () => {
+    const k = makeBase();
+    k.immobilien.items[0] = {
+      id: "eigenheim",
+      beschreibung: "Eigenheim",
+      typ: "selbstbewohnt",
+      verkehrswert: 800_000,
+      hypotheken: [
+        {
+          id: "h1",
+          beschreibung: "Hypothek",
+          hoehe: 200_000,
+          zinssatzProzent: 1.5,
+          ablaufjahr: 2050,
+        },
+      ],
+      plan: "verkaufen",
+      verkaufsjahr: 2030,
+      jaehrlicheMieteinnahmen: null,
+      kaufjahr: 2010,
+      anlagekosten: 800_000, // = Verkehrswert → GGSt 0 (kein Gewinn)
+      wertvermehrendeInvestitionen: null,
+      wertsteigerungProzent: 0,
+    };
+    // Keine konkurrierenden Vorsorge-Auszahlungen
+    k.bvg.p1.aktiverAnschluss = false;
+    k.saeuleDrei = { p1: [], p2: [] };
+
+    const r = cashflowReihe(k, 2030, 2030)[0]!;
+    // Netto-Erlös landet auf dem Hauptkonto (Brutto 800k − Hypothek 200k − GGSt 0)
+    expect(r.kapAuszahlungen).toBe(600_000);
+    // KEINE Kapitalleistungs-Sondertarif-Steuer — der Gewinn ist GGSt-Sache, separat.
+    expect(r.ausgabenSteuernKapital).toBe(0);
+  });
+
+  it("Verkauf zusammen mit PK-Bezug: nur PK-Kapital triggert Sondertarif, Immo nicht", () => {
+    const k = makeBase();
+    // PK-Kapitalbezug 2030: 300k
+    k.bvg.p1 = {
+      aktiverAnschluss: true,
+      altersguthabenHeute: 250_000,
+      altersguthabenBeiBezug: 300_000,
+      umwandlungssatzProzent: 6,
+      bezugspraeferenz: "kapital",
+      kapitalanteil: 100,
+      freizuegigkeit: [],
+      einkaeufe: [],
+      wefVorbezuege: [],
+    };
+    k.ziele.bezugsalterP1 = 65; // Geb 1965-01-01 → Bezug 2030
+    // Plus Verkauf Eigenheim 2030
+    k.immobilien.items[0] = {
+      id: "eigenheim",
+      beschreibung: "Eigenheim",
+      typ: "selbstbewohnt",
+      verkehrswert: 800_000,
+      hypotheken: [
+        {
+          id: "h1",
+          beschreibung: "Hypothek",
+          hoehe: 200_000,
+          zinssatzProzent: 1.5,
+          ablaufjahr: 2050,
+        },
+      ],
+      plan: "verkaufen",
+      verkaufsjahr: 2030,
+      jaehrlicheMieteinnahmen: null,
+      kaufjahr: 2010,
+      anlagekosten: 800_000,
+      wertvermehrendeInvestitionen: null,
+      wertsteigerungProzent: 0,
+    };
+    k.saeuleDrei = { p1: [], p2: [] };
+
+    const r = cashflowReihe(k, 2030, 2030)[0]!;
+    // Beide Auszahlungen aufs Hauptkonto: PK 300k + Immo-Netto 600k
+    expect(r.kapAuszahlungen).toBe(900_000);
+    // Kapitalleistungs-Sondertarif greift NUR aufs PK-Kapital (300k) —
+    // nicht auf den Immo-Erlös (600k). Wert ist > 0 (PK!) aber wesentlich
+    // tiefer als bei einer 900k-Bemessung.
+    expect(r.ausgabenSteuernKapital).toBeGreaterThan(0);
+    // Sanity-Check: Steuer auf nur PK 300k muss tiefer sein als Steuer
+    // auf 900k Basis (was vor dem Fix passiert wäre).
+    const nurPk = { ...k };
+    nurPk.immobilien = { items: [] };
+    const rNurPk = cashflowReihe(nurPk, 2030, 2030)[0]!;
+    // Die Sondertarif-Steuer muss in beiden Fällen IDENTISCH sein —
+    // d.h. der Immo-Erlös wurde komplett aus der Basis ausgeklammert.
+    expect(r.ausgabenSteuernKapital).toBe(rNurPk.ausgabenSteuernKapital);
+  });
+});

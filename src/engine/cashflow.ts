@@ -507,8 +507,19 @@ export function cashflowReihe(
     const firmaErloesJahr = firmaVerkaufErloesJahr(state, jahr);
     const firma37bAktiv = firmaArt37bAktiv(state, jahr);
     const firma37bReduktion = firma37bAktiv ? firmaErloesJahr * (4 / 5) : 0;
+    // Immobilien-Verkaufserlös ist KEINE Vorsorge-Kapitalleistung — der
+    // Gewinn wird ausschliesslich mit der Grundstückgewinnsteuer belastet
+    // (bereits in immobilienVerkaufsAuszahlungNetto verrechnet). Der
+    // Netto-Erlös darf daher NICHT zusätzlich mit dem Kapitalleistungs-
+    // Sondertarif besteuert werden — sonst entsteht eine Phantom-Steuer
+    // bei jedem Liegenschaftsverkauf.
+    const immobilienVerkaufNetto = immobilienVerkaufErloesJahr(state, jahr);
     const kapAuszahlungenFuerSteuer =
-      kapAuszahlungen - auszahlungen3b + wefBetragJahr - firma37bReduktion;
+      kapAuszahlungen -
+      auszahlungen3b +
+      wefBetragJahr -
+      firma37bReduktion -
+      immobilienVerkaufNetto;
 
     // ─── Ausgaben ────────────────────────────────────────────────
     const istPensioniert =
@@ -1563,6 +1574,42 @@ function kapitalauszahlungenJahr(
     total += state.firma.moeglicherVerkaufserloes;
   }
 
+  return total;
+}
+
+/**
+ * Netto-Verkaufserlös aller im Jahr veräusserten Immobilien
+ * (= Brutto-Verkehrswert − Hypothekensumme − Grundstückgewinnsteuer).
+ *
+ * Wird benötigt, um den Erlös aus der Bemessungsgrundlage der Kapital-
+ * leistungs-Sondertarif-Steuer auszuklammern: Immobilien-Gewinne unter-
+ * liegen ausschliesslich der GGSt, NICHT dem Kapitalleistungs-Sondertarif
+ * (dieser gilt nur für Vorsorge-Kapital aus PK / 3a / FZ — sowie 1/5 des
+ * Liquidationsgewinns bei Geschäftsaufgabe ≥ Alter 55, Art. 37b DBG).
+ */
+function immobilienVerkaufErloesJahr(state: CashflowInput, jahr: number): number {
+  const heuteJahr = new Date().getFullYear();
+  let total = 0;
+  for (const im of state.immobilien.items) {
+    if (im.plan !== "verkaufen") continue;
+    if (im.verkaufsjahr !== jahr) continue;
+    if (im.verkehrswert == null) continue;
+    const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
+    const verkehrswertImVerkaufsjahr = immobilieWert(im, jahr, heuteJahr);
+    const auszahlung = immobilienVerkaufsAuszahlungNetto(
+      {
+        verkehrswert: verkehrswertImVerkaufsjahr,
+        hypothekenSumme: hypo,
+        plan: im.plan,
+        verkaufsjahr: im.verkaufsjahr,
+        kaufjahr: im.kaufjahr,
+        anlagekosten: im.anlagekosten,
+        wertvermehrendeInvestitionen: im.wertvermehrendeInvestitionen,
+      },
+      im.adresse?.kanton || state.adresse.kanton || ""
+    );
+    if (auszahlung) total += auszahlung.netto;
+  }
   return total;
 }
 
