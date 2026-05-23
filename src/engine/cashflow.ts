@@ -324,16 +324,23 @@ export function cashflowReihe(
       pkBezugsjahrP1 == null || jahr < pkBezugsjahrP1;
     const istVorPensionP2 =
       pkBezugsjahrP2 == null || jahr < pkBezugsjahrP2;
-    // Fallback auf ahv.einkommenP1/P2 (Block 4) wenn Block 3 keine Perioden
-    // hat — gilt nur für Jahre vor Pensionierung.
+    // Fallback auf ahv.einkommenP1/P2 (Block 4) NUR wenn Block 3 für diese
+    // Person KEINE Perioden hat. Wenn Perioden existieren, ist erwerbP*Roh=0
+    // ein bewusstes "Erwerb endete vor dem Jahr" → keine Fallback-Kontamination
+    // (sonst doppelverdienerabzug/3a-Limit/Berufsauslagen P2 würden auch nach
+    // Erwerbsende weiter wirken — siehe Stanojevic-Regression 2027).
+    const hatPeriodenP1 = state.budget.einkommen.some((p) => p.personIdx === 1);
+    const hatPeriodenP2 = state.budget.einkommen.some((p) => p.personIdx === 2);
     let bruttoErwerbP1 = 0;
     if (erwerbP1Roh > 0) bruttoErwerbP1 = erwerbP1Roh;
-    else if (istVorPensionP1) bruttoErwerbP1 = state.ahv.einkommenP1 ?? 0;
+    else if (istVorPensionP1 && !hatPeriodenP1)
+      bruttoErwerbP1 = state.ahv.einkommenP1 ?? 0;
 
     let bruttoErwerbP2 = 0;
     if (state.fallart === "paar") {
       if (erwerbP2Roh > 0) bruttoErwerbP2 = erwerbP2Roh;
-      else if (istVorPensionP2) bruttoErwerbP2 = state.ahv.einkommenP2 ?? 0;
+      else if (istVorPensionP2 && !hatPeriodenP2)
+        bruttoErwerbP2 = state.ahv.einkommenP2 ?? 0;
     }
     // Total 3a-Einzahlung im Jahr (alle Konten + Versicherungen, beide Personen,
     // wenn jahr in einzahlungAb..einzahlungBis liegt)
