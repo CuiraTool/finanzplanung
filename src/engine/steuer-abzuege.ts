@@ -174,6 +174,23 @@ const KANTON_PAUSCHALEN: Record<string, Partial<KantonPauschalen>> = {
     doppelverdienerMax: 1_000,
     kinderabzug: 13_000,
   },
+  // Appenzell Ausserrhoden — Quelle: Art. 35 Abs. 1 lit. g + h + Art. 38
+  // Abs. 1 lit. a StG AR, Stand 2024 (mit Teuerungsausgleich Anhang 1).
+  // ESTV-Kantonsblatt AR (Stand Februar 2026):
+  //   - Versicherungspauschale Verheiratet:           Fr. 5'400
+  //   - Versicherungspauschale Alleinstehend:         Fr. 2'700
+  //   - pro Kind zusätzlich:                          Fr. 1'000
+  //   - Zweiverdienerabzug: 10 %, min 2'500, max 5'200
+  //   - Kinderabzug 4-14 Jahre Fr. 7'400, ab 14 Fr. 11'600 — wir nutzen
+  //     den älteren Satz als Default (typischer Pensionsplanungs-Kontext)
+  AR: {
+    versicherungSingle: 2_700,
+    versicherungPaar: 5_400,
+    versicherungKind: 1_000,
+    doppelverdienerMin: 2_500,
+    doppelverdienerMax: 5_200,
+    kinderabzug: 7_400,
+  },
 };
 
 function getKantonPauschalen(kantonCode: string): KantonPauschalen {

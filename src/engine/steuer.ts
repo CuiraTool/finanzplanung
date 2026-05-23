@@ -204,14 +204,41 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     );
     const zusatzPlus = eigenmietwertEff;
     const zusatzMinus = schuldzinsenEff + alimenteEff;
-    steuerbarBund = Math.max(
-      0,
-      abzuegeBund.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
-    );
-    steuerbarKanton = Math.max(
-      0,
-      abzuegeKt.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
-    );
+    // FIX (Bug AR-Rentner 2026-05): abzuegeBund/Kt.steuerbar ist mit
+    // Math.max(0, …) am Brutto-Erwerb geclampt — d.h. wenn bruttoTotal=0
+    // (reine Rentner), gehen Versicherungs-/Kinder-Pauschalen verloren.
+    //
+    // Korrekt ist: erst Gesamtbasis (bruttoTotal + nichtErwerb + zusatzPlus
+    // − zusatzMinus) berechnen, dann abzuege.total abziehen, dann einmal
+    // final auf 0 clampen. So wirkt z.B. AR-Versicherungspauschale
+    // CHF 5'400 (Verheiratet) auch wenn nur AHV-Rente vorliegt.
+    //
+    // Wichtig: Diese Korrektur greift nur wenn `einkommenIstNetto=true`.
+    // Bei `einkommenIstNetto=false` (z.B. ESTV-Validierungs-Profile, die
+    // bereits *steuerbares* Einkommen via `einkommenJahr` reinreichen)
+    // bleibt das alte Verhalten erhalten, sonst würde die Pauschale doppelt
+    // abgezogen.
+    const istRentnerPauschalenPfad =
+      input.einkommenIstNetto === true &&
+      abzInput.bruttoErwerbP1 === 0 &&
+      abzInput.bruttoErwerbP2 === 0;
+    if (istRentnerPauschalenPfad) {
+      const basisBund =
+        abzuegeBund.bruttoTotal + nichtErwerb + zusatzPlus - zusatzMinus;
+      const basisKanton =
+        abzuegeKt.bruttoTotal + nichtErwerb + zusatzPlus - zusatzMinus;
+      steuerbarBund = Math.max(0, basisBund - abzuegeBund.total);
+      steuerbarKanton = Math.max(0, basisKanton - abzuegeKt.total);
+    } else {
+      steuerbarBund = Math.max(
+        0,
+        abzuegeBund.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+      );
+      steuerbarKanton = Math.max(
+        0,
+        abzuegeKt.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+      );
+    }
   } else {
     // Fallback: alte 0.85-Daumenregel (aus Backwards-Compat-Tests / einfache Aufrufer)
     // Eigenmietwert/Schuldzinsen/Alimente werden hier zusätzlich verrechnet,
