@@ -286,6 +286,51 @@ export const KANTON_INFO: Record<KantonCode, KantonInfo> = {
 };
 
 /**
+ * Vermögens-Freibeträge (Sozialabzüge) pro Kanton, in CHF.
+ *
+ * Hintergrund: Die ESTV-Tarifdaten (devbrains) enthalten bei einigen Kantonen
+ * NUR die Tarifstufen — der gesetzliche Sozialabzug auf das Reinvermögen
+ * (Art. xx StG) ist NICHT in der `VERMOEGENSSTEUER`-Tabelle abgebildet. Bei
+ * anderen Kantonen (z.B. ZH) ist der Freibetrag in die Tarif-Stufe `percent: 0`
+ * eingebaut (erste Stufe 0–80'000/0–159'000 zu 0 %). Bei AR & ähnlichen
+ * Kantonen mit `group: "ALLE"` und Tarif ab CHF 0 fehlt der Abzug komplett.
+ *
+ * Dieser Lookup ergänzt die fehlenden Freibeträge auf Engine-Ebene — wird vor
+ * dem Tarif in `vermoegensteuerKanton` abgezogen.
+ *
+ * Quellen-Belege pro Eintrag im Kommentar. Nur Kantone hier eintragen, deren
+ * Freibetrag NICHT in der `VERMOEGENSSTEUER`-Tabelle enthalten ist.
+ */
+export interface VermoegensFreibetrag {
+  /** Sozialabzug für Alleinstehende (CHF). */
+  einzel: number;
+  /** Sozialabzug für Verheiratete / gemeinsam Veranlagte (CHF). */
+  paar: number;
+  /** Zusätzlicher Sozialabzug pro minderjähriges Kind (CHF). 0 wenn nicht relevant. */
+  proKind: number;
+  /** Beleg-Kommentar (Gesetzes-Artikel / Quelle). */
+  quelle: string;
+}
+
+export const VERMOEGENS_FREIBETRAG: Partial<
+  Record<KantonCode, VermoegensFreibetrag>
+> = {
+  // Appenzell Ausserrhoden: Art. 51 Abs. 1 lit. a-c StG (621.11)
+  //  - lit. a: Ehegatten gemeinsam veranlagt          → Fr. 150'000
+  //  - lit. b: Alleinstehende (alle übrigen Personen) → Fr.  75'000
+  //  - lit. c: zusätzlich pro minderjähriges Kind     → Fr.  25'000
+  // ESTV-Kantonsblatt AR (Stand Februar 2026), Art. 52 Tarif:
+  //  - bis Fr. 250'000:   0,50 Promille
+  //  - über Fr. 250'000:  0,55 Promille
+  AR: {
+    einzel: 75_000,
+    paar: 150_000,
+    proKind: 25_000,
+    quelle: "Art. 51 + 52 StG AR (bGS 621.11), Stand 2025/2026",
+  },
+};
+
+/**
  * Holt alle Tarife für einen Kanton (oder Bund mit cantonId=0) für ein Jahr.
  */
 export function getTarifs(cantonId: number, year: SteuerJahr): TarifData[] {

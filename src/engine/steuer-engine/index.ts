@@ -10,6 +10,7 @@
 import { calculateTaxes } from "./calc";
 import {
   KANTON_INFO,
+  VERMOEGENS_FREIBETRAG,
   findFactor,
   getTarifs,
 } from "./data";
@@ -124,6 +125,13 @@ export interface KantonSteuerInput {
   fallart: Fallart;
   religion: Religion;
   jahr: SteuerJahr;
+  /**
+   * Anzahl minderjähriger Kinder im Haushalt — wird (aktuell nur) für den
+   * Vermögens-Sozialabzug pro Kind genutzt (z.B. AR Art. 51 Abs. 1 lit. c
+   * StG: Fr. 25'000 pro Kind). Bei Kantonen ohne Kinder-Freibetrag in
+   * `VERMOEGENS_FREIBETRAG` ohne Wirkung.
+   */
+  anzahlKinder?: number;
 }
 
 const EMPTY_RESULT: KantonSteuerResult = {
@@ -241,13 +249,28 @@ export function einkommensteuerKanton(
 
 /**
  * Berechnet die Vermögenssteuer Kanton + Gemeinde + Kirche für einen Kanton.
+ *
+ * Vor dem Tarif wird der kantonale Sozialabzug auf das Reinvermögen aus
+ * `VERMOEGENS_FREIBETRAG` abgezogen (sofern eingetragen). Bei Kantonen, deren
+ * Freibetrag bereits in die Tarif-Stufe `percent: 0` eingebaut ist (z.B. ZH:
+ * 0–80'000 / 0–159'000 zu 0 %), bleibt der Eintrag in `VERMOEGENS_FREIBETRAG`
+ * leer und das Vermögen geht ungekürzt in den Tarif.
  */
 export function vermoegensteuerKanton(
   vermoegen: number,
   input: KantonSteuerInput
 ): KantonSteuerResult {
+  const freibetrag = VERMOEGENS_FREIBETRAG[input.kanton];
+  let steuerbaresVermoegen = vermoegen;
+  if (freibetrag) {
+    const basis = input.fallart === "paar" ? freibetrag.paar : freibetrag.einzel;
+    const kinderAbzug =
+      Math.max(0, input.anzahlKinder ?? 0) * freibetrag.proKind;
+    steuerbaresVermoegen = Math.max(0, vermoegen - basis - kinderAbzug);
+  }
+  if (steuerbaresVermoegen <= 0) return EMPTY_RESULT;
   return steuerKantonGenerisch(
-    vermoegen,
+    steuerbaresVermoegen,
     input,
     "VERMOEGENSSTEUER",
     { kanton: "FortuneRateCanton", gemeinde: "FortuneRateCity" },

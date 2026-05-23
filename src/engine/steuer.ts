@@ -269,6 +269,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       fallart,
       religion,
       jahr,
+      anzahlKinder: input.anzahlKinder,
     });
     vermoegensteuer = r.total;
   } else if (vermoegen > 0) {
@@ -418,6 +419,7 @@ export function steuerProJahrIK(
         fallart,
         religion,
         jahr: steuerjahr,
+        anzahlKinder: input.anzahlKinder,
       });
       fremdVermKtTotal += r.total;
     }

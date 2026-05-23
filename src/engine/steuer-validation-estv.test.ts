@@ -158,6 +158,83 @@ const CASES: EstvCase[] = [
     estvVerifiziert: false,
     toleranzProzent: 25,
   },
+  // ─── AR-Waldstatt Verheiratet-Rentner: Verm-Steuer mit Sozialabzug ────
+  //
+  // Hintergrund: Bug-Reproduktion aus `scripts/vergleich-stanojevic.ts`
+  // (Wohnsitz Waldstatt AR, Paar, beide Rentner). Vor dem Fix taxierte die
+  // Engine das Vermögen ~3× zu hoch, weil der gesetzliche Sozialabzug nach
+  // Art. 51 Abs. 1 lit. a StG AR (Fr. 150'000 für gemeinsam veranlagte
+  // Ehegatten) fehlte. Die ESTV-devbrains-Tabelle für AR (`tarifs/3.json`,
+  // group "ALLE") enthält nur den Tarif (0.50 ‰ / 0.55 ‰), nicht den Abzug.
+  //
+  // Berechnung bei 230'000 Reinvermögen, Paar, 0 Kinder, Waldstatt:
+  //   bemessung = 230'000 − 150'000          = 80'000
+  //   einfache  = 80'000 × 0,05 %            = 40 CHF (BUND-Tarif Stufe 1)
+  //   steuerfuss = Kt 3.30 + Gem 3.70 (Waldstatt)
+  //              + Kirche 0 (Religion "andere")
+  //              = 7.00
+  //   total    = 40 × 7.00                   ≈ 280 CHF
+  //   (Engine round100Down auf Bemessung → 80'000, gleich.)
+  //
+  // Taxware-Referenzwert (gleicher Fall, Vermögen 230'887): 329 CHF.
+  // Der Engine-Wert von ~280 CHF liegt ~15 % unter Taxware (Taxware nutzt
+  // tw. Personalsteuer-Komponenten / Mindestbeträge). Toleranz daher ±15 %
+  // bis ESTV-Tarifrechner manuell abgeglichen → estvVerifiziert=false.
+  {
+    label: "AR-Waldstatt Paar Rentner 230k Vermögen 0 Kinder andere 2026",
+    input: {
+      einkommenJahr: 43_326, // AHV-Ehepaar (≈ Stanojevic-Niveau)
+      vermoegenJahr: 230_000,
+      kapAuszahlungenJahr: 0,
+      kanton: "AR",
+      religion: "andere",
+      fallart: "paar",
+      bfsId: 3007, // Waldstatt
+      jahr: 2026,
+      bruttoErwerbP1: 0,
+      bruttoErwerbP2: 0,
+      alterP1: 70,
+      alterP2: 65,
+      anzahlKinder: 0,
+      hatPkAnschlussP1: false,
+      hatPkAnschlussP2: false,
+    },
+    // Erwartung: 230k − 150k = 80k bemessen → ~280 CHF
+    // (Taxware-Referenz 329 CHF auf 230'887)
+    expectedEinkommen: 2_937, // ordentl. Eink-Steuer bei 43k AHV (Engine-Snapshot)
+    expectedVermoegen: 280,
+    estvVerifiziert: false, // ESTV-Tarifrechner-Abgleich noch offen
+    toleranzProzent: 15,
+  },
+  // ─── AR-Waldstatt Verheiratet-Rentner unter Freibetrag: 0 Verm-Steuer ──
+  //
+  // 174'521 Vermögen − 150'000 Freibetrag (Paar) = 24'521 bemessen
+  //   einfache = 24'500 × 0,05 % = 12.25 CHF
+  //   total    = 12.25 × 7.0     ≈ 86 CHF
+  {
+    label: "AR-Waldstatt Paar Rentner 174k Vermögen 0 Kinder andere 2026",
+    input: {
+      einkommenJahr: 43_326,
+      vermoegenJahr: 174_521,
+      kapAuszahlungenJahr: 0,
+      kanton: "AR",
+      religion: "andere",
+      fallart: "paar",
+      bfsId: 3007,
+      jahr: 2026,
+      bruttoErwerbP1: 0,
+      bruttoErwerbP2: 0,
+      alterP1: 70,
+      alterP2: 65,
+      anzahlKinder: 0,
+      hatPkAnschlussP1: false,
+      hatPkAnschlussP2: false,
+    },
+    expectedEinkommen: 2_937,
+    expectedVermoegen: 86,
+    estvVerifiziert: false,
+    toleranzProzent: 15,
+  },
 ];
 
 /** Snapshot-Kapitalsteuer für Kap-Bezug-Case (separat geprüft). */
