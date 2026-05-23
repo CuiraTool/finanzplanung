@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1+2+3+4).
+ * ESTV-Tarifrechner-Crawler (Sprint D11 Phase 1+2+3+4 + Phase 5).
  *
  * Holt für jedes Profil aus `src/engine/__validation__/estv-profile.ts`
  * den offiziellen ESTV-Steuerbetrag via interne JSON-API.
@@ -71,6 +71,8 @@ import {
   type EstvSnapshot,
   type EstvSnapshotEntry,
 } from "../src/engine/__validation__/estv-profile";
+import { abzuegeDbg, abzuegeKanton } from "../src/engine/steuer-abzuege";
+import type { KantonCode } from "../src/engine/steuer-engine/types";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -236,6 +238,68 @@ async function fetchEstv(
   throw lastErr ?? new Error("Unknown fetch error");
 }
 
+/**
+ * Phase-5-Variante von fetchEstv: nutzt separate Bemessungen für Bund
+ * (DBG-Tarif) und Kanton (Kanton-Tarif), inkl. korrekter Kinder-Anzahl.
+ */
+async function fetchEstvSzenario(
+  profile: EstvProfile,
+  taxLocationId: number,
+  steuerbarBund: number,
+  steuerbarKanton: number
+): Promise<EstvApiResponse> {
+  // ESTV Children-Format: Array von Geburtsjahren. Wir gehen von Kindern
+  // im Alter 6 aus → Geburtsjahr = jahr - 6. Das wirkt nur auf Kinder-
+  // Abzüge bei der ESTV-Berechnung; für unsere Szenarien (P5) hat die
+  // Engine den Kinderabzug bereits eingepreist, so dass ESTV auf dem
+  // ANGELIEFERTEN steuerbaren Einkommen nur den Tarif anwendet — kein
+  // weiterer Kinderabzug. Wir senden trotzdem das Kinder-Array damit
+  // ESTV ggf. den Vermögens-Kinder-Sozialabzug korrekt berücksichtigt.
+  const childrenBirthYears: number[] = [];
+  for (let i = 0; i < profile.anzahlKinder; i++) {
+    childrenBirthYears.push(profile.jahr - 6);
+  }
+
+  const body = {
+    SimKey: null,
+    TaxYear: profile.jahr,
+    TaxLocationID: taxLocationId,
+    Relationship: relationshipCode(profile.fallart),
+    Confession1: confessionCode(profile.konfession),
+    Confession2:
+      profile.fallart === "paar" ? confessionCode(profile.konfession) : 0,
+    Children: childrenBirthYears,
+    TaxableIncomeCanton: Math.round(steuerbarKanton),
+    TaxableIncomeFed: Math.round(steuerbarBund),
+    TaxableFortune: Math.round(profile.vermoegen),
+  };
+
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${ESTV_BASE}/API_calculateSimpleTaxes`, {
+        method: "POST",
+        headers: ESTV_HEADERS,
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const json = (await res.json()) as EstvApiResponse;
+      if (!json || !json.response) {
+        throw new Error("Empty response.response from ESTV szenario");
+      }
+      return json;
+    } catch (e) {
+      lastErr = e as Error;
+      if (attempt < MAX_RETRIES) {
+        await sleep(RETRY_BACKOFF_MS * attempt);
+      }
+    }
+  }
+  throw lastErr ?? new Error("Unknown fetch error (szenario)");
+}
+
 async function fetchEstvCapital(
   profile: EstvProfile,
   taxGroupId: number
@@ -328,7 +392,9 @@ async function main(): Promise<void> {
   const allProfiles = generateProfilesAll();
   const profiles = flags.limit ? allProfiles.slice(0, flags.limit) : allProfiles;
 
-  console.log(`ESTV-Crawl Phase 1+2+3+4 — ${profiles.length}/${allProfiles.length} Profile`);
+  console.log(
+    `ESTV-Crawl Phase 1-5 — ${profiles.length}/${allProfiles.length} Profile`
+  );
   console.log(`Force-Modus: ${flags.force}`);
   console.log(`Snapshot: ${SNAPSHOT_PATH}\n`);
 
@@ -417,6 +483,92 @@ async function main(): Promise<void> {
         snap.entries[p.id] = entry;
         okCount++;
         console.log(`✓ Kapital Total CHF ${total.toFixed(0)}`);
+      } else if (p.kind === "szenario") {
+        // ─── Phase 5: realistisches End-to-End-Szenario ──────────────────
+        // Schritt 1: steuerbares Einkommen (DBG + Kanton) aus den vollen
+        // Engine-Abzügen berechnen.
+        const abzInput = {
+          bruttoErwerbP1: p.bruttoErwerbP1 ?? 0,
+          bruttoErwerbP2: p.bruttoErwerbP2 ?? 0,
+          alterP1: p.alterP1 ?? 40,
+          alterP2: p.alterP2 ?? 0,
+          fallart: p.fallart,
+          anzahlKinder: p.anzahlKinder,
+          saeule3aEinzahlungJahr: 0,
+          pkEinkaufJahr: 0,
+          hatPkAnschlussP1: p.hatPkAnschlussP1 ?? false,
+          hatPkAnschlussP2: p.hatPkAnschlussP2 ?? false,
+          einkommenIstNetto: false,
+        };
+        const abzDbg = abzuegeDbg(abzInput);
+        const abzKt = abzuegeKanton(abzInput, p.kanton as KantonCode);
+        const bruttoErwerbTotal =
+          (p.bruttoErwerbP1 ?? 0) + (p.bruttoErwerbP2 ?? 0);
+        const nichtErwerb = Math.max(0, p.einkommen - bruttoErwerbTotal);
+        const steuerbarBund = Math.max(0, abzDbg.steuerbar + nichtErwerb);
+        const steuerbarKanton = Math.max(0, abzKt.steuerbar + nichtErwerb);
+
+        // Schritt 2: ESTV mit Bund+Kanton steuerbar abrufen.
+        const szenarioProfile: EstvProfile = {
+          ...p,
+          einkommen: steuerbarKanton,
+        };
+        // Hack: für ESTV wollen wir TaxableIncomeFed = steuerbarBund und
+        // TaxableIncomeCanton = steuerbarKanton senden. fetchEstv()
+        // unterstützt aktuell nur einen einzigen `einkommen`-Wert (selbe
+        // für beide). Wir patchen darüber temporär in einer eigenen Funktion.
+        const res = await fetchEstvSzenario(
+          szenarioProfile,
+          taxLocationId,
+          steuerbarBund,
+          steuerbarKanton
+        );
+        const r = res.response;
+
+        // Schritt 3: optional Kapital-Call (nur zh-kap-500k-einzel-ref).
+        let expectedKapital = 0;
+        let expectedKapitalBund = 0;
+        let expectedKapitalKanton = 0;
+        if (p.kapital > 0) {
+          const kapRes = await fetchEstvCapital(
+            { ...p, alterBeiAuszahlung: p.alterBeiAuszahlung || 65 },
+            taxLocationId
+          );
+          const kr = kapRes.response[0]!;
+          expectedKapitalBund = kr.TaxFed;
+          expectedKapitalKanton = kr.TaxCanton + kr.TaxCity + kr.TaxChurch;
+          expectedKapital = expectedKapitalBund + expectedKapitalKanton;
+          await sleep(RATE_LIMIT_MS);
+        }
+
+        const totalOrd = r.TotalTax;
+        const total = totalOrd + expectedKapital;
+        const entry: EstvSnapshotEntry = {
+          id: p.id,
+          ok: true,
+          crawledAt: new Date().toISOString(),
+          taxLocationId,
+          kind: "szenario",
+          expectedBund: r.IncomeTaxFed,
+          expectedKanton: r.IncomeTaxCanton + r.FortuneTaxCanton,
+          expectedGemeinde: r.IncomeTaxCity + r.FortuneTaxCity,
+          expectedKirche: r.IncomeTaxChurch + r.FortuneTaxChurch,
+          expectedPersonal: r.PersonalTax,
+          expectedTotal: totalOrd,
+          steuerbarKantonGesendet: steuerbarKanton,
+          steuerbarBundGesendet: steuerbarBund,
+          expectedKapital: expectedKapital > 0 ? expectedKapital : undefined,
+          expectedKapitalBund: expectedKapital > 0 ? expectedKapitalBund : undefined,
+          expectedKapitalKanton:
+            expectedKapital > 0 ? expectedKapitalKanton : undefined,
+        };
+        snap.entries[p.id] = entry;
+        okCount++;
+        console.log(
+          `✓ Szenario Ord CHF ${totalOrd.toFixed(0)}` +
+            (expectedKapital > 0 ? ` + Kap CHF ${expectedKapital.toFixed(0)}` : "") +
+            ` = CHF ${total.toFixed(0)}`
+        );
       } else {
         const res = await fetchEstv(p, taxLocationId);
         const r = res.response;

@@ -55,6 +55,27 @@ function fmtPct(n: number): string {
 }
 
 function computeCuira(p: EstvProfile): number {
+  if (p.kind === "szenario") {
+    // Phase 5: voller End-to-End-Aufruf mit Brutto + Familien-Kontext.
+    const r = steuerProJahr({
+      einkommenJahr: p.einkommen,
+      vermoegenJahr: p.vermoegen,
+      kapAuszahlungenJahr: p.kapital,
+      kanton: p.kanton,
+      religion: p.konfession,
+      fallart: p.fallart,
+      bfsId: p.bfsId,
+      jahr: p.jahr,
+      bruttoErwerbP1: p.bruttoErwerbP1 ?? 0,
+      bruttoErwerbP2: p.bruttoErwerbP2 ?? 0,
+      alterP1: p.alterP1 ?? 40,
+      alterP2: p.alterP2 ?? 0,
+      anzahlKinder: p.anzahlKinder,
+      hatPkAnschlussP1: p.hatPkAnschlussP1 ?? false,
+      hatPkAnschlussP2: p.hatPkAnschlussP2 ?? false,
+    });
+    return r.einkommen + r.vermoegen + r.kapital;
+  }
   const r = steuerProJahr({
     einkommenJahr: p.einkommen,
     vermoegenJahr: p.vermoegen,
@@ -93,7 +114,11 @@ function main(): void {
     const entry = snap.entries[p.id];
     if (!entry || !entry.ok || entry.expectedTotal == null) continue;
     const cuira = computeCuira(p);
-    const estv = entry.expectedTotal;
+    // Für Szenario-Profile: Total inkl. Kapital-Anteil (falls vorhanden).
+    const estv =
+      p.kind === "szenario"
+        ? entry.expectedTotal + (entry.expectedKapital ?? 0)
+        : entry.expectedTotal;
     const diff = cuira - estv;
     const diffPct = estv > 0 ? (diff / estv) * 100 : 0;
     allRows.push({ profile: p, cuira, estv, diff, diffPct });
@@ -103,6 +128,8 @@ function main(): void {
   const rows = allRows.filter((r) => r.profile.kind === "ordentlich");
   // Phase 3: Kapitalauszahlung
   const rowsKapital = allRows.filter((r) => r.profile.kind === "kapital");
+  // Phase 5: Szenario
+  const rowsSzenario = allRows.filter((r) => r.profile.kind === "szenario");
 
   rows.sort(
     (a, b) =>
@@ -322,6 +349,90 @@ function main(): void {
               : "DRIFT";
         lines.push(
           `| ${fmtChf(r.profile.kapital)} | ${fmtChf(r.cuira)} | ${fmtChf(r.estv)} | ${fmtChf(r.diff)} | ${fmtPct(r.diffPct)} | ${bewertung} |`
+        );
+      }
+      lines.push("");
+    }
+  }
+
+  // ── Phase 5 ──────────────────────────────────────────────────────────
+  if (rowsSzenario.length > 0) {
+    const pcts = rowsSzenario
+      .map((r) => Math.abs(r.diffPct))
+      .sort((a, b) => a - b);
+    const sMed = pcts[Math.floor(pcts.length / 2)] ?? 0;
+    const sMx = pcts[pcts.length - 1] ?? 0;
+    const sMn = pcts.reduce((s, x) => s + x, 0) / Math.max(1, pcts.length);
+    const sAbove5 = pcts.filter((p) => p > 5).length;
+    const sAbove10 = pcts.filter((p) => p > 10).length;
+
+    lines.push(
+      "## Phase 5 — Real-World-Szenarien (5 Standard-Profile × 26 Kantone)"
+    );
+    lines.push("");
+    lines.push(`**Profile:** ${rowsSzenario.length} (26 Kantone × 5 Szenarien)`);
+    lines.push(`- Median |Δ|: ${sMed.toFixed(2)} %`);
+    lines.push(`- Mittelwert |Δ|: ${sMn.toFixed(2)} %`);
+    lines.push(`- Max |Δ|: ${sMx.toFixed(2)} %`);
+    lines.push(`- Profile mit |Δ| > 5 %: ${sAbove5}`);
+    lines.push(`- Profile mit |Δ| > 10 %: ${sAbove10}`);
+    lines.push("- Toleranz-Ziel: ±5 %");
+    lines.push("");
+    lines.push(
+      "**Methode:** Crawler berechnet pro Szenario das kanton-spezifische " +
+        "steuerbare Einkommen (DBG + Kanton) aus `abzuegeKanton`/`abzuegeDbg` " +
+        "und sendet es als TaxableIncomeFed/TaxableIncomeCanton an ESTV. So " +
+        "vergleicht der Test apples-to-apples den Tarif-Anteil. Bei Profil 5 " +
+        "(zh-kap-500k-einzel-ref) wird zusätzlich ein Kapital-Call gemacht " +
+        "und beide Steuern aufsummiert."
+    );
+    lines.push("");
+
+    // Top 5 worst szenario drift per kanton
+    const kantonAbsS = new Map<string, number[]>();
+    for (const r of rowsSzenario) {
+      if (!kantonAbsS.has(r.profile.kanton))
+        kantonAbsS.set(r.profile.kanton, []);
+      kantonAbsS.get(r.profile.kanton)!.push(Math.abs(r.diffPct));
+    }
+    const worstS = [...kantonAbsS.entries()]
+      .map(([k, vs]) => ({
+        k,
+        max: Math.max(...vs),
+        mean: vs.reduce((s, x) => s + x, 0) / vs.length,
+      }))
+      .sort((a, b) => b.max - a.max)
+      .slice(0, 5);
+    lines.push("### Top 5 Kantone mit grösster Drift — Szenario");
+    lines.push("");
+    lines.push("| # | Kanton | Mittel \\|Δ\\| | Max \\|Δ\\| |");
+    lines.push("|---|--------|--------------|------------|");
+    worstS.forEach((k, i) => {
+      lines.push(
+        `| ${i + 1} | ${k.k} | ${k.mean.toFixed(2)} % | ${k.max.toFixed(2)} % |`
+      );
+    });
+    lines.push("");
+
+    lines.push("### Drift pro Kanton — Szenarien (5 Standard-Profile)");
+    lines.push("");
+    for (const k of ALLE_KANTONE) {
+      const krows = rowsSzenario.filter((r) => r.profile.kanton === k);
+      if (krows.length === 0) continue;
+      lines.push(`#### ${k} (Hauptort) — Szenarien`);
+      lines.push("");
+      lines.push("| Szenario | Cuira | ESTV | Δ CHF | Δ % | Bewertung |");
+      lines.push("|----------|------:|-----:|------:|----:|:---------:|");
+      for (const r of krows) {
+        const bewertung =
+          Math.abs(r.diffPct) <= 5
+            ? "OK"
+            : Math.abs(r.diffPct) <= 10
+              ? "WARN"
+              : "DRIFT";
+        const sz = r.profile.szenarioKind ?? "?";
+        lines.push(
+          `| ${sz} | ${fmtChf(r.cuira)} | ${fmtChf(r.estv)} | ${fmtChf(r.diff)} | ${fmtPct(r.diffPct)} | ${bewertung} |`
         );
       }
       lines.push("");
