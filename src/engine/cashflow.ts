@@ -2330,28 +2330,50 @@ function anzahlKinderAbzugsfaehig(
 }
 
 /**
- * V2: Anzahl Kinder mit Anspruch auf AHV-Kinderrente.
- * Art. 22ter AHVG: < 18, oder < 25 + Ausbildung.
+ * V2: Anzahl Kinder mit Anspruch auf AHV-Kinderrente — als float
+ * (pro-rata im Geburtstags-Jahr).
+ *
+ * Art. 22ter AHVG: Anspruch endet am 18. Geburtstag (oder 25. bei Ausbildung).
+ * BSV-Praxis: Kinderrente läuft monatlich bis und mit Geburtstags-Monat.
+ *
+ * Beispiel: Kind geb 2016-08 → 2034: 18. Geburtstag in Aug 2034.
+ * Anspruch Jan-Aug 2034 = 8/12 = 0.667 (nicht 0, wie bei reinem year-diff-check).
+ *
+ * Validierungs-Vergleich Näf 2031-2034: PDF gibt Kinderrente 11'004 p.a. bis
+ * Aug 2034 → 8/12 in 2034 = 7'336, exakt was Engine ohne Fix verfehlt hatte.
  */
 function anzahlAhvKinderrentenberechtigt(
   kinder: CashflowInput["kinder"],
   jahr: number
 ): number {
-  let count = 0;
+  let total = 0;
   for (const k of kinder) {
-    const geburtsjahr = parseInt((k.geburtsdatum || "").slice(0, 4), 10);
-    if (!Number.isFinite(geburtsjahr)) continue;
-    const alter = jahr - geburtsjahr;
-    if (alter < 18) count++;
-    else if (
-      alter < 25 &&
+    const teile = (k.geburtsdatum || "").slice(0, 10).split("-").map(Number);
+    if (teile.length < 2) continue;
+    const [gj, gm] = teile as [number, number, number];
+    if (!Number.isFinite(gj) || !Number.isFinite(gm)) continue;
+    const alterEndeJahr = jahr - gj;
+    if (alterEndeJahr < 18) {
+      total += 1; // ganzes Jahr Anspruch
+    } else if (alterEndeJahr === 18) {
+      // 18. Geburtstag im aktuellen Jahr — pro-rata Jan bis Geburtstags-Monat (inkl.)
+      total += gm / 12;
+    } else if (
+      alterEndeJahr < 25 &&
       k.ausbildungBisJahr != null &&
       k.ausbildungBisJahr >= jahr
     ) {
-      count++;
+      total += 1;
+    } else if (
+      alterEndeJahr === 25 &&
+      k.ausbildungBisJahr != null &&
+      k.ausbildungBisJahr >= jahr
+    ) {
+      // 25. Geburtstag im aktuellen Jahr — pro-rata bis Geburtstags-Monat
+      total += gm / 12;
     }
   }
-  return count;
+  return total;
 }
 
 /**
