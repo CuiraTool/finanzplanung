@@ -292,10 +292,11 @@ describe("Vergleich Haldner (Ausgangslage)", () => {
       number,
       { saldo: number; vermNetto: number; stTotal: number; einnT: number; ausgT: number }
     > = {
-      2029: { saldo: -69529, vermNetto: 1362589, stTotal: 0, einnT: 69130, ausgT: 138659 },
-      2034: { saldo: -44532, vermNetto: 1182151, stTotal: 0, einnT: 51220, ausgT: 95752 },
-      2039: { saldo: -46744, vermNetto: 990559, stTotal: 0, einnT: 51220, ausgT: 97964 },
-      2044: { saldo: -48819, vermNetto: 774771, stTotal: 0, einnT: 51220, ausgT: 100039 },
+      // Steuern Ausgangslage aus PDF Seite 11 (inkl. Kap-Steuer bei Bezug 2029)
+      2029: { saldo: -69529, vermNetto: 1362589, stTotal: 45883, einnT: 69130, ausgT: 138659 },
+      2034: { saldo: -44532, vermNetto: 1182151, stTotal: 7269, einnT: 51220, ausgT: 95752 },
+      2039: { saldo: -46744, vermNetto: 990559, stTotal: 6402, einnT: 51220, ausgT: 97964 },
+      2044: { saldo: -48819, vermNetto: 774771, stTotal: 5282, einnT: 51220, ausgT: 100039 },
     };
 
     const f = (n: number) => n.toLocaleString("de-CH").padStart(12);

@@ -186,7 +186,7 @@ describe("Vergleich Stomeo Bettina (Ausgangslage)", () => {
                 refinanzierungZinssatzProzent: 2.0,
                 tilgungsplan: [
                   // PDF Ausgangslage: Rückzahlung 150'000 bei Ablauf (2030)
-                  { jahr: 2030, betrag: 150000 },
+                  { id: "tilg-2030", jahr: 2030, betrag: 150000 },
                 ],
               },
             ],
