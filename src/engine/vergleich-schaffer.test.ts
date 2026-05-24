@@ -92,12 +92,12 @@ describe("Vergleich Schaffer Thorsten+Doris (Ausgangslage)", () => {
         p1: {
           aktiverAnschluss: true,
           altersguthabenHeute: 1032542,
-          // 50% Rente + 50% Kap. Bei Bezug 2028 Saldo ~2'452'238 (= 2×1'226'119).
-          // 50% Rente UWS implizit: 34'641 / 1'226'119 = 2.825% (auf Halbierten).
-          // Modelliert als bezugspraeferenz="mischung", kapitalanteil=50, UWS auf Halbiertem.
-          // Vereinfachung: UWS auf vollem AGB = 34'641 / 2'452'238 = 1.41%.
-          altersguthabenBeiBezug: 2452238,
-          umwandlungssatzProzent: 2.83, // 34641 / (2452238 × 0.5)
+          // PDF Ausgangslage: PK-Saldo bei Bezug 2028 = 1'226'119
+          //   (vs heute 1'032'542, Sparphase ~3 Jahre Lohn-Beiträge).
+          // Mischbezug 50/50: Kap 613'060 + Rente-Anteil 613'060.
+          // Rente 34'641 / 613'060 → UWS 5.65%.
+          altersguthabenBeiBezug: 1226119,
+          umwandlungssatzProzent: 5.65, // 34641 / 613060
           bezugspraeferenz: "mischung",
           kapitalanteil: 50,
           freizuegigkeit: [],
