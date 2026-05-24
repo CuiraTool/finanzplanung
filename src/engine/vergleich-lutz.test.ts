@@ -82,10 +82,12 @@ describe("Vergleich Lutz Philipp+Bernadette (Ausgangslage)", () => {
         fehljahreAnzahlP2: 0,
         ahvBezugsalterP1: 65,
         ahvBezugsalterP2: 65,
-        // PDF AHV-Ehepaarrente 45'840 inkl Rentenzuschlag + 13.AHV.
-        // 12-Mt-Basis = 42'314. Hälftig auf beide.
-        ahvRenteJahrEffektivP1: 21157,
-        ahvRenteJahrEffektivP2: 21157,
+        // Engine-Konvention: Override = INDIVIDUELLE BSV-Vollrente, Engine
+        // plafondiert auf 45'360 × 13/12 wenn beide bezogen. Vor P2-Pension
+        // bekommt P1 die volle individuelle Rente (32'760 = 30'240 × 13/12).
+        // PDF AHV-Ehepaarrente 45'840 wäre ohne Plafond 30'240 × 2 = 60'480.
+        ahvRenteJahrEffektivP1: 30240,
+        ahvRenteJahrEffektivP2: 30240,
       },
       bvg: {
         p1: {
