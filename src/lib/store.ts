@@ -254,6 +254,17 @@ export interface SaeuleDreiInput {
 /** Vermögen — Block 7. Konten, Depots, Darlehen. */
 export type VermoegenTyp = "konto" | "depot" | "darlehen";
 
+/**
+ * Geplante Umschichtung von diesem Konto aufs Hauptkonto in einem
+ * bestimmten Jahr. Reduziert den Konto-Saldo, erhöht das Hauptkonto.
+ * Beispiel: 100'000 vom Depot aufs Hauptkonto in 2026 für Entnahme-Phase.
+ */
+export interface Umschichtung {
+  id: string;
+  jahr: number;
+  betrag: number;
+}
+
 export interface VermoegenItem {
   id: string;
   typ: VermoegenTyp;
@@ -262,6 +273,8 @@ export interface VermoegenItem {
   renditeProzent: number;
   /** Genau ein Item ist das Hauptkonto, wo der Cashflow-Saldo landet. */
   istHauptkonto: boolean;
+  /** Optional: geplante Umschichtungen auf das Hauptkonto. */
+  umschichtungen?: Umschichtung[];
 }
 
 export interface VermoegenInput {
@@ -2049,10 +2062,10 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v44",
+      name: "cuira-plan-v45",
       // Schema-Version: MUSS mit dem name-Suffix (vNN) und
       // AKTUELLE_SCHEMA_VERSION in plan-export.ts übereinstimmen.
-      version: 44,
+      version: 45,
       // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
       // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
       // Plan-Slot existiert.

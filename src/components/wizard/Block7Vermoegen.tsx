@@ -221,7 +221,102 @@ function VermoegenCard({
           → als Hauptkonto setzen
         </button>
       )}
+
+      {!istDarlehen && !item.istHauptkonto && (
+        <UmschichtungenSektion
+          item={item}
+          onUpdate={onUpdate}
+        />
+      )}
     </li>
+  );
+}
+
+function UmschichtungenSektion({
+  item,
+  onUpdate,
+}: {
+  item: VermoegenItem;
+  onUpdate: (changes: Partial<VermoegenItem>) => void;
+}) {
+  const ums = item.umschichtungen ?? [];
+  const aktuellesJahr = new Date().getFullYear();
+
+  function add() {
+    const neu = {
+      id: `ums-${Date.now()}`,
+      jahr: aktuellesJahr + 1,
+      betrag: 0,
+    };
+    onUpdate({ umschichtungen: [...ums, neu] });
+  }
+
+  function update(id: string, patch: Partial<{ jahr: number; betrag: number }>) {
+    onUpdate({
+      umschichtungen: ums.map((u) => (u.id === id ? { ...u, ...patch } : u)),
+    });
+  }
+
+  function remove(id: string) {
+    onUpdate({ umschichtungen: ums.filter((u) => u.id !== id) });
+  }
+
+  return (
+    <div className="mt-2 rounded border border-slate-200 bg-slate-50/40 p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-slate-600">
+          Geplante Umschichtungen aufs Hauptkonto
+        </span>
+        <button
+          type="button"
+          onClick={add}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          + Umschichtung
+        </button>
+      </div>
+      {ums.length === 0 ? (
+        <p className="text-[11px] text-slate-400">
+          z.B. 100'000 aus dem Depot aufs Hauptkonto in 2027 für die
+          Entnahme-Phase.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {ums.map((u) => (
+            <li key={u.id} className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500">Jahr</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={u.jahr}
+                onChange={(e) =>
+                  update(u.id, { jahr: Number(e.target.value) })
+                }
+                className={`${inputClass} w-20 tabular-nums`}
+              />
+              <span className="text-slate-500">Betrag</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={u.betrag}
+                onChange={(e) =>
+                  update(u.id, { betrag: Number(e.target.value) })
+                }
+                placeholder="100'000"
+                className={`${inputClass} w-28 tabular-nums`}
+              />
+              <button
+                type="button"
+                onClick={() => remove(u.id)}
+                className="text-[11px] text-red-600 hover:underline"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

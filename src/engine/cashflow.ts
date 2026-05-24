@@ -949,6 +949,22 @@ export function cashflowReihe(
         b.saldo *= 1 + b.item.renditeProzent / 100;
       }
     }
+    // 1b. Geplante Umschichtungen: pro Konto Beträge aufs Hauptkonto verschieben.
+    //     Reduziert Konto-Saldo (max bis 0), erhöht Hauptkonto.
+    if (hauptkontoIdx >= 0) {
+      const hk = block7[hauptkontoIdx]!;
+      for (let i = 0; i < block7.length; i++) {
+        if (i === hauptkontoIdx) continue;
+        const b = block7[i]!;
+        const ums = b.item.umschichtungen ?? [];
+        for (const u of ums) {
+          if (u.jahr !== jahr) continue;
+          const take = Math.min(u.betrag, Math.max(0, b.saldo));
+          b.saldo -= take;
+          hk.saldo += take;
+        }
+      }
+    }
     // 2. Hauptkonto bekommt Cashflow-Saldo + Kapitalauszahlungen aus Vorsorge/
     //    Immo-Verkauf/Firma-Verkauf
     if (hauptkontoIdx >= 0) {
