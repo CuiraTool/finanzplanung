@@ -273,26 +273,28 @@ function ImmobilieCard({
         </Field>
       )}
 
-      {item.typ === "rendite" && (
-        <Field
-          label="Jährliche Mieteinnahmen brutto (CHF)"
-          hint="fliesst in den Cashflow — bei Verkauf ab Verkaufsjahr nicht mehr"
-        >
-          <input
-            type="number"
-            inputMode="numeric"
-            value={item.jaehrlicheMieteinnahmen ?? ""}
-            onChange={(e) =>
-              onUpdate({
-                jaehrlicheMieteinnahmen:
-                  e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-            placeholder="z.B. 48'000"
-            className={`${inputClass} tabular-nums`}
-          />
-        </Field>
-      )}
+      <Field
+        label="Jährliche Mieteinnahmen brutto (CHF)"
+        hint={
+          item.typ === "rendite"
+            ? "fliesst in den Cashflow — bei Verkauf ab Verkaufsjahr nicht mehr"
+            : "optional bei Einlegerwohnung / vermieteter Einheit im selbstbewohnten Objekt"
+        }
+      >
+        <input
+          type="number"
+          inputMode="numeric"
+          value={item.jaehrlicheMieteinnahmen ?? ""}
+          onChange={(e) =>
+            onUpdate({
+              jaehrlicheMieteinnahmen:
+                e.target.value === "" ? null : Number(e.target.value),
+            })
+          }
+          placeholder={item.typ === "rendite" ? "z.B. 48'000" : "z.B. 19'800 (Einlegerwohnung)"}
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
 
       <Field
         label="Erwartete Wertsteigerung pro Jahr (%)"

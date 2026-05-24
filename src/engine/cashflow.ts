@@ -684,8 +684,8 @@ export function cashflowReihe(
       if (im.adresse.kanton === wohnsitzKt) continue;
       // Liegenschaft schon weg (verkauft oder verschenkt)? Wirkt erst ab dem Jahr.
       if (immobilieAbgegeben(im, jahr)) continue;
-      const mietenImm =
-        im.typ === "rendite" ? im.jaehrlicheMieteinnahmen ?? 0 : 0;
+      // Mieteinnahmen auch bei selbstbewohnt mit Einlegerwohnung-Pattern.
+      const mietenImm = im.jaehrlicheMieteinnahmen ?? 0;
       const hypo = im.hypotheken.reduce((s, h) => s + (h.hoehe ?? 0), 0);
       const wert = im.verkehrswert ?? 0;
       const netto = Math.max(0, wert - hypo);
@@ -1580,10 +1580,10 @@ function bvgKapitalPerson(
 function mieteinnahmenJahr(items: Immobilie[], jahr: number): number {
   let total = 0;
   for (const im of items) {
-    if (im.typ !== "rendite") continue;
-    if (im.jaehrlicheMieteinnahmen == null) continue;
+    // Mieteinnahmen: bei rendite-Liegenschaft IMMER, bei selbstbewohnt nur wenn
+    // jaehrlicheMieteinnahmen explizit gesetzt (Einlegerwohnung-Pattern).
+    if (im.jaehrlicheMieteinnahmen == null || im.jaehrlicheMieteinnahmen <= 0) continue;
     if (immobilieAbgegeben(im, jahr)) continue;
-    // Vor Kaufjahr: keine Mieteinnahmen
     if (im.kaufjahr != null && im.kaufjahr > 0 && jahr < im.kaufjahr) continue;
     total += im.jaehrlicheMieteinnahmen;
   }
