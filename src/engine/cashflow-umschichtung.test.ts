@@ -236,6 +236,51 @@ describe("Umschichtungen Konto → Hauptkonto", () => {
     expect(z2026.vermoegenNetto).toBeCloseTo(z2026Baseline.vermoegenNetto, -1);
   });
 
+  it("richtung 'in' verschiebt HK → Konto (Sparphase)", () => {
+    const state = baseState();
+    state.vermoegen = {
+      items: [
+        {
+          id: "hk",
+          typ: "konto",
+          beschreibung: "Liquidität",
+          saldoHeute: 200000,
+          renditeProzent: 0,
+          istHauptkonto: true,
+        },
+        {
+          id: "depot",
+          typ: "depot",
+          beschreibung: "Anlagedepot",
+          saldoHeute: 0,
+          renditeProzent: 0,
+          istHauptkonto: false,
+          umschichtungen: [
+            { id: "u1", jahr: 2026, betrag: 100000, richtung: "in" },
+          ],
+        },
+      ],
+    };
+    const reihe = cashflowReihe(state, 2025, 2027);
+    const ohneUms = cashflowReihe(
+      {
+        ...state,
+        vermoegen: {
+          items: state.vermoegen.items.map((it) => ({
+            ...it,
+            umschichtungen: undefined,
+          })),
+        },
+      },
+      2025,
+      2027
+    );
+    const z2026 = reihe.find((r) => r.jahr === 2026)!;
+    const z2026Baseline = ohneUms.find((r) => r.jahr === 2026)!;
+    // Verm-Netto unverändert (interne Verschiebung HK ↔ Depot).
+    expect(z2026.vermoegenNetto).toBeCloseTo(z2026Baseline.vermoegenNetto, -1);
+  });
+
   it("mehrere Umschichtungen über Jahre kombinierbar", () => {
     const state = baseState();
     state.vermoegen = {

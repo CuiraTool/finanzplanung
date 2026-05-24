@@ -951,8 +951,10 @@ export function cashflowReihe(
         b.saldo *= 1 + b.item.renditeProzent / 100;
       }
     }
-    // 1b. Geplante Umschichtungen: pro Konto Beträge aufs Hauptkonto verschieben.
-    //     Reduziert Konto-Saldo (max bis 0), erhöht Hauptkonto.
+    // 1b. Geplante Umschichtungen: bidirektional Konto ↔ Hauptkonto.
+    //     richtung "out" (default): Konto → HK. Entnahme-Phase.
+    //     richtung "in": HK → Konto. Sparphase / Aufbau Anlagedepot.
+    //     Cap durch verfügbaren Saldo der Quelle (nie ins Negative).
     if (hauptkontoIdx >= 0) {
       const hk = block7[hauptkontoIdx]!;
       for (let i = 0; i < block7.length; i++) {
@@ -961,9 +963,15 @@ export function cashflowReihe(
         const ums = b.item.umschichtungen ?? [];
         for (const u of ums) {
           if (u.jahr !== jahr) continue;
-          const take = Math.min(u.betrag, Math.max(0, b.saldo));
-          b.saldo -= take;
-          hk.saldo += take;
+          if (u.richtung === "in") {
+            const take = Math.min(u.betrag, Math.max(0, hk.saldo));
+            hk.saldo -= take;
+            b.saldo += take;
+          } else {
+            const take = Math.min(u.betrag, Math.max(0, b.saldo));
+            b.saldo -= take;
+            hk.saldo += take;
+          }
         }
       }
     }

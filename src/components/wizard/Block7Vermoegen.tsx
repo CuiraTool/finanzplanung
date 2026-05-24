@@ -247,11 +247,15 @@ function UmschichtungenSektion({
       id: `ums-${Date.now()}`,
       jahr: aktuellesJahr + 1,
       betrag: 0,
+      richtung: "out" as const,
     };
     onUpdate({ umschichtungen: [...ums, neu] });
   }
 
-  function update(id: string, patch: Partial<{ jahr: number; betrag: number }>) {
+  function update(
+    id: string,
+    patch: Partial<{ jahr: number; betrag: number; richtung: "in" | "out" }>
+  ) {
     onUpdate({
       umschichtungen: ums.map((u) => (u.id === id ? { ...u, ...patch } : u)),
     });
@@ -277,13 +281,23 @@ function UmschichtungenSektion({
       </div>
       {ums.length === 0 ? (
         <p className="text-[11px] text-slate-400">
-          z.B. 100'000 aus dem Depot aufs Hauptkonto in 2027 für die
-          Entnahme-Phase.
+          Entnahme (← HK): 100'000 vom Depot aufs Hauptkonto in 2027.
+          Sparphase (→ HK): 100'000 vom Hauptkonto ins Depot in 2026.
         </p>
       ) : (
         <ul className="space-y-1">
           {ums.map((u) => (
             <li key={u.id} className="flex items-center gap-2 text-xs">
+              <select
+                value={u.richtung ?? "out"}
+                onChange={(e) =>
+                  update(u.id, { richtung: e.target.value as "in" | "out" })
+                }
+                className={`${inputClass} w-32`}
+              >
+                <option value="out">← zu Hauptkonto</option>
+                <option value="in">→ vom Hauptkonto</option>
+              </select>
               <span className="text-slate-500">Jahr</span>
               <input
                 type="number"

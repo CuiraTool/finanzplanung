@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "@hookform/resolvers": "^3.10.0",
+    "@sentry/nextjs": "^10.53.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
     "next": "^15.5.18",
@@ -30,6 +31,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/postcss": "^4.0.0",
@@ -43,7 +45,7 @@
     "playwright": "^1.59.1",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.0.0",
-    "tsx": "^4.19.2",
+    "tsx": "^4.22.3",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
   },

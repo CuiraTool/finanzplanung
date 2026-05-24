@@ -255,14 +255,18 @@ export interface SaeuleDreiInput {
 export type VermoegenTyp = "konto" | "depot" | "darlehen";
 
 /**
- * Geplante Umschichtung von diesem Konto aufs Hauptkonto in einem
- * bestimmten Jahr. Reduziert den Konto-Saldo, erhöht das Hauptkonto.
- * Beispiel: 100'000 vom Depot aufs Hauptkonto in 2026 für Entnahme-Phase.
+ * Geplante Umschichtung zwischen diesem Konto und dem Hauptkonto in einem
+ * bestimmten Jahr.
+ *  - richtung "out" (default): Konto → Hauptkonto. Entnahme-Pattern, z.B.
+ *    100'000 vom Depot aufs Hauptkonto in 2027 für Entnahme-Phase.
+ *  - richtung "in": Hauptkonto → Konto. Sparphase-Pattern, z.B. 100'000 vom
+ *    Liquid-Hauptkonto ins Anlagedepot 2026 (Aufbau persönliche Pensionskasse).
  */
 export interface Umschichtung {
   id: string;
   jahr: number;
   betrag: number;
+  richtung?: "in" | "out";
 }
 
 export interface VermoegenItem {

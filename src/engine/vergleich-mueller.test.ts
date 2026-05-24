@@ -171,6 +171,19 @@ describe("Vergleich Müller Stephan (Ausgangslage)", () => {
             renditeProzent: 0,
             istHauptkonto: true,
           },
+          {
+            id: "depot",
+            typ: "depot",
+            beschreibung: "Anlagedepot",
+            saldoHeute: 0,
+            renditeProzent: 1.5,
+            istHauptkonto: false,
+            // PDF Müller: Umschichtung 100k von Liquid → Depot in 2026.
+            // Aufbau persönliche Pensionskasse (Sparphase-Pattern).
+            umschichtungen: [
+              { id: "u1", jahr: 2026, betrag: 100000, richtung: "in" },
+            ],
+          },
         ],
       },
       immobilien: { items: [] },
