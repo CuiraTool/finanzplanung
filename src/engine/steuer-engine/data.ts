@@ -328,6 +328,11 @@ export const VERMOEGENS_FREIBETRAG: Partial<
     proKind: 25_000,
     quelle: "Art. 51 + 52 StG AR (bGS 621.11), Stand 2025/2026",
   },
+  // Hinweis SG: Freibetrag 75k/150k/20k pro Kind ist BEREITS im
+  // VERMOEGENSSTEUER-Tarif als 0%-Stufe eingebaut — NICHT hier eintragen
+  // (würde doppelt abziehen, brach ESTV-SG-Tests). Stand 2025/2026.
+  // Haldner-Drift wird daher anderweitig untersucht (Steuerfuss-Multiplikator
+  // oder Tarifstufe).
 };
 
 /**
