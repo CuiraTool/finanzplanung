@@ -10,8 +10,12 @@
  *    konservativ 1.5% (oberer Rand der historischen Schwankung, plus die
  *    erwartete höhere Inflation nach 2022-Schock). Audit-Befund: 1.5% kann
  *    real überzeichnen, bleibt aber sichere Default für Kaufkraft-Prognosen.
- *  - IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT: historisch CH-Wohneigentum ≈ +1.5%
- *    p.a. (BIS-Wohnimmobilien-Preisindex). User kann pro Objekt überschreiben.
+ *  - IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT: 0 % — Wertsteigerung wird nur dann
+ *    eingerechnet, wenn der User pro Objekt explizit einen Prozentsatz erfasst.
+ *    Historisch hatte das CH-Wohneigentum +1.5 % p.a. (BIS-Wohnimmobilien-
+ *    Preisindex), aber als Default zu optimistisch — verzerrt die Vermögens-
+ *    Projektion in Vergleichen gegen Taxware (Mission13, SSM, Finwiwo etc.)
+ *    systematisch nach oben.
  *  - STRESS_INFLATION_PROZENT: Stress-Szenario "Inflation-Schock" geht von
  *    2.0% p.a. compound aus (Notenbank-Zielband oberer Rand).
  *  - BVG_MINDESTZINS: 2025 = 1.25% (Bundesrat 2024-12-04).
@@ -20,8 +24,8 @@
 /** Default-Inflations-Rate für Deflations-Toggle Dashboard (% p.a.). */
 export const INFLATION_DEFAULT_PROZENT = 1.5;
 
-/** Default-Wertsteigerung Schweizer Wohnimmobilien (% p.a.). */
-export const IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT = 1.5;
+/** Default-Wertsteigerung Schweizer Wohnimmobilien (% p.a.) — opt-in. */
+export const IMMO_WERTSTEIGERUNG_DEFAULT_PROZENT = 0;
 
 /** Stress-Test "Inflation-Schock": angenommene Inflation (% p.a.). */
 export const STRESS_INFLATION_PROZENT = 2.0;
