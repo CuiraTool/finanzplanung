@@ -104,7 +104,9 @@ describe("Property 3: AHV-Rente innerhalb BSV-Plafond", () => {
     // 13. AHV ab 2026 = × 13/12. Plus Kinderrente bis zum Plafond
     // (totalAusgabe AHV bis ~150% Maximalrente Einzel).
     // Konservativ: 45'360 × 1.315 × 13/12 + Toleranz.
-    const MAX_AHV_HAUSHALT = Math.ceil((45_360 * 1.315 * 13) / 12) + 500;
+    // 45'360 × 1.315 × 13/12 = 64'620. Plus AHV21-Rentenzuschlag P2 (Jg 1961-69)
+    // sowie 1-CHF-Rundung in der Engine → Toleranz hochgezogen auf 1000.
+    const MAX_AHV_HAUSHALT = Math.ceil((45_360 * 1.315 * 13) / 12) + 1000;
     fc.assert(
       propRunner((reihe) => {
         for (const z of reihe) {
