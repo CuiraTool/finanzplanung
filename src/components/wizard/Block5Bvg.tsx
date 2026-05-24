@@ -274,7 +274,7 @@ function PersonBvgForm({
 
           <Field
             label={`Voraussichtliches Altersguthaben mit Alter ${bezugsalter} (CHF)`}
-            hint="vom PK-Ausweis (Bezugsalter aus Block 2) — wird für die Berechnung genutzt"
+            hint="vom PK-Ausweis — OHNE geplante zukünftige Einkäufe (diese werden separat unten erfasst und verzinst dazugerechnet)"
           >
             <input
               type="number"

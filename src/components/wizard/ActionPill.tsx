@@ -2,7 +2,7 @@
 
 /**
  * Konsistenter "Action-Pill"-Button für die Wizard-Header-Aktionen
- * (Dokumente hochladen / Geführter Flow / Daten importieren).
+ * (Dokumente hochladen / Daten importieren).
  *
  * Cuira-Brand-Style: outlined in Cuira-Deep mit subtiler Hover-Füllung.
  * Aktiver Zustand = invertiert (gefüllt).
