@@ -44,6 +44,7 @@ import {
   ahvBezugsstart,
   ahvJahresFaktor,
   ahvKinderrente,
+  ahv21Rentenzuschlag,
   dreizehnteAhvFaktor,
   bezugsfaktor,
   ordentlichesAhvAlter,
@@ -410,25 +411,101 @@ export function cashflowReihe(
     }
 
     // 13. AHV-Korrektur für Pre-2026-Pensionierte: 13. AHV gilt ab Dez 2026
-    // für ALLE Rentner, auch für Personen, die vor 2026 in Bezug gingen.
-    // ahvRenteHaushalt enthält df(bezugsstart) — bei Pre-2026-Bezug fehlt das
-    // 13/12 ab 2026. Hier nachträglich anwenden: ratio = df(jahr) / df(bezugsstart).
+    // für ALLE Rentner — auch für Personen, die vor 2026 in Bezug gingen.
+    // p1Einzel / p2Einzel enthalten df(bezugsjahrPx) — bei Pre-2026-Bezug ist
+    // df=1, ab 2026 fehlt der 13. Monat. Korrektur per Person (additiv), damit
+    // Mischfälle (z.B. P1 vor 2026 + P2 nach 2026 in Bezug) richtig behandelt
+    // werden. Plafond gilt nur bei Ehe — Cap auf Ehepaar-Maximum × 13/12.
     if (jahr >= ERSTES_JAHR_13TE_AHV && einnahmenAhv > 0) {
-      // Referenz-Bezugsjahr: bei Ehepaar im Plafond max, sonst bezugsjahr der
-      // beziehenden Person.
-      let refBezugsjahr: number;
-      if (state.fallart === "paar" && p1AhvBezieht && p2AhvBezieht) {
-        refBezugsjahr = Math.max(
-          ahvBezugsjahrP1 ?? jahr,
-          ahvBezugsjahrP2 ?? jahr
-        );
-      } else if (p1AhvBezieht) {
-        refBezugsjahr = ahvBezugsjahrP1 ?? jahr;
-      } else {
-        refBezugsjahr = ahvBezugsjahrP2 ?? jahr;
+      let zusatz = 0;
+      const p1Pre =
+        p1AhvBezieht &&
+        ahvBezugsjahrP1 != null &&
+        ahvBezugsjahrP1 < ERSTES_JAHR_13TE_AHV;
+      const p2Pre =
+        state.fallart === "paar" &&
+        p2AhvBezieht &&
+        ahvBezugsjahrP2 != null &&
+        ahvBezugsjahrP2 < ERSTES_JAHR_13TE_AHV;
+      if (state.fallart === "paar") {
+        if (p1Pre) zusatz += ahvRenteHaushalt.p1Einzel * ahvFaktorP1 * (1 / 12);
+        if (p2Pre) zusatz += ahvRenteHaushalt.p2Einzel * ahvFaktorP2 * (1 / 12);
+      } else if (p1Pre) {
+        zusatz += ahvRenteHaushalt.haushalt * ahvFaktorP1 * (1 / 12);
       }
-      if (refBezugsjahr < ERSTES_JAHR_13TE_AHV) {
-        einnahmenAhv = Math.round(einnahmenAhv * (13 / 12));
+      if (zusatz > 0) {
+        einnahmenAhv = Math.round(einnahmenAhv + zusatz);
+        if (
+          state.fallart === "paar" &&
+          !istKonkubinat(state) &&
+          p1AhvBezieht &&
+          p2AhvBezieht
+        ) {
+          const plafondMax = Math.round(45_360 * (13 / 12));
+          if (einnahmenAhv > plafondMax) einnahmenAhv = plafondMax;
+        }
+      }
+    }
+
+    // AHV21-Rentenzuschlag für Übergangs-Frauen Jg 1961-1969 — wird ZUSÄTZLICH
+    // zur (plafondierten) Ehepaarrente addiert. Pro-Rata im Bezugsstart-Jahr
+    // via ahvFaktorPx. Zuschlag wird mit dreizehnteAhvFaktor multipliziert,
+    // damit auch der 13.-AHV-Monat den Zuschlag enthält (BSV-Praxis).
+    //
+    // WICHTIG: Zuschlag wird NUR berechnet wenn KEIN Override-Wert gesetzt
+    // ist (ahvRenteJahrEffektivP*). Berater-Override-Werte enthalten den
+    // Zuschlag bereits oder die Berater-Annahme ist bewusst ohne Zuschlag —
+    // Engine darf nicht doppelt addieren. Bei Skala-44-Berechnung addiert
+    // die Engine den Zuschlag standardmässig (BSV-Praxis).
+    {
+      const gjP1 = state.person1.geburtsdatum
+        ? Number.parseInt(state.person1.geburtsdatum.slice(0, 4), 10)
+        : null;
+      const gjP2 =
+        state.fallart === "paar" && state.person2.geburtsdatum
+          ? Number.parseInt(state.person2.geburtsdatum.slice(0, 4), 10)
+          : null;
+      const dfJahr = dreizehnteAhvFaktor(jahr);
+      const overrideP1 =
+        state.ahv.ahvRenteJahrEffektivP1 != null &&
+        state.ahv.ahvRenteJahrEffektivP1 > 0;
+      const overrideP2 =
+        state.ahv.ahvRenteJahrEffektivP2 != null &&
+        state.ahv.ahvRenteJahrEffektivP2 > 0;
+      if (p1AhvBezieht && gjP1 != null && !overrideP1) {
+        const ordP1 = ordentlichesAhvAlter(gjP1, state.person1.geschlecht ?? null);
+        const zuschlagP1 = ahv21Rentenzuschlag(
+          gjP1,
+          state.person1.geschlecht ?? null,
+          clampAhvAlter(state.ahv.ahvBezugsalterP1),
+          ordP1,
+          state.ahv.einkommenP1 ?? 0
+        );
+        if (zuschlagP1 > 0) {
+          einnahmenAhv = Math.round(
+            einnahmenAhv + zuschlagP1 * ahvFaktorP1 * dfJahr
+          );
+        }
+      }
+      if (
+        state.fallart === "paar" &&
+        p2AhvBezieht &&
+        gjP2 != null &&
+        !overrideP2
+      ) {
+        const ordP2 = ordentlichesAhvAlter(gjP2, state.person2.geschlecht ?? null);
+        const zuschlagP2 = ahv21Rentenzuschlag(
+          gjP2,
+          state.person2.geschlecht ?? null,
+          clampAhvAlter(state.ahv.ahvBezugsalterP2),
+          ordP2,
+          state.ahv.einkommenP2 ?? 0
+        );
+        if (zuschlagP2 > 0) {
+          einnahmenAhv = Math.round(
+            einnahmenAhv + zuschlagP2 * ahvFaktorP2 * dfJahr
+          );
+        }
       }
     }
 
@@ -858,9 +935,15 @@ export function cashflowReihe(
     const saldo = einnahmenTotal - ausgabenTotal;
 
     // ─── Vermögens-Update: pro Bucket fortschreiben ─────────────
-    // 1. Block 7: jedes Item mit eigener Rendite verzinsen
+    // 1. Block 7: jedes Item mit eigener Rendite verzinsen.
+    //    Negative Saldi werden NICHT verzinst (kein Zinsgewinn auf
+    //    Schulden — Liquid kann nicht negativ "Rendite" erzielen). Wenn
+    //    der User explizit Schuldzins-Logik braucht, soll er einen
+    //    Darlehen-Eintrag mit negativem Saldo + Zinssatz erfassen.
     for (const b of block7) {
-      b.saldo *= 1 + b.item.renditeProzent / 100;
+      if (b.saldo > 0) {
+        b.saldo *= 1 + b.item.renditeProzent / 100;
+      }
     }
     // 2. Hauptkonto bekommt Cashflow-Saldo + Kapitalauszahlungen aus Vorsorge/
     //    Immo-Verkauf/Firma-Verkauf

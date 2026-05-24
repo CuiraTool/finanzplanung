@@ -156,6 +156,62 @@ export function vorbezugKuerzungProJahrAhv21(
   return 0.068;
 }
 
+/**
+ * AHV21-Rentenzuschlag für Übergangs-Frauen Jg 1961-1969.
+ *
+ * BSV-Wegleitung "AHV21" — lebenslanger monatlicher Zuschlag zur ordentlichen
+ * Altersrente. Anspruch nur wenn Bezug bei oder nach ordentlichem Referenz-
+ * alter (kein Anspruch bei Vorbezug). Wird NICHT mit der Ehepaar-Plafondierung
+ * gekappt — der Zuschlag wird oben drauf auf die plafondierte Rente addiert.
+ *
+ * Voller Zuschlag pro Monat (Stand 2025, indexiert mit Mischindex):
+ *   Jg 1961-62: 160 CHF/Mt
+ *   Jg 1963: 130 CHF/Mt
+ *   Jg 1964-65: 100 CHF/Mt
+ *   Jg 1966-67: 80 CHF/Mt
+ *   Jg 1968-69: 60 CHF/Mt
+ *
+ * Einkommens-Reduktion:
+ *   massgebendes Einkommen ≤ 58'800: 100% Zuschlag
+ *   58'800 < e ≤ 73'500: 50% Zuschlag (BSV-Tabelle vereinfacht)
+ *   e > 73'500: 0% Zuschlag
+ *
+ * Vom 13.-AHV-Faktor wird der Zuschlag NICHT separat hochskaliert — die
+ * 13. AHV wirkt auf die Gesamtsumme inkl. Zuschlag (BSV: 13. AHV-Auszahlung
+ * im Dezember enthält den anteiligen Zuschlag).
+ */
+const AHV21_RENTENZUSCHLAG_PRO_MONAT: Record<number, number> = {
+  1961: 160,
+  1962: 160,
+  1963: 130,
+  1964: 100,
+  1965: 100,
+  1966: 80,
+  1967: 80,
+  1968: 60,
+  1969: 60,
+};
+
+export function ahv21Rentenzuschlag(
+  geburtsjahr: number,
+  geschlecht: "m" | "w" | "andere" | null | undefined,
+  bezugsalter: number,
+  ordAlter: number,
+  massgebendesEinkommen: number
+): number {
+  if (geschlecht !== "w") return 0;
+  const zuschlagProMonat = AHV21_RENTENZUSCHLAG_PRO_MONAT[geburtsjahr];
+  if (zuschlagProMonat == null) return 0;
+  // Kein Zuschlag bei Vorbezug — nur bei oder nach ord-Alter.
+  if (bezugsalter < ordAlter) return 0;
+  const e = massgebendesEinkommen;
+  let faktor: number;
+  if (e <= 58_800) faktor = 1.0;
+  else if (e <= 73_500) faktor = 0.5;
+  else return 0;
+  return zuschlagProMonat * 12 * faktor;
+}
+
 const AUFSCHUB_ZUSCHLAG_TABELLE: { monate: number; zuschlag: number }[] = [
   { monate: 0, zuschlag: 0 },
   { monate: 12, zuschlag: 0.052 },
