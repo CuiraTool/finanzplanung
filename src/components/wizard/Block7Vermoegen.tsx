@@ -187,18 +187,29 @@ function VermoegenCard({
             className={`${inputClass} tabular-nums`}
           />
         </Field>
-        <Field label="Rendite p.a. (%)" hint={istDarlehen ? "Zinssatz" : ""}>
-          <input
-            type="number"
-            inputMode="decimal"
-            step={0.1}
-            min={-10}
-            max={20}
-            value={item.renditeProzent}
-            onChange={(e) => onUpdate({ renditeProzent: Number(e.target.value) })}
-            className={`${inputClass} tabular-nums`}
-          />
-        </Field>
+        {item.typ === "konto" ? (
+          <Field label="Rendite p.a. (%)" hint="Liquidität nicht verzinst">
+            <input
+              type="number"
+              value={0}
+              disabled
+              className={`${inputClass} tabular-nums bg-slate-100 text-slate-500`}
+            />
+          </Field>
+        ) : (
+          <Field label="Rendite p.a. (%)" hint={istDarlehen ? "Zinssatz" : ""}>
+            <input
+              type="number"
+              inputMode="decimal"
+              step={0.1}
+              min={-10}
+              max={20}
+              value={item.renditeProzent}
+              onChange={(e) => onUpdate({ renditeProzent: Number(e.target.value) })}
+              className={`${inputClass} tabular-nums`}
+            />
+          </Field>
+        )}
       </div>
 
       {!istDarlehen && !item.istHauptkonto && (

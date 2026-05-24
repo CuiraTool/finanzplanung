@@ -940,8 +940,12 @@ export function cashflowReihe(
     //    Schulden — Liquid kann nicht negativ "Rendite" erzielen). Wenn
     //    der User explizit Schuldzins-Logik braucht, soll er einen
     //    Darlehen-Eintrag mit negativem Saldo + Zinssatz erfassen.
+    //    Konto-Typ (Liquidität) wird NICHT verzinst — Bankkonto-Realität:
+    //    0-0.25% p.a. Falls User Festgeld/Anlage will, soll er typ="depot"
+    //    erfassen. Schützt gegen unrealistische Vermögens-Projektionen
+    //    (Validierung Wullimann 2025: 1.5% auf 1.1M → +223k Drift vs Taxware).
     for (const b of block7) {
-      if (b.saldo > 0) {
+      if (b.saldo > 0 && b.item.typ !== "konto") {
         b.saldo *= 1 + b.item.renditeProzent / 100;
       }
     }
