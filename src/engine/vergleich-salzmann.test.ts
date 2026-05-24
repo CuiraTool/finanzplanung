@@ -199,6 +199,9 @@ describe("Vergleich Salzmann (Ausgangslage) — Engine-Validierung", () => {
       console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, t.vermNetto)}`);
       console.log(`  Steuern total   : ${d(z.ausgabenSteuern, t.stTotal)}`);
       console.log(
+        `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)} (KapBund=${Math.round(z.ausgabenSteuernKapitalBund)} KapKan=${Math.round(z.ausgabenSteuernKapitalKanton)})`
+      );
+      console.log(
         `  Detail: AHV=${Math.round(z.einnahmenAhv)} Haushalt=${Math.round(z.ausgabenHaushalt)} KapAusz=${Math.round(z.kapAuszahlungen)}`
       );
     }

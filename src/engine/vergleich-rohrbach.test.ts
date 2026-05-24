@@ -233,6 +233,9 @@ describe("Vergleich Rohrbach (Ausgangslage) — Engine-Validierung", () => {
       console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, t.vermNetto)}`);
       console.log(`  Steuern total   : ${d(z.ausgabenSteuern, t.stTotal)}`);
       console.log(
+        `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)} (KapBund=${Math.round(z.ausgabenSteuernKapitalBund)} KapKan=${Math.round(z.ausgabenSteuernKapitalKanton)})`
+      );
+      console.log(
         `  Detail: Erwerb=${Math.round(z.einnahmenErwerb)} AHV=${Math.round(z.einnahmenAhv)} BVG=${Math.round(z.einnahmenBvgRente)} Haushalt=${Math.round(z.ausgabenHaushalt)} KapAusz=${Math.round(z.kapAuszahlungen)}`
       );
     }

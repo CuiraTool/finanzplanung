@@ -246,6 +246,9 @@ describe("Vergleich Staub-Kappeler (Ausgangslage)", () => {
       console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, t.vermNetto)}`);
       console.log(`  Steuern total   : ${d(z.ausgabenSteuern, t.stTotal)}`);
       console.log(
+        `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)} (KapBund=${Math.round(z.ausgabenSteuernKapitalBund)} KapKan=${Math.round(z.ausgabenSteuernKapitalKanton)})`
+      );
+      console.log(
         `  Detail: AHV=${Math.round(z.einnahmenAhv)} BVG=${Math.round(z.einnahmenBvgRente)} Miet=${Math.round(z.einnahmenMieten)} Haushalt=${Math.round(z.ausgabenHaushalt)} Hypozins=${Math.round(z.ausgabenHypozins)} KapAusz=${Math.round(z.kapAuszahlungen)} EMW=${Math.round(z.eigenmietwertJahr)}`
       );
     }

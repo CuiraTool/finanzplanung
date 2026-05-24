@@ -316,6 +316,9 @@ describe("Vergleich Bakiu (Ausgangslage) — Engine-Validierung gegen Taxware", 
       console.log(`  Saldo           : ${d(z.saldo, t.saldo)}`);
       console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, t.vermNetto)}`);
       console.log(`  Steuern total   : ${d(z.ausgabenSteuern, t.stTotal)}`);
+      console.log(
+        `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)} (KapBund=${Math.round(z.ausgabenSteuernKapitalBund)} KapKan=${Math.round(z.ausgabenSteuernKapitalKanton)})`
+      );
       console.log(`    Eink-Steuer   : ${d(z.ausgabenSteuernEinkommen, t.stEink)}`);
       console.log(`    Verm-Steuer   : ${d(z.ausgabenSteuernVermoegen, t.stVerm)}`);
       console.log(`    Kap-Steuer    : ${d(z.ausgabenSteuernKapital, t.stKap)}`);
