@@ -273,6 +273,14 @@ export function massnahmenAusState(state: PlanState): Massnahme[] {
   // ════════════════════════════════════════════════════════════════════
   out.push(...optimierungenBerechnen(state));
 
+  // Kap-Steuer-Staffelung-Warnung: mehrere Vorsorge-Kap-Auszahlungen
+  // im selben Steuerjahr (PK + 3a + FZ) werden in einem Bescheid
+  // progressiv besteuert. Berater-Hinweis zur möglichen Staffelung
+  // über mehrere Jahre. Kein Engine-Bug — steuerrechtlich korrekt nach
+  // StHG Art. 11 und Bundesgericht-Praxis: alle Kap-Auszahlungen eines
+  // Jahres bei selbem Steuersubjekt → eine Berechnung, ein Sondertarif.
+  kapAuszahlungenWarnung(state, out, heute);
+
   // Sortieren: zuerst Optimierungen (mit Ersparnis sortiert nach Höhe),
   // dann Reminder nach Jahr/Monat
   out.sort((a, b) => {
@@ -754,6 +762,89 @@ function geburtsmonat(geburtsdatum: string): number {
   if (!geburtsdatum) return 1;
   const m = Number.parseInt(geburtsdatum.slice(5, 7), 10);
   return Number.isFinite(m) && m >= 1 && m <= 12 ? m : 1;
+}
+
+/**
+ * Sammelt Kap-Auszahlungs-Jahre pro Person aus PK (Mischung/Kapital),
+ * Freizügigkeit und Säule 3a. Wenn ≥ 2 Auszahlungen einer Person im
+ * selben Steuerjahr → Warnung-Massnahme erzeugen.
+ *
+ * Steuerrechtlicher Hintergrund: alle Kapitalleistungen aus Vorsorge im
+ * selben Jahr werden ZUSAMMENGERECHNET und mit progressiver Sondertarif-
+ * Skala besteuert. Staffelung über mehrere Steuerjahre kann je nach
+ * Kanton CHF 5'000–30'000 Steuern sparen (Tarif-Progression).
+ */
+function kapAuszahlungenWarnung(
+  state: PlanState,
+  out: Massnahme[],
+  heute: number
+): void {
+  type Auszahlung = { person: "p1" | "p2"; jahr: number; quelle: string };
+  const auszahlungen: Auszahlung[] = [];
+
+  const personen: { idx: "p1" | "p2"; geb: string; vorname: string; bezugsalter: number }[] =
+    state.fallart === "paar"
+      ? [
+          { idx: "p1", geb: state.person1.geburtsdatum, vorname: state.person1.vorname, bezugsalter: state.ziele.bezugsalterP1 },
+          { idx: "p2", geb: state.person2.geburtsdatum, vorname: state.person2.vorname, bezugsalter: state.ziele.bezugsalterP2 },
+        ]
+      : [{ idx: "p1", geb: state.person1.geburtsdatum, vorname: state.person1.vorname, bezugsalter: state.ziele.bezugsalterP1 }];
+
+  for (const p of personen) {
+    const bvg = p.idx === "p1" ? state.bvg.p1 : state.bvg.p2;
+    const drei = p.idx === "p1" ? state.saeuleDrei.p1 : state.saeuleDrei.p2;
+    // PK-Kapitalbezug (Mischung mit kapitalanteil > 0 ODER 100% Kapital)
+    if (bvg.aktiverAnschluss && bvg.bezugspraeferenz !== "rente" && bvg.kapitalanteil > 0) {
+      const pj = pensionsjahr(p.geb, p.bezugsalter);
+      if (pj != null && pj >= heute) {
+        auszahlungen.push({ person: p.idx, jahr: pj, quelle: "PK-Kapitalbezug" });
+      }
+    }
+    // Freizügigkeit
+    for (const fz of bvg.freizuegigkeit) {
+      if (fz.saldoHeute != null && fz.saldoHeute > 0 && fz.auszahlungsjahr >= heute) {
+        auszahlungen.push({ person: p.idx, jahr: fz.auszahlungsjahr, quelle: `Freizügigkeit ${fz.beschreibung || ""}`.trim() });
+      }
+    }
+    // 3a Konten (Versicherungen über Ablaufjahr separat — meist 3b, ohne Sondertarif-Kumulation)
+    for (const d of drei) {
+      if (d.type === "konto" && d.saeule === "3a") {
+        if (d.aktuellerWert != null && d.aktuellerWert >= 0 && d.auszahlungsjahr >= heute) {
+          auszahlungen.push({ person: p.idx, jahr: d.auszahlungsjahr, quelle: `3a ${d.beschreibung || ""}`.trim() });
+        }
+      } else if (d.type === "versicherung" && d.saeule === "3a") {
+        if (d.ablaufjahr >= heute) {
+          auszahlungen.push({ person: p.idx, jahr: d.ablaufjahr, quelle: `3a-Police ${d.beschreibung || ""}`.trim() });
+        }
+      }
+    }
+  }
+
+  // Gruppieren pro Person × Jahr → wenn ≥ 2 Quellen: Warnung
+  const groups = new Map<string, Auszahlung[]>();
+  for (const a of auszahlungen) {
+    const key = `${a.person}-${a.jahr}`;
+    const list = groups.get(key) ?? [];
+    list.push(a);
+    groups.set(key, list);
+  }
+
+  for (const [key, list] of groups) {
+    if (list.length < 2) continue;
+    const { person, jahr } = list[0]!;
+    const vorname =
+      person === "p1" ? state.person1.vorname : state.person2.vorname;
+    const quellen = list.map((a) => a.quelle).filter(Boolean).join(" + ");
+    out.push({
+      id: `kap-aggregation-${key}`,
+      jahr,
+      wer: person,
+      kategorie: "steuern",
+      titel: `Kap-Bezüge ${jahr}: Staffelung prüfen`,
+      detail: `${vorname || "Person"} hat ${list.length} Vorsorge-Kapitalbezüge im selben Steuerjahr (${quellen}). Werden zusammengerechnet → progressiver Sondertarif. Staffelung über 2–3 Jahre kann je nach Kanton mehrere tausend CHF sparen.`,
+      prioritaet: 2,
+    });
+  }
 }
 
 /**
