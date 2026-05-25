@@ -73,7 +73,7 @@ for (const code of cantonCodes) {
       fallart: "einzel",
       religion: "andere",
       jahr: JAHR,
-    }).total ?? 0;
+    }) as number;
   } catch {
     // pass
   }
