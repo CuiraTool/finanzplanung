@@ -173,7 +173,7 @@ export function TragbarkeitPanel() {
         verwendet <strong>Brutto</strong> (Netto × 1.15-Hochrechnung,
         Bankenstandard). Ordentliche Tilgung in % pro Jahr ist nicht
         modelliert — Tilgungen jahrgenau pro Hypothek-Tranche unter
-        „Tilgungsplan" eintragen.
+        „Tilgungsplan&quot; eintragen.
       </div>
     </fieldset>
   );

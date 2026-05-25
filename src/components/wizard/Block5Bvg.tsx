@@ -134,11 +134,11 @@ export function Block5Bvg() {
       )}
 
       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        <span className="font-medium">Engine-Vereinfachung:</span> die
-        BVG-Sparphase wird linear zwischen „Altersguthaben heute" und „bei
-        Bezug" interpoliert (±2-3 % Drift vs. exakte Sparzins-Mathematik).
-        Bei Frühpension wird der Saldo proportional reduziert; bei Aufschub
-        wächst er mit BVG-Mindestzins 1.25 % p.a. weiter.
+        <span className="font-medium">Engine-Modell:</span> die BVG-Sparphase
+        wird versicherungsmathematisch zwischen „Altersguthaben heute&quot;
+        und „bei Bezug&quot; berechnet (FV-Formel mit BVG-Mindestzins
+        1.25 % p.a.). Bei Frühpension wird der Saldo exakt anhand des
+        Sparbeitrags reduziert; bei Aufschub wächst er mit Mindestzins weiter.
       </div>
     </div>
   );
@@ -365,7 +365,7 @@ function PersonBvgForm({
       {tab === "ag" && !person.aktiverAnschluss && (
         <p className="text-xs text-slate-500">
           Kein aktiver PK-Anschluss — keine Altersguthaben-Erfassung nötig.
-          Freizügigkeit kann unter dem Tab "Freizügigkeit" erfasst werden.
+          Freizügigkeit kann unter dem Tab &quot;Freizügigkeit&quot; erfasst werden.
         </p>
       )}
 

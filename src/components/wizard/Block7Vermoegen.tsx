@@ -281,8 +281,8 @@ function UmschichtungenSektion({
       </div>
       {ums.length === 0 ? (
         <p className="text-[11px] text-slate-400">
-          Entnahme (← HK): 100'000 vom Depot aufs Hauptkonto in 2027.
-          Sparphase (→ HK): 100'000 vom Hauptkonto ins Depot in 2026.
+          Entnahme (← HK): 100&apos;000 vom Depot aufs Hauptkonto in 2027.
+          Sparphase (→ HK): 100&apos;000 vom Hauptkonto ins Depot in 2026.
         </p>
       ) : (
         <ul className="space-y-1">

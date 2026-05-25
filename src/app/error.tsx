@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 /**
  * Route-Level Error-Boundary (Next.js App Router).
@@ -88,7 +89,7 @@ export default function Error({
           >
             Erneut versuchen
           </button>
-          <a
+          <Link
             href="/"
             style={{
               background: "#ffffff",
@@ -102,7 +103,7 @@ export default function Error({
             }}
           >
             Zur Startseite
-          </a>
+          </Link>
         </div>
         {error.digest && (
           <p

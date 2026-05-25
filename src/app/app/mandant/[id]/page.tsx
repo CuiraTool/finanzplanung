@@ -52,9 +52,9 @@ export default function MandantDetailPage({
 }) {
   const { id } = use(params);
   const m = findMandant(id);
-  if (!m) return notFound();
-
+  // Hook MUSS vor jedem early-return aufgerufen werden (rules-of-hooks)
   const [tab, setTab] = useState<Tab>("uebersicht");
+  if (!m) return notFound();
 
   return (
     <div

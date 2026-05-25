@@ -403,7 +403,7 @@ function SaveView({
           className="mt-1 block text-[10.5px]"
           style={{ color: "var(--ink-3)" }}
         >
-          Optional — wenn leer, wird „Snapshot" als Notiz verwendet.
+          Optional — wenn leer, wird „Snapshot&quot; als Notiz verwendet.
         </span>
       </label>
       <div className="flex justify-end gap-2 pt-2">

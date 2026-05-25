@@ -388,7 +388,7 @@ export default function PrintPage() {
       {/* Toolbar nur am Bildschirm sichtbar */}
       <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3 text-sm shadow-sm print:hidden">
         <div className="text-slate-600">
-          📄 Druckversion — Cmd/Ctrl+P · Im Druck-Dialog "Kopf- und Fusszeilen" deaktivieren für sauberes PDF
+          📄 Druckversion — Cmd/Ctrl+P · Im Druck-Dialog &quot;Kopf- und Fusszeilen&quot; deaktivieren für sauberes PDF
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
