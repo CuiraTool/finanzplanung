@@ -5,17 +5,19 @@
  *   - 3a-Maximalbeitrag Erwerbstätige mit PK:    CHF 7'258
  *   - 3a-Maximalbeitrag Selbständige ohne PK:    CHF 36'288 (max 20% Erwerbseinkommen)
  *
- * Modell Block 6 Etappe 1:
+ * Modell:
  *   - Pro Person beliebig viele 3.-Säule-Items
  *   - Item-Typ "konto" (Bank/Wertschriften): aktueller Wert, Auszahlungsjahr,
- *     Rendite-Annahme p.a. → Engine projiziert mit (1+r)^Jahre
- *   - Item-Typ "versicherung": Rückkaufswert heute + Ablaufjahr → Engine nimmt
- *     Rückkaufswert als Auszahlungsbetrag (vereinfacht; reale Erlebensfall-
- *     leistung mit Überschüssen folgt mit Versicherungs-Engine V2)
+ *     Rendite-Annahme p.a. → Engine projiziert (1+r)^Jahre + jährliche Einzahlungen
+ *   - Item-Typ "versicherung": Rückkaufswert + Ablaufswert (Erlebensfallleistung
+ *     inkl. Überschüsse, direkt vom Versicherer-Beleg) + Ablaufjahr. Engine nutzt
+ *     ablaufswert wenn gesetzt, sonst rueckkaufswert (konservativer Fallback).
+ *     Berater entscheidet pro Police: ablaufswert eingeben = mit Überschüsse,
+ *     leer lassen = nur garantierter Rückkaufswert. Stand V2 2026-05 ✓
  *
  * Bezugsregeln 3a (frühestens 60, spätestens AHV-Rentenalter, Ausnahmen WEF /
- * Selbständigkeit / Auswanderung) werden in Etappe 2 als Validierung ergänzt —
- * für jetzt vertrauen wir der Eingabe des Users beim Auszahlungsjahr.
+ * Selbständigkeit / Auswanderung): UI-Validierung im Wizard, Engine vertraut
+ * der Berater-Eingabe beim Auszahlungsjahr.
  */
 
 export type SaeuleDreiItemTyp = "konto" | "versicherung";
