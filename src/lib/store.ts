@@ -117,6 +117,28 @@ export interface AhvInput {
    */
   ahvRenteJahrEffektivP1: number | null;
   ahvRenteJahrEffektivP2: number | null;
+  /**
+   * IV-Rente 1. Säule (CHF/Jahr) — bereits laufend vor AHV-Alter.
+   * Aktiv von heute bis zum AHV-Bezugsalter, wandelt sich dann automatisch
+   * in die normale AHV-Altersrente um (vom IV-Stamm).
+   * Wirkung:
+   *  - Einnahmen-Komponente einnahmenAhv vor AHV-Bezugsalter
+   *  - Voll steuerbares Einkommen (wie AHV-Rente)
+   *  - Kein AHV-NE-Beitrag (Art. 3 Abs. 3 AHVG: IV-Rentner sind beitragsfrei)
+   *  - Kein Erwerbs-Abzug (Sozial/BVG) auf IV-Rente
+   * Wenn null oder 0: keine IV-Rente.
+   */
+  ivRente1SaeuleP1: number | null;
+  ivRente1SaeuleP2: number | null;
+  /**
+   * IV-Rente 2. Säule (CHF/Jahr) — PK-Invaliditätsrente.
+   * Aktiv von heute bis zum BVG-Bezugsalter (i.d.R. = AHV-Bezugsalter),
+   * dann wandelt sich der PK-Saldo in die Altersleistung um.
+   * Wirkung: einnahmenBvgRente vor PK-Bezugsalter, voll steuerbar.
+   * Wenn null oder 0: keine IV-PK-Rente.
+   */
+  ivRente2SaeuleP1: number | null;
+  ivRente2SaeuleP2: number | null;
 }
 
 /** BVG / 2. Säule — Block 5. */
@@ -978,6 +1000,10 @@ const initialAhv: AhvInput = {
   ahvBezugsalterP2: 65,
   ahvRenteJahrEffektivP1: null,
   ahvRenteJahrEffektivP2: null,
+  ivRente1SaeuleP1: null,
+  ivRente1SaeuleP2: null,
+  ivRente2SaeuleP1: null,
+  ivRente2SaeuleP2: null,
 };
 
 const initialBvgPerson: BvgPersonInput = {
@@ -1202,6 +1228,10 @@ export const usePlanStore = create<PlanState>()(
             ahvBezugsalterP2: 65,
             ahvRenteJahrEffektivP1: null,
             ahvRenteJahrEffektivP2: null,
+            ivRente1SaeuleP1: null,
+            ivRente1SaeuleP2: null,
+            ivRente2SaeuleP1: null,
+            ivRente2SaeuleP2: null,
           },
           bvg: initialBvg,
           saeuleDrei: { p1: [], p2: [] },
@@ -2066,10 +2096,10 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v45",
+      name: "cuira-plan-v46",
       // Schema-Version: MUSS mit dem name-Suffix (vNN) und
       // AKTUELLE_SCHEMA_VERSION in plan-export.ts übereinstimmen.
-      version: 45,
+      version: 46,
       // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
       // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
       // Plan-Slot existiert.

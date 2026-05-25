@@ -6,8 +6,8 @@
  *  - Einzelperson m, ledig, ev-ref, SG Zuzwil
  *  - geb 10.04.1968, Pension Alter 65 = April 2033
  *  - **IV-Rente bereits laufend** (vor AHV-Alter)
- *    - 1. Säule IV: 7'440 p.a.
- *    - 2. Säule IV: 36'876 p.a.
+ *    - 1. Säule IV: 7'440 p.a.  → ahv.ivRente1SaeuleP1 (V2)
+ *    - 2. Säule IV: 36'876 p.a. → ahv.ivRente2SaeuleP1 (V2)
  *  - Teilzeit-Erwerb 82'758 (mit IV)
  *  - AHV ab Pension Alter 65 → 100% Kapitalbezug PK aktiver Teil (~800k)
  *  - 3a Konto ZKB 105'379 (2031), 3a VIAC 80'836 (2032), 3a NEU 28'937 (2033)
@@ -15,11 +15,9 @@
  *  - Inflation 1.5%
  *  - Stichtage Heute 2024 + Pension+1/+5/+10 = 2034/2038/2043
  *
- * **Engine-Limit:** IV-Rente vor AHV-Alter wird Engine als "AHV-Override"
- *   modelliert mit bezugsalter < heute. Engine erkennt das nicht voll →
- *   Drift erwartet bei AHV-Komponente.
- *   Workaround: IV-Renten als "einkommen" mit personIdx 1 (AHV-pflichtig
- *   was falsch ist) — kleine Drift bei AHV-Beiträgen.
+ * V2-Fix 2026-05: IV-Rente nativ erfasst via ahv.ivRente1SaeuleP1 +
+ * ivRente2SaeuleP1. Kein NE-Beitrag mehr (Art. 3 Abs. 3 AHVG), korrekte
+ * Steuerbehandlung (voll steuerbar), Pro-Rata bei AHV-Übergang.
  */
 import { describe, it, beforeAll, afterAll } from "vitest";
 import { cashflowReihe, type CashflowInput } from "./cashflow";
@@ -37,7 +35,7 @@ class _FakeDate extends _RealDate {
   }
 }
 
-describe("Vergleich Kunz Urs (Ausgangslage) — IV-Rente Workaround", () => {
+describe("Vergleich Kunz Urs (Ausgangslage) — IV-Rente nativ (V2)", () => {
   beforeAll(() => {
     (globalThis as any).Date = _FakeDate;
   });
@@ -89,6 +87,11 @@ describe("Vergleich Kunz Urs (Ausgangslage) — IV-Rente Workaround", () => {
         // PDF AHV nach Pension 2033 = Annahme 25'430 (IV-AHV-Umwandlung).
         ahvRenteJahrEffektivP1: 23474, // 25'430 × 12/13
         ahvRenteJahrEffektivP2: null,
+        // V2: IV-Renten nativ vor AHV-Alter (bis April 2033 Pro-Rata).
+        ivRente1SaeuleP1: 7440,
+        ivRente1SaeuleP2: null,
+        ivRente2SaeuleP1: 36876,
+        ivRente2SaeuleP2: null,
       },
       bvg: {
         p1: {
@@ -194,16 +197,10 @@ describe("Vergleich Kunz Urs (Ausgangslage) — IV-Rente Workaround", () => {
             von: "2024-01",
             bis: "2033-04",
           },
-          {
-            // IV-Renten als Einkommen modelliert — Engine zieht AHV (falsch),
-            // aber gibt Cashflow korrekt wieder. Drift bei AHV-Beiträgen.
-            id: "iv",
-            beschreibung: "IV-Renten (1. + 2. Säule)",
-            personIdx: 1,
-            betragMonatlich: 44316 / 12, // 7440 + 36876
-            von: "2024-01",
-            bis: "2033-04",
-          },
+          // V2 2026-05: IV-Renten jetzt nativ via ahv.ivRente1/2SaeuleP1
+          // (oben). Kein Workaround mehr nötig — Steuer-Engine behandelt
+          // IV-Renten korrekt (kein NE-Beitrag, voll steuerbar als Renten-
+          // einkommen, automatischer Stop bei AHV-Bezugsstart).
         ],
         ausgabenModus: "total",
         // 89'856 − Steuern 21'600 − 3a 7'056 = 61'200
@@ -251,7 +248,7 @@ describe("Vergleich Kunz Urs (Ausgangslage) — IV-Rente Workaround", () => {
       2038: { einn: 64392, ausg: 90756, saldo: -26364, verm: 142536, steuern: 5896 },
     };
 
-    console.log("\n========== CHECKPOINT Kunz Urs (IV-Rente Workaround) ==========");
+    console.log("\n========== CHECKPOINT Kunz Urs (IV-Rente nativ V2) ==========");
     for (const jahr of [2024, 2033, 2038]) {
       const z = reihe.find((r) => r.jahr === jahr);
       if (!z) continue;

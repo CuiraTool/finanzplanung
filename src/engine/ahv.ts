@@ -16,9 +16,9 @@
  *   - Effekt: Jahresrente ab Bezugsjahr 2026 wird mit Faktor 13/12 multipliziert
  *
  * Vorbezug (max. 2 Jahre vor ordentlichem Alter, Stand AHV21):
- *   - 6.8% Kürzung pro Jahr Vorbezug = 0.567% pro Monat
- *   - Standard-Kürzungssatz für mittlere Einkommen
- *   - Etappe 1.5: einkommensabhängige Staffelung nach AHV21
+ *   - 6.8% Kürzung pro Jahr Vorbezug = 0.567% pro Monat (Standard)
+ *   - AHV21-Übergangsfrauen Jg 1961-63: einkommensabhängige Staffelung
+ *     0-6.8% gemäss BSV-Tabelle (vorbezugKuerzungProJahrAhv21) ✓ Stand 2026-05
  *
  * Aufschub (1–5 Jahre nach ordentlichem Alter):
  *   - Zuschlag nach BSV-Tabelle, nicht-linear gestaffelt:

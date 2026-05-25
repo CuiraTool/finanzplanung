@@ -22,7 +22,7 @@ import type { PlanState } from "./store";
  * UND ggf. einen Migrator in MIGRATIONS ergänzen (rein additive Felder
  * brauchen keinen Migrator — fehlende Felder fallen auf store-defaults).
  */
-export const AKTUELLE_SCHEMA_VERSION = 45;
+export const AKTUELLE_SCHEMA_VERSION = 46;
 
 /** Magic-String zur Format-Erkennung beim Import. */
 export const SNAPSHOT_FORMAT_TAG = "cuira-pro-snapshot";

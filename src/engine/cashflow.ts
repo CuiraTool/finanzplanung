@@ -538,6 +538,30 @@ export function cashflowReihe(
       }
     }
 
+    // IV-Rente vor AHV-/PK-Bezugsalter (V2 2026-05): 1. Säule fliesst zu
+    // einnahmenAhv, 2. Säule zu einnahmenBvgRente. Pro-Rata = (1 − Bezugs-
+    // Faktor) im Übergangsjahr, geclampt auf [0, 1]. Bei Bezugsstart AHV/PK
+    // hört IV automatisch auf (Umwandlung in Altersleistung).
+    const ivAnteilAhvP1 = Math.max(0, 1 - Math.min(1, ahvFaktorP1));
+    const ivAnteilPkP1 = Math.max(0, 1 - Math.min(1, pkFaktorP1));
+    const iv1P1 = Math.round((state.ahv.ivRente1SaeuleP1 ?? 0) * ivAnteilAhvP1);
+    const iv2P1 = Math.round((state.ahv.ivRente2SaeuleP1 ?? 0) * ivAnteilPkP1);
+    einnahmenAhv += iv1P1;
+    einnahmenBvgRente += iv2P1;
+    if (state.fallart === "paar") {
+      const ivAnteilAhvP2 = Math.max(0, 1 - Math.min(1, ahvFaktorP2));
+      const pkFaktorP2Iv = pkJahresFaktor(jahr, pkStartP2);
+      const ivAnteilPkP2 = Math.max(0, 1 - Math.min(1, pkFaktorP2Iv));
+      const iv1P2 = Math.round(
+        (state.ahv.ivRente1SaeuleP2 ?? 0) * ivAnteilAhvP2
+      );
+      const iv2P2 = Math.round(
+        (state.ahv.ivRente2SaeuleP2 ?? 0) * ivAnteilPkP2
+      );
+      einnahmenAhv += iv1P2;
+      einnahmenBvgRente += iv2P2;
+    }
+
     const einnahmenMieten = mieteinnahmenJahr(state.immobilien.items, jahr);
 
     // Erbschaft als einmaliger Eingang im erwartetJahr (nur wenn Toggle aktiv)
@@ -722,12 +746,21 @@ export function cashflowReihe(
         ? vermoegenJahresanfang / 2
         : vermoegenJahresanfang;
     const AHV_ERWERBS_MIN_PRE = 5_000;
+    // IV-Rentner sind nach Art. 3 Abs. 3 AHVG von NE-Beiträgen befreit.
+    const ivAktivP1 =
+      (state.ahv.ivRente1SaeuleP1 ?? 0) > 0 ||
+      (state.ahv.ivRente2SaeuleP1 ?? 0) > 0;
+    const ivAktivP2 =
+      state.fallart === "paar" &&
+      ((state.ahv.ivRente1SaeuleP2 ?? 0) > 0 ||
+        (state.ahv.ivRente2SaeuleP2 ?? 0) > 0);
     let ausgabenAhvNeP1 = 0;
     let ausgabenAhvNeP2 = 0;
     if (
       alterP1 != null &&
       alterP1 < state.ahv.ahvBezugsalterP1 &&
-      erwerbP1Roh < AHV_ERWERBS_MIN_PRE
+      erwerbP1Roh < AHV_ERWERBS_MIN_PRE &&
+      !ivAktivP1
     ) {
       ausgabenAhvNeP1 = ahvNeBeitragJahr({
         vermoegen: ahvNeBeitragsbasisVermoegenPre,
@@ -738,7 +771,8 @@ export function cashflowReihe(
       state.fallart === "paar" &&
       alterP2 != null &&
       alterP2 < state.ahv.ahvBezugsalterP2 &&
-      erwerbP2Roh < AHV_ERWERBS_MIN_PRE
+      erwerbP2Roh < AHV_ERWERBS_MIN_PRE &&
+      !ivAktivP2
     ) {
       ausgabenAhvNeP2 = ahvNeBeitragJahr({
         vermoegen: ahvNeBeitragsbasisVermoegenPre,
@@ -2394,8 +2428,8 @@ function anzahlKinderAbzugsfaehig(
 }
 
 /**
- * V2: Anzahl Kinder mit Anspruch auf AHV-Kinderrente — als float
- * (pro-rata im Geburtstags-Jahr).
+ * Anzahl Kinder mit Anspruch auf AHV-Kinderrente — als float
+ * (pro-rata im Geburtstags-Jahr). Stand 2026-05 ✓ implementiert.
  *
  * Art. 22ter AHVG: Anspruch endet am 18. Geburtstag (oder 25. bei Ausbildung).
  * BSV-Praxis: Kinderrente läuft monatlich bis und mit Geburtstags-Monat.
