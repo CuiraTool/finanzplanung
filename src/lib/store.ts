@@ -128,17 +128,17 @@ export interface AhvInput {
    *  - Kein Erwerbs-Abzug (Sozial/BVG) auf IV-Rente
    * Wenn null oder 0: keine IV-Rente.
    */
-  ivRente1SaeuleP1: number | null;
-  ivRente1SaeuleP2: number | null;
+  ivRente1SaeuleP1?: number | null;
+  ivRente1SaeuleP2?: number | null;
   /**
    * IV-Rente 2. Säule (CHF/Jahr) — PK-Invaliditätsrente.
    * Aktiv von heute bis zum BVG-Bezugsalter (i.d.R. = AHV-Bezugsalter),
    * dann wandelt sich der PK-Saldo in die Altersleistung um.
    * Wirkung: einnahmenBvgRente vor PK-Bezugsalter, voll steuerbar.
-   * Wenn null oder 0: keine IV-PK-Rente.
+   * Wenn null/undefined/0: keine IV-PK-Rente. Optional für Backward-Compat.
    */
-  ivRente2SaeuleP1: number | null;
-  ivRente2SaeuleP2: number | null;
+  ivRente2SaeuleP1?: number | null;
+  ivRente2SaeuleP2?: number | null;
 }
 
 /** BVG / 2. Säule — Block 5. */
@@ -456,16 +456,16 @@ export interface FirmaInput {
    * keine Dividenden modelliert.
    * Stand V2 2026-05-25.
    */
-  dividendenJahr: number | null;
+  dividendenJahr?: number | null;
   /**
    * Selbständig-Markierung. Wenn true: Person betreibt selbständige
    * Erwerbstätigkeit (kein Anstellungsverhältnis). Wirkt auf:
    *  - 3a-Limit: 20 % Erwerbseinkommen max 36'288 statt 7'258 (mit BVG)
    *    — schon implementiert wenn hatPkAnschluss=false
    *  - Liquidationsgewinn Art. 37b DBG ab Alter 55 (schon implementiert)
-   * Stand V2 2026-05-25.
+   * Stand V2 2026-05-25. Optional für Backward-Compat.
    */
-  selbstaendig: boolean;
+  selbstaendig?: boolean;
 }
 
 /** Override pro Immobilie für Variante B (Plan + ggf. Verkaufsjahr). */
