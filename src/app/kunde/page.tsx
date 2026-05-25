@@ -59,6 +59,10 @@ interface State {
   email: string;
   phone: string;
   name: string;
+  // Konsens vor Buchung (revDSG/DSGVO): muss alle drei vor "Jetzt buchen".
+  consentAgb: boolean;
+  consentDse: boolean;
+  consentDatenbearbeitung: boolean;
 }
 
 interface SeriesPoint {
@@ -109,6 +113,9 @@ const INITIAL: State = {
   email: "",
   phone: "",
   name: "",
+  consentAgb: false,
+  consentDse: false,
+  consentDatenbearbeitung: false,
 };
 
 function project(s: State): Result {
@@ -1156,6 +1163,7 @@ const DETAILANALYSE_PREIS_CHF = 299;
 
 function StepTermin({
   s,
+  set,
 }: {
   s: State;
   set: SetState;
@@ -1173,6 +1181,10 @@ function StepTermin({
     }
     return u.toString();
   }, [s.name, s.email, s.phone]);
+
+  // Konsens-Status (revDSG/DSGVO): alle drei Boxen müssen vor Buchung.
+  const consentsOk =
+    s.consentAgb && s.consentDse && s.consentDatenbearbeitung;
 
   return (
     <div className="kunde-step">
@@ -1219,50 +1231,160 @@ function StepTermin({
           <li>✓ 60-Min-Beratungsgespräch (Video oder vor Ort)</li>
         </ul>
 
+        {/* Konsens-Block: revDSG/DSGVO/Schweizer Konsumentenschutz —
+            Pflicht vor Lead-Capture (Email + Telefon via Calendly).
+            Email + Tel = personenbeziehbare Daten → ausdrückliche
+            Einwilligung erforderlich. */}
+        <div
+          style={{
+            marginTop: 24,
+            padding: 16,
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 10,
+            display: "grid",
+            gap: 10,
+            fontSize: 13,
+            color: "rgba(255,255,255,0.85)",
+          }}
+        >
+          <label
+            style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}
+          >
+            <input
+              type="checkbox"
+              checked={s.consentAgb}
+              onChange={(e) => set({ consentAgb: e.target.checked })}
+              style={{ marginTop: 3, cursor: "pointer" }}
+            />
+            <span>
+              Ich akzeptiere die{" "}
+              <a
+                href="/agb"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#7dd3fc", textDecoration: "underline" }}
+              >
+                Allgemeinen Geschäftsbedingungen
+              </a>
+              .
+            </span>
+          </label>
+          <label
+            style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}
+          >
+            <input
+              type="checkbox"
+              checked={s.consentDse}
+              onChange={(e) => set({ consentDse: e.target.checked })}
+              style={{ marginTop: 3, cursor: "pointer" }}
+            />
+            <span>
+              Ich habe die{" "}
+              <a
+                href="/datenschutz"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#7dd3fc", textDecoration: "underline" }}
+              >
+                Datenschutzerklärung
+              </a>{" "}
+              gelesen.
+            </span>
+          </label>
+          <label
+            style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}
+          >
+            <input
+              type="checkbox"
+              checked={s.consentDatenbearbeitung}
+              onChange={(e) =>
+                set({ consentDatenbearbeitung: e.target.checked })
+              }
+              style={{ marginTop: 3, cursor: "pointer" }}
+            />
+            <span>
+              Ich willige ein, dass Cuira meine Angaben (inkl. E-Mail und
+              Telefon) für die Erstellung der Pensionsplanung sowie den
+              Versand der Kurzauswertung per E-Mail bearbeiten darf.
+            </span>
+          </label>
+        </div>
+
         <div
           className="kunde-lead-cta-row"
           style={{ marginTop: 20 }}
         >
           <a
             className="kunde-btn-bright"
-            href={calendlyUrl}
+            href={consentsOk ? calendlyUrl : undefined}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ textDecoration: "none", display: "inline-block" }}
+            onClick={(e) => {
+              if (!consentsOk) e.preventDefault();
+            }}
+            aria-disabled={!consentsOk}
+            style={{
+              textDecoration: "none",
+              display: "inline-block",
+              opacity: consentsOk ? 1 : 0.45,
+              cursor: consentsOk ? "pointer" : "not-allowed",
+              pointerEvents: consentsOk ? "auto" : "none",
+            }}
           >
             Jetzt buchen — CHF {DETAILANALYSE_PREIS_CHF}.– →
           </a>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-            Sichere Zahlung via Calendly + Stripe
+            {consentsOk
+              ? "Sichere Zahlung via Calendly + Stripe"
+              : "Bitte erst die drei Häkchen oben setzen"}
           </span>
         </div>
 
         <div className="kunde-lead-trust">
-          <span>FINMA-konform</span>
+          <span>Schweizer Recht</span>
           <span>Honorarberatung</span>
           <span>Kein Datenverkauf</span>
-          <span>DSGVO + revDSG</span>
+          <span>revDSG + DSGVO</span>
         </div>
       </div>
 
-      {/* Calendly-Embed direkt in der Page — Berater kann auch ohne
-          externen Tab buchen. Iframe-Höhe 700px deckt Standard-Calendly-UI. */}
-      <div
-        style={{
-          marginTop: 24,
-          borderRadius: 12,
-          overflow: "hidden",
-          border: "1px solid var(--border)",
-          background: "white",
-        }}
-      >
-        <iframe
-          src={calendlyUrl}
-          title="Termin buchen — Detailanalyse"
-          style={{ width: "100%", height: 700, border: 0 }}
-          loading="lazy"
-        />
-      </div>
+      {/* Calendly-Embed direkt in der Page — erscheint erst nach Konsens
+          (sonst kann Klient Calendly direkt aufrufen ohne AGB/DSE/Einwilligung). */}
+      {consentsOk ? (
+        <div
+          style={{
+            marginTop: 24,
+            borderRadius: 12,
+            overflow: "hidden",
+            border: "1px solid var(--border)",
+            background: "white",
+          }}
+        >
+          <iframe
+            src={calendlyUrl}
+            title="Termin buchen — Detailanalyse"
+            style={{ width: "100%", height: 700, border: 0 }}
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: 24,
+            padding: 32,
+            borderRadius: 12,
+            border: "1px dashed var(--border)",
+            background: "rgba(255,255,255,0.03)",
+            textAlign: "center",
+            color: "rgba(255,255,255,0.6)",
+            fontSize: 13,
+          }}
+        >
+          Bitte setzen Sie zuerst die drei Häkchen oben — danach erscheint
+          der Buchungskalender.
+        </div>
+      )}
     </div>
   );
 }
