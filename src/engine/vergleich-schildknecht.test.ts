@@ -287,16 +287,31 @@ describe("Vergleich Schildknecht Robert+Nguyen (Ausgangslage)", () => {
     const reihe = cashflowReihe(state, 2026, 2050);
     const f = (n: number) => n.toLocaleString("de-CH").padStart(12);
 
-    console.log("\n========== CHECKPOINT Schildknecht (CUIRA only) ==========");
-    for (const jahr of [2028, 2032, 2037, 2042]) {
+    // PDF Werte aus Combinvest AG 19.05.2026 (Schildknecht Ausgangslage)
+    const pdf: Record<number, any> = {
+      2026: { einn: 155509, ausg: 162099, saldo: -6590, verm: 508060, steuern: 36353 },
+      2027: { einn: 86220, ausg: 161017, saldo: -74797, verm: 463863, steuern: 35073 },
+      2032: { einn: 63123, ausg: 84119, saldo: -20996, verm: 397744, steuern: 3975 },
+      2037: { einn: 63123, ausg: 87089, saldo: -23966, verm: 337971, steuern: 3690 },
+      2042: { einn: 63123, ausg: 91893, saldo: -28770, verm: 209871, steuern: 3363 },
+    };
+
+    console.log("\n========== CHECKPOINT Schildknecht ==========");
+    for (const jahr of [2026, 2027, 2032, 2037, 2042]) {
       const z = reihe.find((r) => r.jahr === jahr);
       if (!z) continue;
+      const p = pdf[jahr]!;
+      const d = (cuira: number, tax: number) => {
+        const diff = Math.round(cuira - tax);
+        const pct = tax !== 0 ? ((diff / Math.abs(tax)) * 100).toFixed(1) + "%" : "–";
+        return `${f(Math.round(cuira))} | ${f(tax)} | Δ ${f(diff)} (${pct})`;
+      };
       console.log(`\n── ${jahr} (Alter P1 ${z.alterP1}/P2 ${z.alterP2}) ──`);
-      console.log(`  Einnahmen total : ${f(Math.round(z.einnahmenTotal))}`);
-      console.log(`  Ausgaben total  : ${f(Math.round(z.ausgabenTotal))}`);
-      console.log(`  Saldo           : ${f(Math.round(z.saldo))}`);
-      console.log(`  Vermögen netto  : ${f(Math.round(z.vermoegenNetto))}`);
-      console.log(`  Steuern total   : ${f(Math.round(z.ausgabenSteuern))}`);
+      console.log(`  Einnahmen total : ${d(z.einnahmenTotal, p.einn)}`);
+      console.log(`  Ausgaben total  : ${d(z.ausgabenTotal, p.ausg)}`);
+      console.log(`  Saldo           : ${d(z.saldo, p.saldo)}`);
+      console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, p.verm)}`);
+      console.log(`  Steuern total   : ${d(z.ausgabenSteuern, p.steuern)}`);
       console.log(
         `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)}`
       );

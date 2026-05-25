@@ -141,13 +141,30 @@ describe("Vergleich Baumann Alexandra (Ausgangslage)", () => {
             id: "hk",
             typ: "konto",
             beschreibung: "Liquidität",
-            saldoHeute: 15000,
+            saldoHeute: 17631, // PDF Konti+Anlagen 67'631 minus 3a Police RKW 50'000
             renditeProzent: 0,
             istHauptkonto: true,
           },
         ],
       },
-      immobilien: { items: [] },
+      immobilien: {
+        items: [
+          {
+            // Untermiete-Pattern: kein Verkehrswert, aber Mieteinnahmen 10'200/J
+            // PDF zeigt Mieteinnahmen ohne dass Baumann Immo-Eignerin ist.
+            // Modelliert als "rendite" mit Verkehrswert 0 → nur Cashflow-Effekt.
+            id: "untermiete",
+            beschreibung: "Untermiete-Anteil",
+            typ: "rendite",
+            verkehrswert: 0,
+            hypotheken: [],
+            plan: "behalten",
+            verkaufsjahr: 2099,
+            jaehrlicheMieteinnahmen: 10200,
+            kaufjahr: null,
+          },
+        ],
+      },
       firma: {
         vorhanden: false,
         firmenname: "",

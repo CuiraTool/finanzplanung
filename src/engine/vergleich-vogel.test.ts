@@ -165,7 +165,7 @@ describe("Vergleich Vogel Michel+Carmen (Ausgangslage)", () => {
             id: "hk",
             typ: "konto",
             beschreibung: "Liquidität",
-            saldoHeute: 100000,
+            saldoHeute: 56521, // PDF Konti+Anlagen 2025 = 56'521
             renditeProzent: 0,
             istHauptkonto: true,
           },
@@ -177,14 +177,14 @@ describe("Vergleich Vogel Michel+Carmen (Ausgangslage)", () => {
             id: "eh-basel",
             beschreibung: "EFH Basel",
             typ: "selbstbewohnt",
-            verkehrswert: 1100000,
-            eigenmietwertProzent: 4.35, // 47'827 / 1.1M
+            verkehrswert: 1000000, // PDF Verkehrswert 1'000'000
+            eigenmietwertProzent: 4.78, // 47'827 / 1'000'000
             hypotheken: [
               {
                 id: "hypo",
                 beschreibung: "Hypothek",
-                hoehe: 280000,
-                zinssatzProzent: 3.0, // 8'390 / 280k
+                hoehe: 530000, // PDF Hypothek 530'000
+                zinssatzProzent: 1.58, // 8'390 / 530'000
                 ablaufjahr: 2030,
                 refinanzierungZinssatzProzent: 2.5,
                 tilgungsplan: [],
@@ -265,16 +265,31 @@ describe("Vergleich Vogel Michel+Carmen (Ausgangslage)", () => {
     const reihe = cashflowReihe(state, 2025, 2050);
     const f = (n: number) => n.toLocaleString("de-CH").padStart(12);
 
-    console.log("\n========== CHECKPOINT Vogel Michel+Carmen (CUIRA only) ==========");
-    for (const jahr of [2032, 2036, 2041, 2046]) {
+    // PDF Werte aus Finwiwo AG 20.08.2025 (Vogel Ausgangslage)
+    const pdf: Record<number, any> = {
+      2025: { einn: 157261, ausg: 140740, saldo: 16521, verm: 1540396, steuern: 23092 },
+      2030: { einn: 158908, ausg: 143551, saldo: 15357, verm: 1175297, steuern: 22161 },
+      2035: { einn: 119241, ausg: 130050, saldo: -10809, verm: 649146, steuern: 17213 },
+      2040: { einn: 119241, ausg: 132565, saldo: -13324, verm: 587580, steuern: 17213 },
+      2045: { einn: 119241, ausg: 135143, saldo: -15902, verm: 513251, steuern: 17213 },
+    };
+
+    console.log("\n========== CHECKPOINT Vogel Michel+Carmen ==========");
+    for (const jahr of [2025, 2030, 2035, 2040, 2045]) {
       const z = reihe.find((r) => r.jahr === jahr);
       if (!z) continue;
+      const p = pdf[jahr]!;
+      const d = (cuira: number, tax: number) => {
+        const diff = Math.round(cuira - tax);
+        const pct = tax !== 0 ? ((diff / Math.abs(tax)) * 100).toFixed(1) + "%" : "–";
+        return `${f(Math.round(cuira))} | ${f(tax)} | Δ ${f(diff)} (${pct})`;
+      };
       console.log(`\n── ${jahr} (Alter P1 ${z.alterP1}/P2 ${z.alterP2}) ──`);
-      console.log(`  Einnahmen total : ${f(Math.round(z.einnahmenTotal))}`);
-      console.log(`  Ausgaben total  : ${f(Math.round(z.ausgabenTotal))}`);
-      console.log(`  Saldo           : ${f(Math.round(z.saldo))}`);
-      console.log(`  Vermögen netto  : ${f(Math.round(z.vermoegenNetto))}`);
-      console.log(`  Steuern total   : ${f(Math.round(z.ausgabenSteuern))}`);
+      console.log(`  Einnahmen total : ${d(z.einnahmenTotal, p.einn)}`);
+      console.log(`  Ausgaben total  : ${d(z.ausgabenTotal, p.ausg)}`);
+      console.log(`  Saldo           : ${d(z.saldo, p.saldo)}`);
+      console.log(`  Vermögen netto  : ${d(z.vermoegenNetto, p.verm)}`);
+      console.log(`  Steuern total   : ${d(z.ausgabenSteuern, p.steuern)}`);
       console.log(
         `    └ Eink-St=${Math.round(z.ausgabenSteuernEinkommen)} Verm-St=${Math.round(z.ausgabenSteuernVermoegen)} Kap-St=${Math.round(z.ausgabenSteuernKapital)}`
       );
