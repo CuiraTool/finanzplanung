@@ -155,6 +155,11 @@ const KANTON_PAUSCHALEN: Record<string, Partial<KantonPauschalen>> = {
     doppelverdienerMax: 1_400,
     kinderabzug: 7_800,
   },
+  // KNOWN GAP: 16 weitere Kantone (BL, SH, AI, SO, GR, TG, UR, SZ, OW, NW,
+  // GL, FR, TI, VS, NE, JU) haben keine Override-Pauschalen → fallen auf
+  // KANTON_DEFAULTS (ZH-Werte). Versuch 2026-05-25 brach ESTV-Validation
+  // (TG/BL/AI Werte stimmten nicht). Pauschalen brauchen exakte ESTV-
+  // Kalibrierung mit Tarif zusammen — V2-Aufgabe mit Web-Recherche.
   // Waadt
   VD: {
     versicherungSingle: 3_200,
