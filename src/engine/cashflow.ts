@@ -599,10 +599,14 @@ export function cashflowReihe(
     const einnahmenFirmaDividenden = (() => {
       const f = state.firma;
       if (!f.vorhanden || !f.dividendenJahr || f.dividendenJahr <= 0) return 0;
-      // Im Verkaufsjahr selbst: keine Dividende mehr (AG geht weg, der
-      // Erlös ist via firmaErloesJahr separat erfasst). Strikt >= verhindert
-      // Doppel-Einnahme (Dividende + Verkaufserlös) im Verkaufsjahr.
-      if (f.plan === "verkaufen" && jahr >= f.verkaufsjahr) return 0;
+      if (f.plan === "verkaufen") {
+        if (jahr > f.verkaufsjahr) return 0;
+        // Verkaufsjahr selbst: Pro-Rata-Annahme Jahresmitte (Schweizer
+        // AG-Praxis: Dividende wird typisch VOR Verkauf ausbezahlt — also
+        // anteilig nach gehaltenem Zeitanteil). Default 50 %. Echtes
+        // Verkaufsdatum ist nicht im Schema (V3-Erweiterung).
+        if (jahr === f.verkaufsjahr) return Math.round(f.dividendenJahr * 0.5);
+      }
       return Math.round(f.dividendenJahr);
     })();
 
