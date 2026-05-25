@@ -714,6 +714,38 @@ export function cashflowReihe(
     // Erbschaft NICHT einkommens-steuerpflichtig (separat via Erbschaftssteuer).
     const passivShared = einnahmenMieten + einnahmenAlimente;
 
+    // AHV-NE-Beiträge VOR Steuer-Berechnung — NE-Beitrag ist als
+    // Versicherungsprämie vom steuerbaren Einkommen abziehbar (Art. 33 DBG).
+    // Pro Person separat berechnen damit per-person Steuer-Input korrekt.
+    const ahvNeBeitragsbasisVermoegenPre =
+      state.fallart === "paar"
+        ? vermoegenJahresanfang / 2
+        : vermoegenJahresanfang;
+    const AHV_ERWERBS_MIN_PRE = 5_000;
+    let ausgabenAhvNeP1 = 0;
+    let ausgabenAhvNeP2 = 0;
+    if (
+      alterP1 != null &&
+      alterP1 < state.ahv.ahvBezugsalterP1 &&
+      erwerbP1Roh < AHV_ERWERBS_MIN_PRE
+    ) {
+      ausgabenAhvNeP1 = ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegenPre,
+        rentenJahr: bvgP1Jahr + ahvP1Jahr,
+      });
+    }
+    if (
+      state.fallart === "paar" &&
+      alterP2 != null &&
+      alterP2 < state.ahv.ahvBezugsalterP2 &&
+      erwerbP2Roh < AHV_ERWERBS_MIN_PRE
+    ) {
+      ausgabenAhvNeP2 = ahvNeBeitragJahr({
+        vermoegen: ahvNeBeitragsbasisVermoegenPre,
+        rentenJahr: bvgP2Jahr + ahvP2Jahr,
+      });
+    }
+
     const baseSteuerInput = {
       kanton: wohnsitzKt,
       // Gemeinde-BFS nur valid wenn Wohnsitz unverändert; sonst Default (null)
@@ -754,7 +786,12 @@ export function cashflowReihe(
         {
           ...baseSteuerInput,
           fallart: "einzel",
-          einkommenJahr: bruttoErwerbP1 + ahvP1Jahr + bvgP1Jahr + passivShared / 2,
+          einkommenJahr:
+            bruttoErwerbP1 +
+            ahvP1Jahr +
+            bvgP1Jahr +
+            passivShared / 2 -
+            ausgabenAhvNeP1,
           vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
           kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
           bruttoErwerbP1,
@@ -782,7 +819,12 @@ export function cashflowReihe(
         {
           ...baseSteuerInput,
           fallart: "einzel",
-          einkommenJahr: bruttoErwerbP2 + ahvP2Jahr + bvgP2Jahr + passivShared / 2,
+          einkommenJahr:
+            bruttoErwerbP2 +
+            ahvP2Jahr +
+            bvgP2Jahr +
+            passivShared / 2 -
+            ausgabenAhvNeP2,
           vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
           kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
           bruttoErwerbP1: bruttoErwerbP2, // P2 ist hier als P1 erfasst (Single-Pfad)
@@ -834,7 +876,9 @@ export function cashflowReihe(
             einnahmenMieten +
             einnahmenAhv +
             einnahmenBvgRente +
-            einnahmenAlimente,
+            einnahmenAlimente -
+            ausgabenAhvNeP1 -
+            ausgabenAhvNeP2,
           vermoegenJahr: vermoegenSteuerwertJahresanfang,
           kapAuszahlungenJahr: kapAuszahlungenFuerSteuer,
           fallart: state.fallart,
@@ -881,42 +925,9 @@ export function cashflowReihe(
     // bvgGesamtkapitalBeiBezug → wird im Bezugsjahr addiert + verzinst).
     const ausgabenPkEinkauf = pkEinkaufJahr;
 
-    // AHV-NE-Beiträge bei Frühpension: pro Person separat, ab Erwerbsende
-    // bis ordentliches AHV-Bezugsalter. Bemessung = Vermögen × 20 + Renten × 20.
-    // Vermögen wird bei Ehepaar hälftig zugerechnet. Pro-Rata bei Erwerbs-
-    // Wechseljahr: NE-Anteil = (12 - Erwerbsmonate) / 12.
-    const ahvNeBeitragsbasisVermoegen =
-      state.fallart === "paar"
-        ? vermoegenJahresanfang / 2
-        : vermoegenJahresanfang;
-    // BSV-Merkblatt 2.03 "Beiträge der Nichterwerbstätigen":
-    // Wer im Beitragsjahr aus Erwerb mind. den AHV-Mindestbeitrag (530 CHF/J)
-    // einbezahlt, gilt als erwerbstätig — KEIN zusätzlicher NE-Beitrag.
-    // Bei AHV-Satz 10.6 % entspricht das einem Jahres-Erwerbslohn ab ~5'000 CHF.
-    // → NE-Beitrag nur bei Erwerb < Mindestschwelle UND alter < ahvBezugsalter.
-    const AHV_ERWERBS_MINDESTSCHWELLE = 5_000;
-    let ausgabenAhvNe = 0;
-    if (
-      alterP1 != null &&
-      alterP1 < state.ahv.ahvBezugsalterP1 &&
-      erwerbP1Roh < AHV_ERWERBS_MINDESTSCHWELLE
-    ) {
-      ausgabenAhvNe += ahvNeBeitragJahr({
-        vermoegen: ahvNeBeitragsbasisVermoegen,
-        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-      });
-    }
-    if (
-      state.fallart === "paar" &&
-      alterP2 != null &&
-      alterP2 < state.ahv.ahvBezugsalterP2 &&
-      erwerbP2Roh < AHV_ERWERBS_MINDESTSCHWELLE
-    ) {
-      ausgabenAhvNe += ahvNeBeitragJahr({
-        vermoegen: ahvNeBeitragsbasisVermoegen,
-        rentenJahr: einnahmenBvgRente * 0.5 + einnahmenAhv * 0.5,
-      });
-    }
+    // AHV-NE-Beiträge: schon vor Steuer-Berechnung kalkuliert (siehe oben).
+    // Hier nur zur ausgabenTotal-Summe addieren.
+    const ausgabenAhvNe = ausgabenAhvNeP1 + ausgabenAhvNeP2;
 
     const ausgabenTotal =
       ausgabenHaushalt +
