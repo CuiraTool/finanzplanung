@@ -100,6 +100,17 @@ export interface SteuerInput {
    * Jahres-Restriktion.
    */
   alimenteJahr?: number;
+  /**
+   * Dividenden aus qualifizierter Beteiligung (CHF/Jahr) — i.d.R. eigene
+   * AG mit ≥10 % Anteil. Wird unterschiedlich teilbesteuert:
+   *  - Bund (Art. 18b DBG): 70 % Bemessung → 30 % Reduktion
+   *  - Kanton (Art. 7 Abs. 1bis StHG): 50 % Bemessung (Default; pro-Kanton
+   *    variabel, V3 mit Kanton-Override)
+   * Wert ist im einkommenJahr bereits enthalten (volle Brutto-Dividende);
+   * der Engine zieht intern den nicht-steuerbaren Anteil wieder ab.
+   * Stand V2 2026-05-25.
+   */
+  dividendenQualifiziertJahr?: number;
 }
 
 /**
@@ -203,6 +214,14 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       input.einkommenJahr - abzInput.bruttoErwerbP1 - abzInput.bruttoErwerbP2
     );
     const zusatzPlus = eigenmietwertEff;
+    // Qualifizierte Beteiligungs-Dividenden (Art. 18b DBG / Art. 7 Abs. 1bis
+    // StHG) — V2 2026-05. einkommenJahr enthält die volle Brutto-Dividende,
+    // wir ziehen den nicht-steuerbaren Anteil wieder ab:
+    //   Bund:   30 % Reduktion  → minusBund = dividenden × 0.30
+    //   Kanton: 50 % Reduktion  → minusKanton = dividenden × 0.50
+    const divEff = Math.max(0, input.dividendenQualifiziertJahr ?? 0);
+    const dividendenReduktionBund = divEff * 0.3;
+    const dividendenReduktionKanton = divEff * 0.5;
     const zusatzMinus = schuldzinsenEff + alimenteEff;
     // FIX (Bug AR-Rentner 2026-05): abzuegeBund/Kt.steuerbar ist mit
     // Math.max(0, …) am Brutto-Erwerb geclampt — d.h. wenn bruttoTotal=0
@@ -224,19 +243,35 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
       abzInput.bruttoErwerbP2 === 0;
     if (istRentnerPauschalenPfad) {
       const basisBund =
-        abzuegeBund.bruttoTotal + nichtErwerb + zusatzPlus - zusatzMinus;
+        abzuegeBund.bruttoTotal +
+        nichtErwerb +
+        zusatzPlus -
+        zusatzMinus -
+        dividendenReduktionBund;
       const basisKanton =
-        abzuegeKt.bruttoTotal + nichtErwerb + zusatzPlus - zusatzMinus;
+        abzuegeKt.bruttoTotal +
+        nichtErwerb +
+        zusatzPlus -
+        zusatzMinus -
+        dividendenReduktionKanton;
       steuerbarBund = Math.max(0, basisBund - abzuegeBund.total);
       steuerbarKanton = Math.max(0, basisKanton - abzuegeKt.total);
     } else {
       steuerbarBund = Math.max(
         0,
-        abzuegeBund.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+        abzuegeBund.steuerbar +
+          nichtErwerb +
+          zusatzPlus -
+          zusatzMinus -
+          dividendenReduktionBund
       );
       steuerbarKanton = Math.max(
         0,
-        abzuegeKt.steuerbar + nichtErwerb + zusatzPlus - zusatzMinus
+        abzuegeKt.steuerbar +
+          nichtErwerb +
+          zusatzPlus -
+          zusatzMinus -
+          dividendenReduktionKanton
       );
     }
   } else {
@@ -245,8 +280,12 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     // damit der Fallback nicht silent komplett ignoriert.
     const approx = bruttoZuSteuerbarApprox(input.einkommenJahr);
     const zusatz = eigenmietwertEff - schuldzinsenEff - alimenteEff;
-    steuerbarBund = Math.max(0, approx + zusatz);
-    steuerbarKanton = Math.max(0, approx + zusatz);
+    // Dividenden qualifizierte Beteiligung im Fallback-Pfad: Approx greift
+    // schon 0.85 auf einkommenJahr. Dividenden-Reduktion zusätzlich auf
+    // den approx-Wert geschätzt (V2 2026-05).
+    const divEffApprox = Math.max(0, input.dividendenQualifiziertJahr ?? 0);
+    steuerbarBund = Math.max(0, approx + zusatz - divEffApprox * 0.3);
+    steuerbarKanton = Math.max(0, approx + zusatz - divEffApprox * 0.5);
   }
 
   // ─── Bundessteuer ────────────────────────────────────────────────────

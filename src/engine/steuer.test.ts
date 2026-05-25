@@ -202,3 +202,49 @@ describe("Steuer — Jahres-Differenzierung (2025 vs 2026)", () => {
     expect(y2030.einkommen).toBe(y2026.einkommen);
   });
 });
+
+describe("V2 — Dividenden qualifizierte Beteiligung (Art. 18b DBG)", () => {
+  it("100k Lohn + 50k qual. Dividende → niedriger als 150k Lohn", () => {
+    const lohn150 = steuerProJahr({
+      einkommenJahr: 150_000,
+      vermoegenJahr: 0,
+      kapAuszahlungenJahr: 0,
+      kanton: "ZH",
+      religion: "reformiert",
+    });
+    const lohnDiv = steuerProJahr({
+      einkommenJahr: 150_000,
+      vermoegenJahr: 0,
+      kapAuszahlungenJahr: 0,
+      kanton: "ZH",
+      religion: "reformiert",
+      dividendenQualifiziertJahr: 50_000,
+    });
+    // Teilbesteuerung: ~30 % Reduktion Bund, ~50 % Kanton → Steuer ist niedriger
+    expect(lohnDiv.einkommen).toBeLessThan(lohn150.einkommen);
+    // Reduktion plausibel: 50k × ~30 % ~= 15k weniger Bemessung × ~25 % Grenzsteuer
+    // = mind. 1'000 CHF Steuerersparnis, max 8'000 (konservativ).
+    const ersparnis = lohn150.einkommen - lohnDiv.einkommen;
+    expect(ersparnis).toBeGreaterThan(1_000);
+    expect(ersparnis).toBeLessThan(8_000);
+  });
+
+  it("dividendenQualifiziertJahr=null/undefined wirkt nicht", () => {
+    const ohne = steuerProJahr({
+      einkommenJahr: 200_000,
+      vermoegenJahr: 0,
+      kapAuszahlungenJahr: 0,
+      kanton: "ZH",
+      religion: "reformiert",
+    });
+    const mitZero = steuerProJahr({
+      einkommenJahr: 200_000,
+      vermoegenJahr: 0,
+      kapAuszahlungenJahr: 0,
+      kanton: "ZH",
+      religion: "reformiert",
+      dividendenQualifiziertJahr: 0,
+    });
+    expect(ohne.einkommen).toBe(mitZero.einkommen);
+  });
+});

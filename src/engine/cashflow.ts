@@ -593,13 +593,24 @@ export function cashflowReihe(
     const ausgabenAlimente = alimenteRichtung === "zahlt" ? alimenteBetrag : 0;
     const einnahmenAlimente = alimenteRichtung === "erhaelt" ? alimenteBetrag : 0;
 
+    // Dividenden aus qualifizierter Beteiligung (V2 2026-05): voll im
+    // Cashflow + Bemessung, aber 30/50 % Teilbesteuerung in der Steuer-
+    // Engine via dividendenQualifiziertJahr.
+    const einnahmenFirmaDividenden = (() => {
+      const f = state.firma;
+      if (!f.vorhanden || !f.dividendenJahr || f.dividendenJahr <= 0) return 0;
+      if (f.plan === "verkaufen" && jahr > f.verkaufsjahr) return 0;
+      return Math.round(f.dividendenJahr);
+    })();
+
     const einnahmenTotal =
       einnahmenErwerb +
       einnahmenAhv +
       einnahmenBvgRente +
       einnahmenMieten +
       einnahmenErbschaft +
-      einnahmenAlimente;
+      einnahmenAlimente +
+      einnahmenFirmaDividenden;
 
     // ─── Kapitalauszahlungen (einmalig im Jahr) ──────────────────
     const kapAuszahlungen = kapitalauszahlungenJahr(
@@ -736,7 +747,7 @@ export function cashflowReihe(
     const bvgP2Jahr =
       pkFaktorP2Lokal > 0 ? bvgRenteHaushalt.p2 * pkFaktorP2Lokal : 0;
     // Erbschaft NICHT einkommens-steuerpflichtig (separat via Erbschaftssteuer).
-    const passivShared = einnahmenMieten + einnahmenAlimente;
+    const passivShared = einnahmenMieten + einnahmenAlimente + einnahmenFirmaDividenden;
 
     // AHV-NE-Beiträge VOR Steuer-Berechnung — NE-Beitrag ist als
     // Versicherungsprämie vom steuerbaren Einkommen abziehbar (Art. 33 DBG).
@@ -793,6 +804,7 @@ export function cashflowReihe(
       eigenmietwertJahr,
       schuldzinsenJahr: schuldzinsenAbzug,
       alimenteJahr: ausgabenAlimente,
+      dividendenQualifiziertJahr: einnahmenFirmaDividenden,
     };
 
     let steuern: ReturnType<typeof steuerProJahrIK>;
@@ -826,6 +838,9 @@ export function cashflowReihe(
             bvgP1Jahr +
             passivShared / 2 -
             ausgabenAhvNeP1,
+          // Konkubinat: Dividende auch 50/50 (passivShared enthält
+          // einnahmenFirmaDividenden bereits halbiert)
+          dividendenQualifiziertJahr: einnahmenFirmaDividenden / 2,
           vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
           kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
           bruttoErwerbP1,
@@ -859,6 +874,7 @@ export function cashflowReihe(
             bvgP2Jahr +
             passivShared / 2 -
             ausgabenAhvNeP2,
+          dividendenQualifiziertJahr: einnahmenFirmaDividenden / 2,
           vermoegenJahr: vermoegenSteuerwertJahresanfang / 2,
           kapAuszahlungenJahr: kapAuszahlungenFuerSteuer / 2,
           bruttoErwerbP1: bruttoErwerbP2, // P2 ist hier als P1 erfasst (Single-Pfad)
@@ -905,12 +921,15 @@ export function cashflowReihe(
         {
           ...baseSteuerInput,
           // Erhaltene Alimente voll steuerbar (Art. 23 lit. f DBG)
+          // Dividenden qualifiziert (V2): voll im einkommenJahr, Teilbesteuerung
+          // wird in steuer.ts via dividendenQualifiziertJahr abgezogen.
           einkommenJahr:
             einnahmenErwerb +
             einnahmenMieten +
             einnahmenAhv +
             einnahmenBvgRente +
-            einnahmenAlimente -
+            einnahmenAlimente +
+            einnahmenFirmaDividenden -
             ausgabenAhvNeP1 -
             ausgabenAhvNeP2,
           vermoegenJahr: vermoegenSteuerwertJahresanfang,
@@ -2373,9 +2392,11 @@ function firmaArt37bAktiv(state: CashflowInput, jahr: number): boolean {
   if (!f.vorhanden || f.plan !== "verkaufen") return false;
   if (f.verkaufsjahr !== jahr) return false;
   // Person 1 oder 2 selbständig? alter ≥ 55 bei Verkauf?
-  const selbst = state.budget.einkommen.some(
-    (e) => e.typ === "selbstaendigkeit"
-  );
+  // Erkennung via (a) budget.einkommen.typ="selbstaendigkeit" oder (b)
+  // firma.selbstaendig-Flag (V2 2026-05, falls Lohn aus eigener AG ist).
+  const selbst =
+    state.budget.einkommen.some((e) => e.typ === "selbstaendigkeit") ||
+    state.firma.selbstaendig === true;
   if (!selbst) return false;
   const gj1 = Number.parseInt((state.person1.geburtsdatum ?? "").slice(0, 4), 10);
   const gj2 = Number.parseInt((state.person2.geburtsdatum ?? "").slice(0, 4), 10);

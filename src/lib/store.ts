@@ -444,6 +444,28 @@ export interface FirmaInput {
   moeglicherVerkaufserloes: number | null;
   plan: "behalten" | "verkaufen";
   verkaufsjahr: number;
+  /**
+   * Jährlicher Dividenden-Ertrag aus qualifizierter Beteiligung (≥10 %)
+   * der eigenen Firma (CHF/Jahr). Wirkt auf Steuer-Bemessung:
+   *  - Bund (Art. 18b DBG): 70 % Teilbesteuerung im Privatvermögen
+   *    (= 30 % Reduktion auf den steuerbaren Anteil)
+   *  - Kanton (Art. 7 Abs. 1bis StHG, vereinfacht): 50 % Teilbesteuerung
+   *    als Default; pro-Kanton-Abweichungen V3.
+   * Wirkt nur bei firma.vorhanden = true und vor Verkaufsjahr (bei
+   * "verkaufen") bzw. dauerhaft (bei "behalten"). Wenn null oder 0:
+   * keine Dividenden modelliert.
+   * Stand V2 2026-05-25.
+   */
+  dividendenJahr: number | null;
+  /**
+   * Selbständig-Markierung. Wenn true: Person betreibt selbständige
+   * Erwerbstätigkeit (kein Anstellungsverhältnis). Wirkt auf:
+   *  - 3a-Limit: 20 % Erwerbseinkommen max 36'288 statt 7'258 (mit BVG)
+   *    — schon implementiert wenn hatPkAnschluss=false
+   *  - Liquidationsgewinn Art. 37b DBG ab Alter 55 (schon implementiert)
+   * Stand V2 2026-05-25.
+   */
+  selbstaendig: boolean;
 }
 
 /** Override pro Immobilie für Variante B (Plan + ggf. Verkaufsjahr). */
@@ -1141,6 +1163,8 @@ export const usePlanStore = create<PlanState>()(
         moeglicherVerkaufserloes: null,
         plan: "behalten",
         verkaufsjahr: new Date().getFullYear() + 10,
+        dividendenJahr: null,
+        selbstaendig: false,
       },
       nachlass: {
         vorsorgeauftrag: "nein",
@@ -1243,6 +1267,8 @@ export const usePlanStore = create<PlanState>()(
             moeglicherVerkaufserloes: null,
             plan: "behalten",
             verkaufsjahr: new Date().getFullYear() + 10,
+        dividendenJahr: null,
+        selbstaendig: false,
           },
           nachlass: {
             vorsorgeauftrag: "nein",
@@ -1949,6 +1975,8 @@ export const usePlanStore = create<PlanState>()(
             moeglicherVerkaufserloes: null,
             plan: "behalten",
             verkaufsjahr: new Date().getFullYear() + 10,
+        dividendenJahr: null,
+        selbstaendig: false,
           },
           nachlass: {
             vorsorgeauftrag: "nein",
@@ -2035,6 +2063,8 @@ export const usePlanStore = create<PlanState>()(
                 moeglicherVerkaufserloes: null,
                 plan: "behalten",
                 verkaufsjahr: new Date().getFullYear() + 10,
+        dividendenJahr: null,
+        selbstaendig: false,
               },
               nachlass: {
                 vorsorgeauftrag: "nein",
