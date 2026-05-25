@@ -6,8 +6,10 @@
  * dann lag plötzlich `altersguthabenBeiBezug` als Kapital-Auszahlung vor.
  * Das ergab einen unrealistischen Sprung im Charts.
  *
- * Fix: linearer Hochlauf zwischen heute und Bezugsjahr (vereinfachte
- * Sparphase, ±2-3% Fehler vs. exakter Sparphasen-Mathematik).
+ * Fix (Stand 2026-05-25, V2): versicherungsmathematisch exakter Hochlauf
+ * FV = PV·(1+r)^n + S·((1+r)^n − 1)/r mit r = BVG-Mindestzinssatz 1.25 %.
+ * Gilt sowohl für Vermögensbucket (pkSaldoSparphase) als auch Frühpension-
+ * Saldo (pkAltersguthabenBeiAlter). Vorher Frühpension linear → ±2-3 %.
  */
 
 import { describe, expect, it } from "vitest";
@@ -192,5 +194,69 @@ describe("BVG-Sparphase Hochlauf im Cashflow", () => {
 
     // Kein PK → Vorsorge-Bucket nahe 0 (wir haben auch kein 3a/FZ)
     expect(heuteZeile?.vermoegenVorsorge ?? 0).toBeLessThan(10_000);
+  });
+});
+
+/**
+ * V2 2026-05-25: Frühpension-Saldo versicherungsmathematisch exakt.
+ *
+ * Vorher: linearer Hochlauf zwischen heute und ord. AHV-Alter →
+ * konkrete Drift bei Frühpension dokumentiert.
+ *
+ * Mathematischer Erwartungswert:
+ *   Person geb. 1971-01-01 → 2026 Alter 55
+ *   heute = 300'000, beiBezug(65) = 600'000
+ *   r = 1.25 % BVG-Mindestzinssatz
+ *   n = 10 (65 − 55)
+ *   pvAufgezinst = 300'000 × 1.0125^10  = 339'584
+ *   annuitätsfaktor(10) = (1.0125^10 − 1) / 0.0125 = 10.5817
+ *   S = (600'000 − 339'584) / 10.5817 = 24'610 p.a.
+ *
+ *   Frühpension Alter 60 (k = 5):
+ *   compoundedPv(5) = 300'000 × 1.0125^5 = 319'231
+ *   annuitätsfaktor(5) = (1.0125^5 − 1) / 0.0125 = 5.1247
+ *   Saldo(5) = 319'231 + 24'610 × 5.1247 ≈ 445'351
+ *
+ *   Linear-Vergleich (vorher): 300'000 + 300'000 × 0.5 = 450'000
+ *   Drift Linear vs. exakt: +4'649 (+1.0 %)
+ */
+describe("BVG-Frühpension — versicherungsmathematisch exakt (V2)", () => {
+  it("bezugsalter 60 mit heute=300k, beiBezug=600k → ~445'350 (konkav)", () => {
+    const state = makeBaseState();
+    state.person1.geburtsdatum = "1971-01-01"; // → 55 in 2026
+    state.bvg.p1.altersguthabenHeute = 300_000;
+    state.bvg.p1.altersguthabenBeiBezug = 600_000;
+    state.bvg.p1.bezugspraeferenz = "kapital";
+    state.bvg.p1.kapitalanteil = 100;
+    state.ahv.ahvBezugsalterP1 = 60; // muss konsistent sein, sonst Pension nicht real
+    state.ziele.bezugsalterP1 = 60;
+
+    const reihe = cashflowReihe(state, 2026, 2032);
+    // Im Bezugsjahr (2031, Alter 60) → kapAuszahlungen enthält den PK-Saldo
+    const bezug = reihe.find((r) => r.jahr === 2031);
+    expect(bezug).toBeTruthy();
+
+    // Erwartung: ≈ 445'350 (±5'000 Toleranz für Rundung + interne Zinslogik)
+    expect(bezug!.kapAuszahlungen).toBeGreaterThanOrEqual(440_000);
+    expect(bezug!.kapAuszahlungen).toBeLessThanOrEqual(450_000);
+    // Linear wäre 450'000 → muss strikt darunter sein (konkav)
+    expect(bezug!.kapAuszahlungen).toBeLessThan(450_000);
+  });
+
+  it("bezugsalter 65 (ord. AHV) → exakt beiBezug-Wert", () => {
+    const state = makeBaseState();
+    state.person1.geburtsdatum = "1971-01-01"; // → 55 in 2026
+    state.bvg.p1.altersguthabenHeute = 300_000;
+    state.bvg.p1.altersguthabenBeiBezug = 600_000;
+    state.bvg.p1.bezugspraeferenz = "kapital";
+    state.bvg.p1.kapitalanteil = 100;
+    state.ahv.ahvBezugsalterP1 = 65;
+    state.ziele.bezugsalterP1 = 65;
+
+    const reihe = cashflowReihe(state, 2026, 2037);
+    const bezug = reihe.find((r) => r.jahr === 2036); // Alter 65
+    expect(bezug).toBeTruthy();
+    expect(bezug!.kapAuszahlungen).toBeGreaterThanOrEqual(595_000);
+    expect(bezug!.kapAuszahlungen).toBeLessThanOrEqual(605_000);
   });
 });

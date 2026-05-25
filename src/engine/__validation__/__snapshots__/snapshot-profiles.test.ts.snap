@@ -452,12 +452,12 @@ exports[`Snapshot-Profile — sichert stille Engine-Drift ab > Profil 6: Vorbezu
   },
   {
     "ahv": 13100,
-    "ausgaben": 69400,
-    "bvg": 11300,
+    "ausgaben": 69300,
+    "bvg": 11200,
     "einkommen": 124300,
     "jahr": 2028,
     "netto": 305700,
-    "steuern": 21400,
+    "steuern": 21300,
   },
   {
     "ahv": 28300,

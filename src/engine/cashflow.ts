@@ -1501,12 +1501,26 @@ function computeBvgRenteHaushalt(state: CashflowInput): { p1: number; p2: number
 }
 
 /**
+ * PK-Altersguthaben bei einem bestimmten Bezugsalter.
+ *
  * Annahme: altersguthabenBeiBezug ist die PK-Ausweis-Projektion auf das
- * ordentliche AHV-Alter (65). Bei Frühpension (bezugsalter < 65) reduzieren
- * wir den Wert linear zwischen altersguthabenHeute und altersguthabenBeiBezug.
- * Bei Aufschub (bezugsalter > 65) wachsen wir den Saldo mit BVG-Mindestzins
- * weiter (annahme: keine zusätzlichen Sparbeiträge nach 65; konservativ).
- * Vereinfachung: ±2-3% Fehler vs. exakter Sparphasen-Mathematik (siehe CLAUDE.md).
+ * ordentliche AHV-Alter (65).
+ *
+ * Bei Frühpension (bezugsalter < 65): versicherungsmathematischer Hochlauf
+ * — gleiche Formel wie pkSaldoSparphase, Sparbeitrag rückwärts aus PV/FV/n/r
+ * abgeleitet, dann Saldo(k) für k Jahre vom heutigen Alter berechnet.
+ *   PV = altersguthabenHeute
+ *   FV = altersguthabenBeiBezug (bei ord. AHV-Alter)
+ *   n  = ord. AHV-Alter − alterHeute
+ *   k  = bezugsalter − alterHeute
+ *   S  = (FV − PV·(1+r)^n) / annuitätsfaktor(n)
+ *   Saldo(k) = PV·(1+r)^k + S·annuitätsfaktor(k)
+ *
+ * Bei Aufschub (bezugsalter > 65): Saldo wächst mit BVG-Mindestzins weiter
+ * ohne zusätzliche Sparbeiträge (konservativ).
+ *
+ * V2 2026-05-25: vorher lineare Interpolation → ±2-3 % Drift dokumentiert.
+ * Jetzt exakte Sparphasen-Mathematik analog pkSaldoSparphase.
  */
 function pkAltersguthabenBeiAlter(
   p: BvgPersonInput,
@@ -1529,12 +1543,23 @@ function pkAltersguthabenBeiAlter(
   }
   if (bezugsalter >= ordAlter) return p.altersguthabenBeiBezug;
   if (bezugsalter <= alterHeute) return p.altersguthabenHeute;
-  const fraction =
-    (bezugsalter - alterHeute) / (ordAlter - alterHeute);
-  return Math.round(
-    p.altersguthabenHeute +
-      (p.altersguthabenBeiBezug - p.altersguthabenHeute) * fraction
+
+  // Frühpension — versicherungsmathematisch exakt
+  const r = BVG_MINDESTZINS;
+  const n = ordAlter - alterHeute;
+  const k = bezugsalter - alterHeute;
+  if (n <= 0) return p.altersguthabenBeiBezug;
+
+  const pvAufgezinstN = p.altersguthabenHeute * Math.pow(1 + r, n);
+  const annuitaetsFaktorN = (Math.pow(1 + r, n) - 1) / r;
+  const sparBeitrag = Math.max(
+    0,
+    (p.altersguthabenBeiBezug - pvAufgezinstN) / annuitaetsFaktorN
   );
+
+  const compoundedPvK = p.altersguthabenHeute * Math.pow(1 + r, k);
+  const annuitaetsFaktorK = (Math.pow(1 + r, k) - 1) / r;
+  return Math.round(compoundedPvK + sparBeitrag * annuitaetsFaktorK);
 }
 
 function bvgRentePerson(
