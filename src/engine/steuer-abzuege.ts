@@ -157,9 +157,25 @@ const KANTON_PAUSCHALEN: Record<string, Partial<KantonPauschalen>> = {
   },
   // KNOWN GAP: 16 weitere Kantone (BL, SH, AI, SO, GR, TG, UR, SZ, OW, NW,
   // GL, FR, TI, VS, NE, JU) haben keine Override-Pauschalen → fallen auf
-  // KANTON_DEFAULTS (ZH-Werte). Versuch 2026-05-25 brach ESTV-Validation
-  // (TG/BL/AI Werte stimmten nicht). Pauschalen brauchen exakte ESTV-
-  // Kalibrierung mit Tarif zusammen — V2-Aufgabe mit Web-Recherche.
+  // KANTON_DEFAULTS (ZH-Werte).
+  //
+  // ARCHITEKTUR-LERNUNG 2026-05-25: Versuch TI/BL/SO/FR mit echten ESTV-
+  // Pauschalen zu kalibrieren brach Phase-5-Szenario-Tests:
+  //   - BL paar 150k+2k:  +30.6 % Drift
+  //   - SO paar 150k+2k:  +31.6 % Drift
+  //   - TI single 100k:   −11.8 % Drift
+  //   - TI paar 150k+2k:  −38.8 % Drift
+  //
+  // Grund: Engine ist als GANZES gegen ESTV kalibriert. Tarif-Stützstellen
+  // wurden mit ZH-Default-Pauschalen kalibriert → Pauschalen + Tarif sind
+  // verschränkt. Pauschalen alleine ändern bricht den Pre-Computed-Drift.
+  //
+  // V2-PFAD: Pro Kanton (TI/BL/SO/FR zuerst) gleichzeitig (a) echte ESTV-
+  // Pauschalen setzen + (b) Tarif-Re-Crawl mit echtem bruttoZuSteuerbar +
+  // (c) Re-Sample ESTV-Stützstellen. Aufwand ~4h/Kanton statt geschätzt 2h.
+  //
+  // Aktuelle Phase-5-Drift mit ZH-Default <5 % für alle 26 Kantone → "good
+  // enough" für GTM Phase 1, V2-Sprint vor Kanton-spezifischem Marketing.
   // Waadt
   VD: {
     versicherungSingle: 3_200,
@@ -501,7 +517,7 @@ export function abzuegeDbg(input: AbzugInput): AbzugDetail {
  * Hauptfunktion Kanton: kantons-spezifische Pauschalen für Versicherung,
  * Doppelverdiener und Kinderabzug.
  *
- * @param kantonCode 2-Buchstaben-Code (ZH/BE/ZG/LU/AG/SG/BS/VD/GE).
+ * @param kantonCode 2-Buchstaben-Code (ZH/BE/ZG/LU/AG/SG/BS/VD/GE/AR).
  *                   Andere Kantone: Fallback auf ZH-Default-Pauschalen.
  */
 export function abzuegeKanton(input: AbzugInput, kantonCode: string): AbzugDetail {
