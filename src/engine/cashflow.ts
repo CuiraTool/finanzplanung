@@ -542,22 +542,22 @@ export function cashflowReihe(
     // einnahmenAhv, 2. Säule zu einnahmenBvgRente. Pro-Rata = (1 − Bezugs-
     // Faktor) im Übergangsjahr, geclampt auf [0, 1]. Bei Bezugsstart AHV/PK
     // hört IV automatisch auf (Umwandlung in Altersleistung).
+    // iv*P2-Variablen im outer scope deklariert, damit der Konkubinat-Steuer-
+    // Pfad sie auch lesen kann (Z. ~835).
     const ivAnteilAhvP1 = Math.max(0, 1 - Math.min(1, ahvFaktorP1));
     const ivAnteilPkP1 = Math.max(0, 1 - Math.min(1, pkFaktorP1));
     const iv1P1 = Math.round((state.ahv.ivRente1SaeuleP1 ?? 0) * ivAnteilAhvP1);
     const iv2P1 = Math.round((state.ahv.ivRente2SaeuleP1 ?? 0) * ivAnteilPkP1);
     einnahmenAhv += iv1P1;
     einnahmenBvgRente += iv2P1;
+    let iv1P2 = 0;
+    let iv2P2 = 0;
     if (state.fallart === "paar") {
       const ivAnteilAhvP2 = Math.max(0, 1 - Math.min(1, ahvFaktorP2));
       const pkFaktorP2Iv = pkJahresFaktor(jahr, pkStartP2);
       const ivAnteilPkP2 = Math.max(0, 1 - Math.min(1, pkFaktorP2Iv));
-      const iv1P2 = Math.round(
-        (state.ahv.ivRente1SaeuleP2 ?? 0) * ivAnteilAhvP2
-      );
-      const iv2P2 = Math.round(
-        (state.ahv.ivRente2SaeuleP2 ?? 0) * ivAnteilPkP2
-      );
+      iv1P2 = Math.round((state.ahv.ivRente1SaeuleP2 ?? 0) * ivAnteilAhvP2);
+      iv2P2 = Math.round((state.ahv.ivRente2SaeuleP2 ?? 0) * ivAnteilPkP2);
       einnahmenAhv += iv1P2;
       einnahmenBvgRente += iv2P2;
     }
@@ -599,7 +599,10 @@ export function cashflowReihe(
     const einnahmenFirmaDividenden = (() => {
       const f = state.firma;
       if (!f.vorhanden || !f.dividendenJahr || f.dividendenJahr <= 0) return 0;
-      if (f.plan === "verkaufen" && jahr > f.verkaufsjahr) return 0;
+      // Im Verkaufsjahr selbst: keine Dividende mehr (AG geht weg, der
+      // Erlös ist via firmaErloesJahr separat erfasst). Strikt >= verhindert
+      // Doppel-Einnahme (Dividende + Verkaufserlös) im Verkaufsjahr.
+      if (f.plan === "verkaufen" && jahr >= f.verkaufsjahr) return 0;
       return Math.round(f.dividendenJahr);
     })();
 
@@ -832,10 +835,14 @@ export function cashflowReihe(
         {
           ...baseSteuerInput,
           fallart: "einzel",
+          // IV-Renten P1 müssen explizit in einkommenJahr — sind im
+          // Konkubinat-Pfad nicht via einnahmenAhv/Bvg verfügbar.
           einkommenJahr:
             bruttoErwerbP1 +
             ahvP1Jahr +
             bvgP1Jahr +
+            iv1P1 +
+            iv2P1 +
             passivShared / 2 -
             ausgabenAhvNeP1,
           // Konkubinat: Dividende auch 50/50 (passivShared enthält
@@ -872,6 +879,8 @@ export function cashflowReihe(
             bruttoErwerbP2 +
             ahvP2Jahr +
             bvgP2Jahr +
+            iv1P2 +
+            iv2P2 +
             passivShared / 2 -
             ausgabenAhvNeP2,
           dividendenQualifiziertJahr: einnahmenFirmaDividenden / 2,
@@ -1604,14 +1613,16 @@ function pkAltersguthabenBeiAlter(
   if (n <= 0) return p.altersguthabenBeiBezug;
 
   const pvAufgezinstN = p.altersguthabenHeute * Math.pow(1 + r, n);
-  const annuitaetsFaktorN = (Math.pow(1 + r, n) - 1) / r;
+  // r=0-Guard analog pkSaldoSparphase — verhindert NaN falls Mindestzins
+  // jemals auf 0 gesetzt wird (Test/Edge-Szenario).
+  const annuitaetsFaktorN = (r as number) === 0 ? n : (Math.pow(1 + r, n) - 1) / r;
   const sparBeitrag = Math.max(
     0,
     (p.altersguthabenBeiBezug - pvAufgezinstN) / annuitaetsFaktorN
   );
 
   const compoundedPvK = p.altersguthabenHeute * Math.pow(1 + r, k);
-  const annuitaetsFaktorK = (Math.pow(1 + r, k) - 1) / r;
+  const annuitaetsFaktorK = (r as number) === 0 ? k : (Math.pow(1 + r, k) - 1) / r;
   return Math.round(compoundedPvK + sparBeitrag * annuitaetsFaktorK);
 }
 
@@ -1630,7 +1641,7 @@ function bvgRentePerson(
   // implizit drin sein kann).
   const wefBisBezug = wefSummeBis(p, bj);
   // Frühpension-Korrektur: altersguthabenBeiBezug an tatsächliches bezugsalter
-  // anpassen (linearer Hochlauf zwischen heute und ord. AHV-Alter).
+  // anpassen (versicherungsmathematisch exakt — V2 2026-05).
   const guthabenBeiBezug = pkAltersguthabenBeiAlter(p, geburt, bezugsalter);
   const ausgangssaldo = Math.max(0, guthabenBeiBezug - wefBisBezug);
   const saldo = bvgGesamtkapitalBeiBezug({
@@ -2098,13 +2109,10 @@ function vorsorgeVermoegenAmJahresende(
   let total = 0;
   const jetzt = new Date().getFullYear();
 
-  // PK-Sparphase: linearer Hochlauf vom Altersguthaben heute zum
-  // voraussichtlichen Altersguthaben bei Bezug. Vor Bezug → interpolierter
-  // Wert; nach Bezug → 0 (Kapital auf Hauptkonto, Rente fliesst als Cashflow).
-  //
-  // Vereinfachung: linearer Hochlauf statt echter Sparphasen-Mathematik
-  // (Beiträge × Verzinsung = leichter S-förmiger Verlauf). Bei normalen
-  // Karrieren ist der Fehler ±2-3% zur exakten Kurve.
+  // PK-Sparphase: versicherungsmathematisch exakter Hochlauf vom Alters-
+  // guthaben heute zum voraussichtlichen Altersguthaben bei Bezug. Vor
+  // Bezug → kompoundierter Wert (Stand V2 2026-05); nach Bezug → 0 (Kapital
+  // auf Hauptkonto, Rente fliesst als Cashflow).
   total += pkSaldoSparphase(
     state.bvg.p1,
     jahr,
