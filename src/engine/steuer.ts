@@ -268,7 +268,32 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     kantonsteuerNetto = Math.max(0, steuerbarKanton * 0.13);
   }
 
+  // ─── Kapitalauszahlungssteuer (VOR Anker — wird im Anker-Anpassung
+  //     subtrahiert, da User-Anker = PDF-Gesamt-Steuern inkl. Kap-St). ──
+  const kapital = Math.max(0, input.kapAuszahlungenJahr);
+  let kapitalBund = 0;
+  let kapitalKanton = 0;
+  if (kapital > 0) {
+    kapitalBund = bundessteuerKapitalNeu(kapital, fallart, jahr);
+    if (kantonCode) {
+      kapitalKanton = kantonsteuerKapital(kapital, {
+        kanton: kantonCode,
+        bfsId: input.bfsId,
+        fallart,
+        religion,
+        jahr,
+      });
+    } else {
+      kapitalKanton = kapital * 0.06;
+    }
+  }
+
   // ─── Anker-Modus ─────────────────────────────────────────────────────
+  // Anker = PDF-Total-Steuern im heuteJahr (= Eink + Verm + Kap). Engine
+  // kalibriert Eink-Steuer-Kantonal anhand Verhältnis Einkommen/Anker. Da
+  // Kap-St SEPARAT addiert wird, müssen wir sie vom Anker abziehen, sonst
+  // wird Kap-St doppelt gerechnet (Schildknecht-Bug 2026: 36k Anker + 16k Kap
+  // = 52k Total Engine vs 36k PDF).
   let einkommensteuerKantonal = kantonsteuerNetto;
   let kalibriert = false;
   if (
@@ -277,9 +302,12 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     input.ankerEinkommenHeute != null &&
     input.ankerEinkommenHeute > 0
   ) {
+    const ankerOhneKap = Math.max(
+      0,
+      input.ankerSteuernHeute - kapitalBund - kapitalKanton
+    );
     const totalAnkerProportional =
-      input.ankerSteuernHeute *
-      (input.einkommenJahr / input.ankerEinkommenHeute);
+      ankerOhneKap * (input.einkommenJahr / input.ankerEinkommenHeute);
     einkommensteuerKantonal = Math.max(0, totalAnkerProportional - bundSteuer);
     kalibriert = true;
   }
@@ -307,26 +335,7 @@ export function steuerProJahr(input: SteuerInput): SteuerOutput {
     vermoegensteuer = Math.max(0, vermoegen - freibetrag) * 0.006;
   }
 
-  // ─── Kapitalauszahlungssteuer ────────────────────────────────────────
-  const kapital = Math.max(0, input.kapAuszahlungenJahr);
-  let kapitalBund = 0;
-  let kapitalKanton = 0;
-  if (kapital > 0) {
-    kapitalBund = bundessteuerKapitalNeu(kapital, fallart, jahr);
-    if (kantonCode) {
-      // Einheitliche Sondertarif-Engine pro Kanton (§38 ZH-Standard +
-      // konfigurierbarer Teiler/Mindestsatz pro Kanton).
-      kapitalKanton = kantonsteuerKapital(kapital, {
-        kanton: kantonCode,
-        bfsId: input.bfsId,
-        fallart,
-        religion,
-        jahr,
-      });
-    } else {
-      kapitalKanton = kapital * 0.06;
-    }
-  }
+  // Kapitalsteuer-Summe (Bund + Kanton — bereits oben pre-berechnet).
   const kapitalsteuer = kapitalBund + kapitalKanton;
 
   return {

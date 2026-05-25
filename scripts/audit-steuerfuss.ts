@@ -83,4 +83,54 @@ for (const code of cantonCodes) {
   );
 }
 
+// ─── Gemeinde-spezifischer Audit für problematische Kantone ──────────
+console.log("\n========== Gemeinde-Steuerfuss-Audit BE/BL/BS/SO ==========\n");
+console.log(
+  "Gemeinde         | Kanton | BfsID | Eink-St 100k Single | Eink-St 100k Paar"
+);
+console.log(
+  "-----------------|--------|-------|---------------------|------------------"
+);
+
+const gemeindenZuPruefen: { name: string; code: KantonCode; bfsId: number }[] = [
+  { name: "Bern", code: "BE", bfsId: 351 },
+  { name: "Studen", code: "BE", bfsId: 749 },
+  { name: "Thun", code: "BE", bfsId: 942 },
+  { name: "Liestal", code: "BL", bfsId: 2829 },
+  { name: "Arlesheim", code: "BL", bfsId: 2763 },
+  { name: "Allschwil", code: "BL", bfsId: 2761 },
+  { name: "Basel", code: "BS", bfsId: 2701 },
+  { name: "Riehen", code: "BS", bfsId: 2703 },
+  { name: "Bettingen", code: "BS", bfsId: 2702 },
+  { name: "Solothurn", code: "SO", bfsId: 2601 },
+  { name: "Olten", code: "SO", bfsId: 2581 },
+  { name: "Bellach", code: "SO", bfsId: 2542 },
+];
+
+for (const g of gemeindenZuPruefen) {
+  let einkSt100kSingle = 0;
+  let einkSt100kPaar = 0;
+  try {
+    einkSt100kSingle = einkommensteuerKanton(100_000, {
+      kanton: g.code,
+      bfsId: g.bfsId,
+      fallart: "einzel",
+      religion: "andere",
+      jahr: JAHR,
+    }).total ?? 0;
+    einkSt100kPaar = einkommensteuerKanton(100_000, {
+      kanton: g.code,
+      bfsId: g.bfsId,
+      fallart: "paar",
+      religion: "andere",
+      jahr: JAHR,
+    }).total ?? 0;
+  } catch {
+    // pass
+  }
+  console.log(
+    `${g.name.padEnd(16)} | ${g.code.padEnd(6)} | ${String(g.bfsId).padEnd(5)} | ${einkSt100kSingle.toFixed(0).padStart(19)} | ${einkSt100kPaar.toFixed(0).padStart(17)}`
+  );
+}
+
 console.log("\n");
