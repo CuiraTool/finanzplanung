@@ -67,7 +67,7 @@ describe("Vergleich Leimer Priska (Ausgangslage)", () => {
         plz: "4512",
         ort: "Bellach",
         kanton: "SO",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 2542, // Bellach SO
         gemeindeName: "Bellach",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },

@@ -64,7 +64,7 @@ describe("Vergleich Sciarrino Patrizia (Ausgangslage)", () => {
         plz: "9524",
         ort: "Zuzwil",
         kanton: "SG",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 3426, // Zuzwil SG
         gemeindeName: "Zuzwil",
       },
       ziele: { bezugsalterP1: 64.5, bezugsalterP2: 65 },

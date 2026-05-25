@@ -65,7 +65,7 @@ describe("Vergleich Baumann Alexandra (Ausgangslage)", () => {
         plz: "4144",
         ort: "Arlesheim",
         kanton: "BL",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 2763, // Arlesheim BL
         gemeindeName: "Arlesheim",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },

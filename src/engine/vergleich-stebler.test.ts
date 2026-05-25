@@ -65,7 +65,7 @@ describe("Vergleich Stebler Dominique (Ausgangslage)", () => {
         plz: "8633",
         ort: "Wolfhausen",
         kanton: "ZH",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 112, // Bubikon ZH
         gemeindeName: "Bubikon",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },

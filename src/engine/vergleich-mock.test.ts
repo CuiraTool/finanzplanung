@@ -64,7 +64,7 @@ describe("Vergleich Mock Niklaus+Monika (Ausgangslage)", () => {
         plz: "9050",
         ort: "Appenzell Steinegg",
         kanton: "AI",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 3112, // Schwende-Rüte AI
         gemeindeName: "Schwende-Rüte",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 70 },

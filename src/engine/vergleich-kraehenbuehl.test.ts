@@ -65,7 +65,7 @@ describe("Vergleich Krähenbühl Daniel (Ausgangslage)", () => {
         plz: "2557",
         ort: "Studen",
         kanton: "BE",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 749, // Studen BE
         gemeindeName: "Studen",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },

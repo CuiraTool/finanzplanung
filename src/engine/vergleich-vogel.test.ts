@@ -66,7 +66,7 @@ describe("Vergleich Vogel Michel+Carmen (Ausgangslage)", () => {
         plz: "4052",
         ort: "Basel",
         kanton: "BS",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 2701, // Basel BS
         gemeindeName: "Basel",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },

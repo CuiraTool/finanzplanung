@@ -68,7 +68,7 @@ describe("Vergleich Schildknecht Robert+Nguyen (Ausgangslage)", () => {
         plz: "5430",
         ort: "Wettingen",
         kanton: "AG",
-        gemeindeBfsId: null,
+        gemeindeBfsId: 4045, // Wettingen AG
         gemeindeName: "Wettingen",
       },
       ziele: { bezugsalterP1: 65, bezugsalterP2: 65 },
