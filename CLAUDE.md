@@ -78,7 +78,7 @@ src/engine/
 
 - ✅ AHV: BSV-Skala 44 echte Tabelle (Etappe 1.5 done, Stand 2025)
 - ✅ AHV21-Übergangsalter (Frauen Jg 1961-63) modelliert
-- 🟡 BVG: Pauschaler UWS pro Person, lineare Saldo-Wachstum bis Bezugsjahr nicht modelliert
+- 🟡 BVG: Pauschaler UWS pro Person, überobligatorische Splits nicht modelliert
 - ✅ Vermögensbilanz: Inflation-Toggle, Steuern aus ESTV-Engine
 - ✅ Hypothek-Tragbarkeit modelliert (heute + bei Pension)
 - ✅ **Eigenmietwert + Schuldzinsabzug bis Steuerjahr 2029** — die
@@ -86,7 +86,7 @@ src/engine/
   schafft beides ab. Engine: `EIGENMIETWERT_LETZTES_JAHR = 2029`. Ab
   Steuerjahr 2030 entfällt beides automatisch.
 - ✅ Grundstückgewinnsteuer beim Verkauf (engine/grundstueckgewinn.ts) — 9 Kantone ZH/ZG/SZ/BE/LU/AG/SG/TI/VD + Median-Fallback, Besitzdauer-Faktor (Spekulationszuschlag bis +50%, Langhalter-Rabatt bis −60%), optional Kaufjahr+Anlagekosten pro Immobilie
-- ✅ BVG-Sparphase Saldo-Hochlauf — linearer Hochlauf vom altersguthabenHeute zum altersguthabenBeiBezug (vereinfacht, ±2-3% Fehler vs. exakter Sparphasen-Mathematik)
+- ✅ BVG-Sparphase Saldo-Hochlauf — versicherungsmathematisch exakt (FV = PV·(1+r)^n + S·annuitätsfaktor(n)) sowohl im Vermögensbucket als auch bei Frühpension-Saldo (Stand V2 2026-05-25)
 - ✅ 13. AHV für Pre-2026-Pensionierte — Faktor 13/12 ab Dez 2026 für alle Rentner (auch Bezug vor 2026)
 - ✅ AHV21 ordentliches Ref-Alter im bezugsfaktor (Frauen Jg 1961-63 = 64.25/64.5/64.75)
 - ✅ Erbschaft-Verwandtschaft konfigurierbar (Block 10): nachkomme/ehegatte/eltern/geschwister/konkubinat/nicht_verwandt
