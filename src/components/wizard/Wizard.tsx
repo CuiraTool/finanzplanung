@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePlanStore, type PlanState } from "@/lib/store";
 import { block1MinimumErfuellt } from "@/lib/validation";
-import { formatChf } from "@/lib/format";
 import { useViewMode } from "@/lib/view-mode";
 import { Block1Personen } from "./Block1Personen";
 import { DocUploadCenter } from "./DocUploadCenter";
@@ -47,107 +46,6 @@ const BLOCKS = [
   { id: 9, title: "Firma / Selbständigkeit", implemented: true },
   { id: 10, title: "Nachlass", implemented: true },
 ] as const;
-
-/**
- * Glance-Value pro Block — eine Zeile mit dem wichtigsten Eckwert,
- * damit der Berater im Sidebar sofort sieht, was schon erfasst ist.
- *
- * **Wichtig:** Default-Werte (z.B. Pensionsalter 65, "behalten" bei Firma)
- * sollen NICHT als "erfasst" wirken. Glance-Texte machen nur dann eine
- * konkrete Aussage, wenn der Berater wirklich Daten eingegeben hat —
- * sonst neutraler Hinweis "—" oder "noch offen".
- */
-function blockGlance(blockId: number, s: PlanState): string {
-  switch (blockId) {
-    case 1: {
-      const isPaar = s.fallart === "paar";
-      if (!s.person1.vorname && !s.person1.nachname) return "—";
-      const name = isPaar
-        ? `${s.person1.vorname || "P1"} + ${s.person2.vorname || "P2"}`
-        : `${s.person1.vorname} ${s.person1.nachname}`.trim() || "—";
-      return s.adresse.kanton ? `${name} · ${s.adresse.kanton}` : name;
-    }
-    case 2: {
-      // Ziele gilt erst als erfasst, wenn entweder ein Wunschverbrauch oder
-      // einmalige Ausgaben da sind — nicht durch das Default-Pensionsalter.
-      const wunsch = s.budget.wunschverbrauchPension;
-      const einm = s.einmaligeAusgaben.length;
-      if (!wunsch && einm === 0) return "—";
-      if (wunsch) return `Wunsch ${formatChf(wunsch)}/Mt`;
-      return `${einm} einmalige Ausgabe${einm > 1 ? "n" : ""}`;
-    }
-    case 3: {
-      const eink = s.budget.einkommenHeute;
-      const ausg = s.budget.ausgabenTotal;
-      if (!eink && !ausg) return "—";
-      if (eink && ausg)
-        return `${formatChf(eink)}/J · ${formatChf(ausg)}/Mt`;
-      if (eink) return `Eink. ${formatChf(eink)}/J`;
-      return `Ausgab. ${formatChf(ausg)}/Mt`;
-    }
-    case 4: {
-      const eink = s.ahv.einkommenP1;
-      if (!eink) return "—";
-      return `Massg. Eink. ${formatChf(eink)}`;
-    }
-    case 5: {
-      const ag = s.bvg.p1.altersguthabenHeute;
-      if (!ag) return "—";
-      return `PK-Saldo ${formatChf(ag)}`;
-    }
-    case 6: {
-      const total =
-        s.saeuleDrei.p1.reduce(
-          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
-          0
-        ) +
-        s.saeuleDrei.p2.reduce(
-          (a, e) => a + (e.aktuellerWert ?? 0) + (e.rueckkaufswert ?? 0),
-          0
-        );
-      if (total === 0) return "—";
-      const n = s.saeuleDrei.p1.length + s.saeuleDrei.p2.length;
-      return `${formatChf(total)} · ${n} Konto${n > 1 ? "s" : ""}`;
-    }
-    case 7: {
-      // Default-Privatkonto mit saldoHeute=null zählt nicht als erfasst.
-      const echteEintraege = s.vermoegen.items.filter(
-        (it) => (it.saldoHeute ?? 0) !== 0
-      );
-      if (echteEintraege.length === 0) return "—";
-      const total = echteEintraege.reduce(
-        (a, it) => a + (it.saldoHeute ?? 0),
-        0
-      );
-      return `${formatChf(total)} · ${echteEintraege.length} Position${
-        echteEintraege.length > 1 ? "en" : ""
-      }`;
-    }
-    case 8: {
-      if (s.immobilien.items.length === 0) return "—";
-      const total = s.immobilien.items.reduce(
-        (a, im) => a + (im.verkehrswert ?? 0),
-        0
-      );
-      return `${s.immobilien.items.length} Liegenschaft · ${formatChf(total)}`;
-    }
-    case 9:
-      // Default ist "vorhanden: false". Erst wenn explizit "vorhanden" mit
-      // Firmenname → erfasst. "Keine Firma" ist nur sinnvoll wenn der
-      // Berater das aktiv geprüft hat — können wir nicht zuverlässig wissen.
-      if (s.firma.vorhanden && s.firma.firmenname) return s.firma.firmenname;
-      return "—";
-    case 10: {
-      const werte = Object.values(s.nachlass) as string[];
-      const yes = werte.filter((v) => v === "ja" || v === "nicht_notwendig").length;
-      if (yes === 0) return "—";
-      const total = werte.length;
-      return `${yes} / ${total} Dokumente`;
-    }
-    default:
-      return "—";
-  }
-}
 
 /**
  * Block ist "abgeschlossen" wenn der Berater eine **echte Eingabe**
@@ -374,7 +272,6 @@ function BlockNavigation({
           const isLocked = b.id !== 1 && !validation.komplett;
           const isClickable = b.implemented && !isLocked;
           const isDone = blockIstErledigt(b.id, fullState);
-          const glance = blockGlance(b.id, fullState);
           return (
             <li key={b.id}>
               <button
@@ -419,7 +316,6 @@ function BlockNavigation({
                   <span className="block text-sm font-medium leading-tight">
                     {b.title}
                   </span>
-                  <span className="cui-rail-glance">{glance}</span>
                 </span>
                 {isLocked && (
                   <span className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-4)" }}>
