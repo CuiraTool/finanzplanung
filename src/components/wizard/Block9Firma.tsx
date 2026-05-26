@@ -32,7 +32,14 @@ export function Block9Firma() {
               <button
                 key={o.l}
                 type="button"
-                onClick={() => setFirma({ vorhanden: o.v })}
+                onClick={() =>
+                  setFirma({
+                    vorhanden: o.v,
+                    // Bei "Nein" wird Block automatisch als geprüft markiert
+                    // (Berater hat aktiv bestätigt, keine Firma).
+                    geprueft: o.v === false ? true : firma.geprueft,
+                  })
+                }
                 className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
                   firma.vorhanden === o.v
                     ? "border-blue-600 bg-blue-50 text-blue-700"

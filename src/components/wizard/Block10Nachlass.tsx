@@ -51,6 +51,8 @@ export function Block10Nachlass() {
   const setNachlass = usePlanStore((s) => s.setNachlass);
   const erbschaft = usePlanStore((s) => s.erbschaft);
   const setErbschaft = usePlanStore((s) => s.setErbschaft);
+  const nachlassGeprueft = usePlanStore((s) => s.nachlassGeprueft);
+  const setNachlassGeprueft = usePlanStore((s) => s.setNachlassGeprueft);
 
   // "Erledigt" = entweder explizit "gemacht" oder "nicht_notwendig" (= bewusst entschieden)
   const erledigt = THEMEN.filter(
@@ -79,6 +81,20 @@ export function Block10Nachlass() {
             />
           ))}
         </ul>
+
+        {/* Berater-Bestätigung: Themen besprochen (auch wenn alles "nein") */}
+        <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            checked={nachlassGeprueft === true}
+            onChange={(e) => setNachlassGeprueft(e.target.checked)}
+            className="mt-0.5 cursor-pointer"
+          />
+          <span>
+            Themen mit Klient besprochen — Block 10 als erfasst markieren
+            (auch wenn alle Dokumente noch fehlen).
+          </span>
+        </label>
       </fieldset>
 
       {/* Erwartete Erbschaften & Schenkungen */}

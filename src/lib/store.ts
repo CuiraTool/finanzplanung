@@ -466,6 +466,14 @@ export interface FirmaInput {
    * Stand V2 2026-05-25. Optional für Backward-Compat.
    */
   selbstaendig?: boolean;
+  /**
+   * Berater hat Block 9 aktiv geprüft (mit oder ohne Firma).
+   * Brauchen wir, weil "keine Firma" sonst nicht von "noch nicht ausgefüllt"
+   * unterscheidbar wäre. Wenn true → Block 9 zählt als erledigt.
+   * Default false (Block 9 unerledigt bis Berater bestätigt).
+   * Stand V2 2026-05-26.
+   */
+  geprueft?: boolean;
 }
 
 /** Override pro Immobilie für Variante B (Plan + ggf. Verkaufsjahr). */
@@ -872,6 +880,14 @@ export interface PlanState {
   immobilien: ImmobilienInput;
   firma: FirmaInput;
   nachlass: NachlassInput;
+  /**
+   * Berater hat Block 10 Nachlass aktiv besprochen (auch wenn alle Themen
+   * "nein" sind). Default-Status "nein" für alle Themen ist normal — die
+   * Häkchen-Logik unterscheidet sonst nicht zwischen "noch nicht geprüft"
+   * und "geprüft + alle fehlen". Wenn true → Block 10 zählt als erledigt.
+   * Stand V2 2026-05-26.
+   */
+  nachlassGeprueft?: boolean;
   // Erweiterte Slices (Word-Doc Blöcke M, N, O, P, R + Lücken)
   anlagen: AnlagenInput;
   erbschaft: ErbschaftInput;
@@ -974,6 +990,7 @@ export interface PlanState {
   ) => void;
   removeHypothek: (immobilieId: string, hypothekId: string) => void;
   setNachlass: (key: NachlassThemaKey, value: NachlassStatus) => void;
+  setNachlassGeprueft: (val: boolean) => void;
   setFirma: (patch: Partial<FirmaInput>) => void;
   setAnlagen: (patch: Partial<AnlagenInput>) => void;
   setErbschaft: (patch: Partial<ErbschaftInput>) => void;
@@ -1854,6 +1871,7 @@ export const usePlanStore = create<PlanState>()(
         })),
       setNachlass: (key, value) =>
         set((s) => ({ nachlass: { ...s.nachlass, [key]: value } })),
+      setNachlassGeprueft: (val) => set(() => ({ nachlassGeprueft: val })),
       setFirma: (patch) => set((s) => ({ firma: { ...s.firma, ...patch } })),
       setAnlagen: (patch) =>
         set((s) => ({ anlagen: { ...s.anlagen, ...patch } })),
@@ -2126,10 +2144,10 @@ export const usePlanStore = create<PlanState>()(
         }),
     }),
     {
-      name: "cuira-plan-v46",
+      name: "cuira-plan-v47",
       // Schema-Version: MUSS mit dem name-Suffix (vNN) und
       // AKTUELLE_SCHEMA_VERSION in plan-export.ts übereinstimmen.
-      version: 46,
+      version: 47,
       // Bei jedem Persist: Top-Level-Variant in plaene[aktiverPlan] mergen
       // — damit nach Reload kein Drift zwischen Top-Level und gespeichertem
       // Plan-Slot existiert.

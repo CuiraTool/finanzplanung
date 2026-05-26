@@ -164,12 +164,20 @@ function blockIstErledigt(blockId: number, s: PlanState): boolean {
   switch (blockId) {
     case 1:
       return !!(s.person1.vorname && s.person1.geburtsdatum);
-    case 2:
-      // Wunschverbrauch oder einmalige Ausgaben — Pensionsalter ist Default.
+    case 2: {
+      // Wunschverbrauch, einmalige Ausgaben ODER abweichendes Bezugsalter
+      // (Default ist 65). Wenn Berater Pensionsalter geändert hat → Block
+      // erfasst, auch ohne Wunschverbrauch.
+      const istPaar = s.fallart === "paar";
+      const p1Abweicht = s.ziele.bezugsalterP1 !== 65;
+      const p2Abweicht = istPaar && s.ziele.bezugsalterP2 !== 65;
       return (
         (s.budget.wunschverbrauchPension ?? 0) > 0 ||
-        s.einmaligeAusgaben.length > 0
+        s.einmaligeAusgaben.length > 0 ||
+        p1Abweicht ||
+        p2Abweicht
       );
+    }
     case 3:
       return (
         (s.budget.einkommenHeute ?? 0) > 0 ||
@@ -198,14 +206,19 @@ function blockIstErledigt(blockId: number, s: PlanState): boolean {
       // Optional — gilt nur als erfasst wenn ≥ 1 Liegenschaft mit Verkehrswert
       return s.immobilien.items.some((im) => (im.verkehrswert ?? 0) > 0);
     case 9:
-      // Nur wenn der Berater aktiv "Firma vorhanden + Name" gesetzt hat.
-      // "Keine Firma" als Default zählt nicht — wir wissen nicht, ob der
-      // Berater das geprüft hat.
-      return s.firma.vorhanden && !!s.firma.firmenname;
+      // Firma vorhanden + Name ODER Berater hat aktiv "geprüft / nicht
+      // zutreffend" bestätigt. Default false = noch nicht geprüft.
+      return (
+        (s.firma.vorhanden && !!s.firma.firmenname) ||
+        s.firma.geprueft === true
+      );
     case 10:
-      // Mindestens ein Nachlass-Dokument mit Häkchen.
-      return (Object.values(s.nachlass) as string[]).some(
-        (v) => v === "ja" || v === "nicht_notwendig"
+      // Mindestens ein Häkchen ODER Berater hat aktiv "Themen besprochen"
+      // bestätigt (auch wenn alle Felder "nein" = noch nichts erledigt).
+      return (
+        (Object.values(s.nachlass) as string[]).some(
+          (v) => v === "ja" || v === "nicht_notwendig"
+        ) || s.nachlassGeprueft === true
       );
     default:
       return false;
