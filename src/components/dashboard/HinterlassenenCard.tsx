@@ -46,6 +46,13 @@ export function HinterlassenenCard() {
 
   const istKonkubinat = state.zivilstand === "konkubinat";
 
+  // Art. 24b AHVG greift nur wenn Überlebender bereits eigene Altersrente
+  // BEZIEHT — bei aktiv-erwerbstätigen Personen läuft noch keine Altersrente.
+  // Fix 2026-05-26: nur dann eigeneAhvAltersrente übergeben, wenn Person
+  // den AHV-Bezugsalter bereits erreicht hat.
+  const p1Pensioniert = alterP1 >= state.ahv.ahvBezugsalterP1;
+  const p2Pensioniert = alterP2 >= state.ahv.ahvBezugsalterP2;
+
   // Tod P1: P2 als Überlebende — Reglement-Sätze aus P1's BVG
   const todP1 = berechneHinterlassenen({
     ahvAltersrenteVerstorbener: pensP1.ahv,
@@ -53,7 +60,8 @@ export function HinterlassenenCard() {
     alterUeberlebender: alterP2,
     ehejahre: istKonkubinat ? 0 : ehejahre,
     halbwaisen: anzahlKinder,
-    eigeneAhvAltersrente: pensP2.ahv > 0 ? pensP2.ahv : undefined,
+    eigeneAhvAltersrente:
+      p2Pensioniert && pensP2.ahv > 0 ? pensP2.ahv : undefined,
     bvgWitwenrenteProzent: state.bvg.p1.witwenrenteProzent,
     bvgHalbwaisenrenteProzent: state.bvg.p1.halbwaisenrenteProzent,
     bvgVollwaisenrenteProzent: state.bvg.p1.vollwaisenrenteProzent,
@@ -68,7 +76,8 @@ export function HinterlassenenCard() {
     alterUeberlebender: alterP1,
     ehejahre: istKonkubinat ? 0 : ehejahre,
     halbwaisen: anzahlKinder,
-    eigeneAhvAltersrente: pensP1.ahv > 0 ? pensP1.ahv : undefined,
+    eigeneAhvAltersrente:
+      p1Pensioniert && pensP1.ahv > 0 ? pensP1.ahv : undefined,
     bvgWitwenrenteProzent: state.bvg.p2.witwenrenteProzent,
     bvgHalbwaisenrenteProzent: state.bvg.p2.halbwaisenrenteProzent,
     bvgVollwaisenrenteProzent: state.bvg.p2.vollwaisenrenteProzent,
@@ -106,6 +115,14 @@ export function HinterlassenenCard() {
         Pensionsalter). Witwen-Sätze: AHV 80 %, BVG 60 %. Waisen: AHV 40 %,
         BVG 20 %. Bei eigener Altersrente: Art. 24b AHVG — nur die höhere
         Rente wird ausbezahlt.
+        {anzahlKinder > 0 && (
+          <>
+            <br />
+            <strong>Waisenrenten:</strong> Bezug bis zum 18. Geburtstag, bei
+            laufender Ausbildung bis maximal zum 25. Geburtstag (Art. 25
+            AHVG / Art. 22 BVG). Danach fallen sie weg.
+          </>
+        )}
       </div>
     </div>
   );

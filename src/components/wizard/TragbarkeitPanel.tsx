@@ -45,10 +45,25 @@ export function TragbarkeitPanel() {
   // Brutto-Approximation aus den Netto-Einnahmen (Block 3) aller Personen
   // mal 12 mal 1.15 (≈ Netto → Brutto-Hochrechnung für Bankenstandard).
   // Fallback: Anker-Bruttoeinkommen aus Steuer-Veranlagung wenn explizit gesetzt.
-  const nettoMonatlichSumme = fullState.budget.einkommen.reduce(
-    (sum, e) => sum + (e.betragMonatlich ?? 0),
-    0
-  );
+  // WICHTIG: Nur AKTUELL aktive Perioden summieren (Bug-Fix 2026-05-26 —
+  // vorher wurden alle Perioden inkl. zukünftiger/vergangener addiert).
+  const heuteJahr = new Date().getFullYear();
+  const parsYm = (s: string): { jahr: number; monat: number } | null => {
+    if (!s) return null;
+    const [j, m] = s.split("-").map(Number);
+    if (!j || !m) return null;
+    return { jahr: j, monat: m };
+  };
+  const nettoMonatlichSumme = fullState.budget.einkommen.reduce((sum, e) => {
+    const betrag = e.betragMonatlich ?? 0;
+    if (betrag <= 0) return sum;
+    const von = parsYm(e.von);
+    const bis = parsYm(e.bis);
+    // Periode aktiv im aktuellen Jahr?
+    if (von && heuteJahr < von.jahr) return sum;
+    if (bis && heuteJahr > bis.jahr) return sum;
+    return sum + betrag;
+  }, 0);
   const bruttoApproxAusNetto = Math.round(nettoMonatlichSumme * 12 * 1.15);
   const einkommenHeute =
     fullState.budget.einkommenHeute && fullState.budget.einkommenHeute > 0

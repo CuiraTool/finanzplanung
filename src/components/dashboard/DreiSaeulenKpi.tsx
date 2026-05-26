@@ -6,6 +6,7 @@ import {
   bvgGesamtkapitalBeiBezug,
   bvgBezug,
 } from "@/engine/bvg";
+import { saeuleDreiAuszahlung } from "@/engine/saeule3";
 import { formatChf } from "@/lib/format";
 
 /**
@@ -202,11 +203,16 @@ function bvgKapitalPerson(
 }
 
 function saeuleDreiSumme(items: import("@/lib/store").SaeuleDreiEntry[]): number {
+  // Fix 2026-05-26: nutze saeuleDreiAuszahlung() — projiziert mit Rendite +
+  // jährlichen Einzahlungen auf das Auszahlungsjahr. Vorher nur aktuellerWert
+  // (heutiger Stand) → ignorierte simulierte Einzahlungen.
+  const heute = new Date().getFullYear();
   return items.reduce((s, it) => {
-    if (it.type === "konto") return s + (it.aktuellerWert ?? 0);
-    if (it.type === "versicherung")
-      return s + (it.ablaufswert ?? it.rueckkaufswert ?? 0);
-    return s;
+    const auszahlung = saeuleDreiAuszahlung(
+      it as Parameters<typeof saeuleDreiAuszahlung>[0],
+      heute
+    );
+    return s + (auszahlung?.betrag ?? 0);
   }, 0);
 }
 
