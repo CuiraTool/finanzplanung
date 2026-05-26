@@ -878,9 +878,9 @@ export default function PrintPage() {
                 Vermögens-Komponenten zum Jahresende.
               </p>
               <p className="mb-2 text-[10px]" style={{ color: "#8390a3" }}>
-                Hinweis: Diese breite Tabelle wird im Querformat gedruckt. Für
-                die korrekte Darstellung empfiehlt sich der Druck über Google
-                Chrome.
+                Hinweis: Sehr breite Tabelle — im Druck mit reduzierter Schrift.
+                Falls die Spalten zu eng wirken, das Detail-Liquiditäts-
+                Toggle ausschalten oder die Vorschau auf 90 % skalieren.
               </p>
               <DetailLiquiditaetTable daten={cashflow} printMode />
             </Section>
@@ -1620,22 +1620,25 @@ export default function PrintPage() {
             page-break-inside: avoid;
             break-inside: avoid;
           }
-          /* Detail-Liquidität: Querformat damit die breite Tabelle passt.
-             @page benannt → Section bekommt eigene Querformat-Seite. */
-          @page detail-liq {
-            size: A4 landscape;
-            margin: 12mm;
-          }
+          /* Detail-Liquidität: NUR portrait — Safari rendert named @page
+             mit landscape nicht zuverlässig und produziert leere Folge-
+             Seiten (Bug 2026-05-26). Schrift verkleinert damit die breite
+             Tabelle passt; break-after stellt sicher, dass Folge-Sektionen
+             auf neuer Seite weitermachen. */
           .print-detail-liq {
-            page: detail-liq;
+            page-break-after: always;
+            break-after: page;
           }
           .print-detail-liq table {
-            font-size: 7.5pt;
+            font-size: 6.5pt;
             width: 100%;
+            table-layout: fixed;
           }
           .print-detail-liq td,
           .print-detail-liq th {
-            padding: 2px 4px;
+            padding: 1px 2px;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
           }
           .chart-section {
             page-break-inside: avoid;
