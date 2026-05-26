@@ -1529,10 +1529,29 @@ export default function PrintPage() {
             @bottom-left { content: ""; }
             @bottom-center { content: ""; }
           }
+          /* Fix: globals.css setzt html/body height:100% → clipt im Print
+             den Content auf Viewport-Höhe → leere Folge-Seiten. Print muss
+             height:auto + min-height:0 sein damit alle Seiten gerendert. */
+          html,
           body {
+            height: auto !important;
+            min-height: 0 !important;
             background: white !important;
+            color: #0a2540 !important;
+            overflow: visible !important;
+          }
+          body {
             font-size: 10pt;
             line-height: 1.4;
+          }
+          main {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          article {
+            height: auto !important;
+            overflow: visible !important;
           }
           .page-break-before {
             page-break-before: always;
