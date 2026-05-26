@@ -334,11 +334,37 @@ export default function PrintPage() {
 
   const tragbarkeitHeute = useMemo(() => {
     if (fullState.immobilien.items.length === 0) return null;
-    return tragbarkeitHaushalt(
-      fullState.immobilien.items,
-      fullState.budget.einkommenHeute ?? 0
-    );
-  }, [fullState.immobilien.items, fullState.budget.einkommenHeute]);
+    // Brutto-Approximation: Anker-Wert (budget.einkommenHeute) bevorzugt,
+    // sonst Σ aktive Netto-Perioden × 12 × 1.15 (gleich wie Wizard
+    // TragbarkeitPanel — Fix 2026-05-26: Print zeigte vorher "nicht
+    // gegeben" weil einkommenHeute oft null/0 ist).
+    const heuteJahr = new Date().getFullYear();
+    const parsYm = (s: string): { jahr: number; monat: number } | null => {
+      if (!s) return null;
+      const [j, m] = s.split("-").map(Number);
+      if (!j || !m) return null;
+      return { jahr: j, monat: m };
+    };
+    const nettoMtl = fullState.budget.einkommen.reduce((sum, e) => {
+      const b = e.betragMonatlich ?? 0;
+      if (b <= 0) return sum;
+      const von = parsYm(e.von);
+      const bis = parsYm(e.bis);
+      if (von && heuteJahr < von.jahr) return sum;
+      if (bis && heuteJahr > bis.jahr) return sum;
+      return sum + b;
+    }, 0);
+    const bruttoApprox = Math.round(nettoMtl * 12 * 1.15);
+    const einkommen =
+      fullState.budget.einkommenHeute && fullState.budget.einkommenHeute > 0
+        ? fullState.budget.einkommenHeute
+        : bruttoApprox;
+    return tragbarkeitHaushalt(fullState.immobilien.items, einkommen);
+  }, [
+    fullState.immobilien.items,
+    fullState.budget.einkommenHeute,
+    fullState.budget.einkommen,
+  ]);
 
   const tragbarkeitPension = useMemo(() => {
     if (fullState.immobilien.items.length === 0) return null;
@@ -829,7 +855,7 @@ export default function PrintPage() {
 
         {/* ── Vermögensentwicklung-Chart (eigene Seite) ───────── */}
         {showInProfile("vermoegens-chart") && (
-          <div className="page-break-before pt-4 chart-section">
+          <div className="page-break-soft pt-4 chart-section">
             <Section titel="Vermögensentwicklung">
               <div className="chart-wrap chart-wrap--tall">
                 {cashflow.length > 0 && (
@@ -849,7 +875,7 @@ export default function PrintPage() {
 
         {/* ── Cashflow-Chart (eigene Seite) ───────────────────── */}
         {showInProfile("cashflow-chart") && (
-          <div className="page-break-before pt-4 chart-section">
+          <div className="page-break-soft pt-4 chart-section">
             <Section titel="Cashflow Jahr für Jahr">
               <div className="chart-wrap chart-wrap--tall">
                 {cashflow.length > 0 && (
@@ -948,7 +974,7 @@ export default function PrintPage() {
 
         {/* ── Steuerentwicklung-Chart + Detail-Card (eigene Seite) ──── */}
         {showInProfile("steuer-chart") && cashflow.length > 0 && (
-          <div className="page-break-before pt-4 chart-section">
+          <div className="page-break-soft pt-4 chart-section">
             <Section titel="Steuerentwicklung">
               <div className="chart-wrap chart-wrap--tall">
                 <SteuerChart
@@ -1557,13 +1583,15 @@ export default function PrintPage() {
             page-break-before: always;
             break-before: page;
           }
-          /* Tiago-Fix: "soft" break — Sections kombinieren bis Seite voll.
-             Browser entscheidet automatisch wann Umbruch. */
+          /* "soft" break — Sections kombinieren bis Seite voll.
+             Browser entscheidet automatisch wann Umbruch.
+             Fix 2026-05-26: margin-top 18mm → 6mm — vorher entstand viel
+             ungenutzter Whitespace zwischen kleinen Sections. */
           .page-break-soft {
             page-break-before: auto;
             break-before: auto;
             break-inside: avoid;
-            margin-top: 18mm;
+            margin-top: 6mm;
           }
           .page-break-soft:first-of-type {
             margin-top: 0;
