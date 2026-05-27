@@ -910,9 +910,11 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Detail-Liquidität pro Jahr — User-Toggle + Profil ── */}
+        {/* ── Detail-Liquidität pro Jahr — direkt nach Cashflow-Chart
+            damit Cashflow-Thema beieinander bleibt (analog Vermögens-/
+            Steuer-Thema) ── */}
         {showInProfile("detail-liq") && showDetailLiq && cashflow.length > 0 && (
-          <div className="page-break-before pt-4 print-detail-liq">
+          <div className="page-break-soft pt-4 print-detail-liq">
             <Section titel="Detail-Liquidität pro Jahr">
               <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
                 Vollständige Jahres-Aufstellung — Einnahmen-Splits (Erwerb netto,
