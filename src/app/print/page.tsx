@@ -873,6 +873,23 @@ export default function PrintPage() {
           </div>
         )}
 
+        {/* ── Vermögensentwicklung pro Jahr (Detail-Tabelle direkt
+            nach Vermögens-Chart, damit Vermögen-Thema beieinander) ── */}
+        {showInProfile("jahres-tabellen") && cashflow.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Vermögensentwicklung pro Jahr">
+              <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+                Aufschlüsselung nach Vermögensklasse — kompakte Übersicht der
+                gesamten Projektion.
+              </p>
+              <VermoegensJahresTabelle
+                cashflow={cashflow}
+                fallart={fullState.fallart}
+              />
+            </Section>
+          </div>
+        )}
+
         {/* ── Cashflow-Chart (eigene Seite) ───────────────────── */}
         {showInProfile("cashflow-chart") && (
           <div className="page-break-soft pt-4 chart-section">
@@ -945,33 +962,6 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── Jahres-Tabellen (Vermögen + Steuern) (E2-5) ────── */}
-        {showInProfile("jahres-tabellen") && cashflow.length > 0 && (
-          <div className="page-break-before pt-4">
-            <Section titel="Vermögensentwicklung pro Jahr">
-              <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
-                Aufschlüsselung nach Vermögensklasse — kompakte Übersicht der
-                gesamten Projektion.
-              </p>
-              <VermoegensJahresTabelle
-                cashflow={cashflow}
-                fallart={fullState.fallart}
-              />
-            </Section>
-            <div className="mt-6">
-              <Section titel="Steuern pro Jahr">
-                <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
-                  Einkommen + Vermögen + Kapital-Auszahlungs-Steuer pro Jahr.
-                </p>
-                <SteuerJahresTabelle
-                  cashflow={cashflow}
-                  fallart={fullState.fallart}
-                />
-              </Section>
-            </div>
-          </div>
-        )}
-
         {/* ── Steuerentwicklung-Chart + Detail-Card (eigene Seite) ──── */}
         {showInProfile("steuer-chart") && cashflow.length > 0 && (
           <div className="page-break-soft pt-4 chart-section">
@@ -987,6 +977,22 @@ export default function PrintPage() {
               <div className="mt-4 print-steuer-detail">
                 <SteuerDetailCard cashflow={cashflow} />
               </div>
+            </Section>
+          </div>
+        )}
+
+        {/* ── Steuer-Jahres-Tabelle direkt nach Steuer-Chart, damit
+            Steuer-Thema beieinander bleibt ── */}
+        {showInProfile("jahres-tabellen") && cashflow.length > 0 && (
+          <div className="page-break-before pt-4">
+            <Section titel="Steuern pro Jahr">
+              <p className="mb-2 text-xs" style={{ color: "#4b566b" }}>
+                Einkommen + Vermögen + Kapital-Auszahlungs-Steuer pro Jahr.
+              </p>
+              <SteuerJahresTabelle
+                cashflow={cashflow}
+                fallart={fullState.fallart}
+              />
             </Section>
           </div>
         )}
